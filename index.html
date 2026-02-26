@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>個人投資儀表板 (全球資產版)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         :root {
             --bg-color: #f0f2f5;
@@ -14,7 +15,6 @@
             --border-color: #eaeaea;
             --red-profit: #d93025; 
             --green-loss: #188038;
-            --primary-color: #2c3e50;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -35,7 +35,6 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
-        /* 頂部控制台：頁籤與匯入按鈕 */
         .control-panel {
             position: sticky;
             top: 0;
@@ -45,63 +44,17 @@
             margin-bottom: 4px;
         }
         
-        .tabs {
-            display: flex;
-            background-color: #e4e6eb;
-            border-radius: 8px;
-            padding: 3px;
-            margin-bottom: 10px;
-        }
-        .tab-btn {
-            flex: 1;
-            text-align: center;
-            padding: 8px 0;
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-muted);
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .tab-btn.active {
-            background-color: var(--card-bg);
-            color: var(--text-main);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
+        .tabs { display: flex; background-color: #e4e6eb; border-radius: 8px; padding: 3px; margin-bottom: 10px; }
+        .tab-btn { flex: 1; text-align: center; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--text-muted); border-radius: 6px; cursor: pointer; }
+        .tab-btn.active { background-color: var(--card-bg); color: var(--text-main); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
-        .import-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .import-row { display: flex; justify-content: space-between; align-items: center; }
         .import-buttons { display: flex; gap: 8px; }
-        .btn-upload {
-            background-color: var(--card-bg);
-            border: 1px solid #ccc;
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-main);
-            display: inline-block;
-            cursor: pointer;
-        }
-        .btn-upload:active { background-color: #f0f0f0; }
-        /* 隱藏真實的 file input */
+        .btn-upload { background-color: var(--card-bg); border: 1px solid #ccc; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--text-main); display: inline-block; cursor: pointer; }
         input[type="file"] { display: none; }
 
-        .exchange-rate {
-            font-size: 11px;
-            color: var(--text-muted);
-            background-color: #e8f4fd;
-            padding: 4px 8px;
-            border-radius: 4px;
-            border: 1px solid #cde4f7;
-            display: flex;
-            align-items: center;
-        }
+        .exchange-rate { font-size: 11px; color: var(--text-muted); background-color: #e8f4fd; padding: 4px 8px; border-radius: 4px; border: 1px solid #cde4f7; display: flex; align-items: center; }
 
-        /* 卡片標題與數據列 */
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
         .card-title { font-size: 15px; font-weight: 700; margin: 0; color: #333; }
         .card-subtitle { font-size: 12px; color: var(--text-muted); }
@@ -115,19 +68,10 @@
         .text-red { color: var(--red-profit); }
         .text-green { color: var(--green-loss); }
 
-        /* Tooltip 圖示 */
-        .info-icon {
-            display: inline-block;
-            width: 14px; height: 14px;
-            line-height: 14px; text-align: center;
-            border-radius: 50%;
-            background-color: #ccc; color: #fff;
-            font-size: 10px; font-weight: bold; font-family: sans-serif;
-            margin-left: 4px; cursor: pointer;
-        }
+        .info-icon { display: inline-block; width: 14px; height: 14px; line-height: 14px; text-align: center; border-radius: 50%; background-color: #ccc; color: #fff; font-size: 10px; font-weight: bold; font-family: sans-serif; margin-left: 4px; cursor: pointer; }
 
         .badge { background-color: #fff3cd; color: #856404; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 6px; font-weight: 600; }
-        .badge-market { background-color: #e0e0e0; color: #333; font-size: 9px; padding: 2px 4px; border-radius: 3px; margin-right: 4px; font-weight: normal; }
+        .badge-market { background-color: #e0e0e0; color: #333; font-size: 9px; padding: 2px 4px; border-radius: 3px; margin-right: 4px; }
 
         .list-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-color); }
         .list-row:last-child { border-bottom: none; padding-bottom: 0; }
@@ -147,16 +91,16 @@
 
     <div class="control-panel">
         <div class="tabs">
-            <div class="tab-btn active" onclick="alert('切換至：全球總覽 (台美股合併計算)')">全球總覽</div>
-            <div class="tab-btn" onclick="alert('切換至：僅顯示台股')">🇹🇼 台股</div>
-            <div class="tab-btn" onclick="alert('切換至：僅顯示美股')">🇺🇸 美股</div>
+            <div class="tab-btn active">全球總覽</div>
+            <div class="tab-btn">🇹🇼 台股</div>
+            <div class="tab-btn">🇺🇸 美股</div>
         </div>
         <div class="import-row">
             <div class="import-buttons">
-                <label for="upload-tw" class="btn-upload">📁 匯入台股</label>
+                <label for="upload-tw" id="label-tw" class="btn-upload">📁 匯入台股</label>
                 <input type="file" id="upload-tw" accept=".csv">
                 
-                <label for="upload-us" class="btn-upload">📁 匯入美股</label>
+                <label for="upload-us" id="label-us" class="btn-upload">📁 匯入美股</label>
                 <input type="file" id="upload-us" accept=".csv">
             </div>
             <div class="exchange-rate">
@@ -168,39 +112,16 @@
 
     <div class="card">
         <div class="top-stats-grid">
-            <div class="stat-item">
-                <span class="stat-label">總現值 (TWD)</span>
-                <span class="stat-main num">1,346,520</span>
-                <span class="stat-sub text-muted num">成本 1,048,250</span>
-            </div>
+            <div class="stat-item"><span class="stat-label">總現值 (TWD)</span><span class="stat-main num">1,346,520</span><span class="stat-sub text-muted num">成本 1,048,250</span></div>
+            <div class="stat-item" style="text-align: right;"><span class="stat-label">累積總盈虧</span><span class="stat-main text-red num">+298,270</span><span class="stat-sub text-red num">+28.45%</span></div>
+            <div class="stat-item"><span class="stat-label">今日盈虧 (預估)</span><span class="stat-main text-red num">+15,250</span><span class="stat-sub text-red num">+1.14%</span></div>
+            <div class="stat-item" style="text-align: right;"><span class="stat-label">YTD 績效 (今年以來)</span><span class="stat-main text-red num">+124,100</span><span class="stat-sub text-red num">+10.15%</span></div>
+            <div class="stat-item"><span class="stat-label">整體年化報酬 (1Y)</span><span class="stat-main text-red num">+18.6%</span></div>
             <div class="stat-item" style="text-align: right;">
-                <span class="stat-label">累積總盈虧</span>
-                <span class="stat-main text-red num">+298,270</span>
-                <span class="stat-sub text-red num">+28.45%</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">今日盈虧 (預估)</span>
-                <span class="stat-main text-red num">+15,250</span>
-                <span class="stat-sub text-red num">+1.14%</span>
-            </div>
-            <div class="stat-item" style="text-align: right;">
-                <span class="stat-label">YTD 績效 (今年以來)</span>
-                <span class="stat-main text-red num">+124,100</span>
-                <span class="stat-sub text-red num">+10.15%</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-label">整體年化報酬 (1Y)</span>
-                <span class="stat-main text-red num">+18.6%</span>
-            </div>
-            <div class="stat-item" style="text-align: right;">
-                <span class="stat-label" style="justify-content: flex-end;">預估年現金流 (股息) 
-                    <span class="info-icon" onclick="alert('【現金流計算方式】\n此數據是依據您目前的總持股數，乘上市場預估之「未來 12 個月殖利率」所推算之總和，並已將美股股息依目前匯率換算為台幣。')">i</span>
-                </span>
-                <span class="stat-main text-red num">$62,400</span>
-                <span class="stat-sub text-muted num">殖利率約 4.6%</span>
+                <span class="stat-label" style="justify-content: flex-end;">未來 12 個月預估股息<span class="info-icon" onclick="alert('【現金流計算方式】\n此數據是依據您目前的總持股數，乘上市場預估之「未來 12 個月殖利率」所推算之總和，並已將美股股息依目前匯率換算為台幣。')">i</span></span>
+                <span class="stat-main text-red num">$62,400</span><span class="stat-sub text-muted num">殖利率約 4.6%</span>
             </div>
         </div>
-        
         <div class="chart-container-large" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 16px;">
             <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-align: center;">蒙地卡羅未來 10 年資產推算 (P10 - P90)</div>
             <canvas id="monteCarloChart"></canvas>
@@ -208,9 +129,7 @@
     </div>
 
     <div class="card">
-        <div class="card-header">
-            <h2 class="card-title">資產配置 (全球總現值佔比)</h2>
-        </div>
+        <div class="card-header"><h2 class="card-title">資產配置 (全球總現值佔比)</h2></div>
         <div style="display: flex; align-items: center;">
             <div style="flex: 1;"><div class="chart-container-small"><canvas id="allocationChart"></canvas></div></div>
             <div style="flex: 1.2; padding-left: 10px; font-size: 12px;" class="scrollable-list">
@@ -225,65 +144,99 @@
     </div>
 
     <div class="card">
-        <div class="card-header">
-            <h2 class="card-title">全球持股績效排行</h2>
-            <span class="card-subtitle">成本 vs 目前現值 (TWD)</span>
-        </div>
-        <div class="chart-container-bar">
-            <canvas id="performanceChart"></canvas>
-        </div>
-        <div style="text-align: center; font-size: 11px; color: #888; margin-top: 8px;">
-            依累積報酬率由高至低排序 (美股已換算台幣)
-        </div>
+        <div class="card-header"><h2 class="card-title">全球持股績效排行</h2><span class="card-subtitle">成本 vs 目前現值 (TWD)</span></div>
+        <div class="chart-container-bar"><canvas id="performanceChart"></canvas></div>
+        <div style="text-align: center; font-size: 11px; color: #888; margin-top: 8px;">依累積報酬率由高至低排序 (美股已換算台幣)</div>
     </div>
 
     <div class="card">
-        <div class="card-header">
-            <h2 class="card-title">風險與報酬量化</h2>
-            <span class="card-subtitle">CAGR vs 標準差</span>
-        </div>
+        <div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 標準差</span></div>
         <div class="scrollable-list">
-            <div class="list-row">
-                <div class="col-left">
-                    <div class="item-name"><span class="badge-market">US</span> NVDA</div>
-                    <div class="item-sub">期間: 10年 | 年化標準差: 48.2%</div>
-                </div>
-                <div class="col-right">
-                    <div class="item-name text-red num">+65.4%</div>
-                    <div class="item-sub">CAGR</div>
-                </div>
-            </div>
-            <div class="list-row">
-                <div class="col-left">
-                    <div class="item-name"><span class="badge-market">TW</span> 元大台灣50</div>
-                    <div class="item-sub">期間: 10年 | 年化標準差: 16.2%</div>
-                </div>
-                <div class="col-right">
-                    <div class="item-name text-red num">+12.5%</div>
-                    <div class="item-sub">CAGR</div>
-                </div>
-            </div>
-            <div class="list-row">
-                <div class="col-left">
-                    <div class="item-name"><span class="badge-market">US</span> AMZN</div>
-                    <div class="item-sub">期間: 10年 | 年化標準差: 32.1%</div>
-                </div>
-                <div class="col-right">
-                    <div class="item-name text-red num">+22.8%</div>
-                    <div class="item-sub">CAGR</div>
-                </div>
-            </div>
+            <div class="list-row"><div class="col-left"><div class="item-name"><span class="badge-market">US</span> NVDA</div><div class="item-sub">期間: 10年 | 年化標準差: 48.2%</div></div><div class="col-right"><div class="item-name text-red num">+65.4%</div><div class="item-sub">CAGR</div></div></div>
+            <div class="list-row"><div class="col-left"><div class="item-name"><span class="badge-market">TW</span> 元大台灣50</div><div class="item-sub">期間: 10年 | 年化標準差: 16.2%</div></div><div class="col-right"><div class="item-name text-red num">+12.5%</div><div class="item-sub">CAGR</div></div></div>
+            <div class="list-row"><div class="col-left"><div class="item-name"><span class="badge-market">US</span> AMZN</div><div class="item-sub">期間: 10年 | 年化標準差: 32.1%</div></div><div class="col-right"><div class="item-name text-red num">+22.8%</div><div class="item-sub">CAGR</div></div></div>
         </div>
     </div>
 
     <script>
-        // --- 1. 蒙地卡羅熱力圖 (拉高整體資產表現以符合美股加入) ---
+        // ----------------------------------------------------
+        // 1. 資料解析與正規化
+        // ----------------------------------------------------
+        let globalPortfolio = { tw: [], us: [] };
+
+        function parseNum(str) {
+            if (!str) return 0;
+            return parseFloat(str.toString().replace(/,/g, '').replace('%', ''));
+        }
+
+        function handleFileUpload(event, market) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    const data = results.data;
+                    let normalizedData = [];
+                    
+                    if (market === 'tw') {
+                        normalizedData = data.map(function(row) {
+                            return {
+                                market: 'TW',
+                                symbol: null,
+                                name: row['股票名稱'],
+                                shares: parseNum(row['股數']),
+                                cost: parseNum(row['付出成本']),
+                                marketValue: parseNum(row['現值']),
+                                profit: parseNum(row['預估損益']),
+                                returnRate: parseNum(row['報酬率']),
+                                currency: 'TWD'
+                            };
+                        });
+                        document.getElementById('label-tw').innerText = '✅ 台股 (' + normalizedData.length + ' 筆)';
+                    } else if (market === 'us') {
+                        normalizedData = data.map(function(row) {
+                            return {
+                                market: 'US',
+                                symbol: row['代號'],
+                                name: row['股票名稱'],
+                                shares: parseNum(row['目前庫存']),
+                                cost: parseNum(row['庫存成本']),
+                                marketValue: parseNum(row['現值']),
+                                profit: parseNum(row['投資損益']),
+                                returnRate: parseNum(row['報酬率']),
+                                currency: 'USD'
+                            };
+                        });
+                        document.getElementById('label-us').innerText = '✅ 美股 (' + normalizedData.length + ' 筆)';
+                    }
+
+                    globalPortfolio[market] = normalizedData;
+                    
+                    const marketName = (market === 'tw') ? '台股' : '美股';
+                    if (normalizedData.length > 0) {
+                        alert('🎉 成功讀取 ' + marketName + ' CSV！\n共載入 ' + normalizedData.length + ' 筆資料。\n第一筆：' + normalizedData[0].name);
+                    }
+                },
+                error: function(err) {
+                    alert("讀取檔案失敗：" + err.message);
+                }
+            });
+        }
+
+        document.getElementById('upload-tw').addEventListener('change', function(e) { handleFileUpload(e, 'tw'); });
+        document.getElementById('upload-us').addEventListener('change', function(e) { handleFileUpload(e, 'us'); });
+
+
+        // ----------------------------------------------------
+        // 2. 蒙地卡羅熱力圖
+        // ----------------------------------------------------
         const ctxMC = document.getElementById('monteCarloChart').getContext('2d');
-        const labelsMC = ['-1Y', '-6M', '今天', '+1Y', '+3Y', '+5Y', '+10Y'];
         new Chart(ctxMC, {
             type: 'line',
             data: {
-                labels: labelsMC,
+                labels: ['-1Y', '-6M', '今天', '+1Y', '+3Y', '+5Y', '+10Y'],
                 datasets: [
                     { label: '極端樂觀 (P90)', data: [null, null, 134, 165, 220, 310, 520], borderColor: 'transparent', backgroundColor: 'rgba(217, 48, 37, 0.05)', fill: '+1', pointRadius: 0, tension: 0.4 },
                     { label: '樂觀預期 (P70)', data: [null, null, 134, 150, 190, 240, 380], borderColor: 'transparent', backgroundColor: 'rgba(217, 48, 37, 0.15)', fill: '+1', pointRadius: 0, tension: 0.4 },
@@ -293,10 +246,25 @@
                     { label: '過去 1 年真實資產', data: [102, 115, 134, null, null, null, null], borderColor: '#1a1a1a', borderWidth: 2, fill: false, pointRadius: [0, 0, 4, 0, 0, 0, 0], pointBackgroundColor: '#1a1a1a' }
                 ]
             },
-            options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { position: 'right', ticks: { callback: function(value) { return value + 'w'; } }, border: { display: false } } } }
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                interaction: { mode: 'index', intersect: false }, 
+                plugins: { legend: { display: false } }, 
+                scales: { 
+                    x: { grid: { display: false } }, 
+                    y: { 
+                        position: 'right', 
+                        ticks: { callback: function(value) { return value + 'w'; } }, 
+                        border: { display: false } 
+                    } 
+                } 
+            }
         });
 
-        // --- 2. 資產配置圓餅圖 ---
+        // ----------------------------------------------------
+        // 3. 資產配置圓餅圖
+        // ----------------------------------------------------
         const ctxAlloc = document.getElementById('allocationChart').getContext('2d');
         new Chart(ctxAlloc, {
             type: 'doughnut',
@@ -308,11 +276,17 @@
                     borderWidth: 0 
                 }]
             },
-            options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } }
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                cutout: '75%', 
+                plugins: { legend: { display: false } } 
+            }
         });
 
-        // --- 3. 全球績效排行 (水平長條圖) ---
-        // 假資料：將 NVDA (成本162k, 現值228k) 與 CRWD (成本152k, 現值177k) 加入並依報酬率排序
+        // ----------------------------------------------------
+        // 4. 全球績效排行長條圖
+        // ----------------------------------------------------
         const ctxPerf = document.getElementById('performanceChart').getContext('2d');
         new Chart(ctxPerf, {
             type: 'bar',
@@ -321,8 +295,10 @@
                 datasets: [
                     { 
                         label: '付出成本', 
-                        data: [144, 162, 152, 93, 236, 110, 159], // 單位: k
-                        backgroundColor: '#e0e0e0', barPercentage: 0.75, categoryPercentage: 0.6 
+                        data: [144, 162, 152, 93, 236, 110, 159], 
+                        backgroundColor: '#e0e0e0', 
+                        barPercentage: 0.75, 
+                        categoryPercentage: 0.6 
                     },
                     { 
                         label: '目前現值', 
@@ -331,19 +307,40 @@
                             const val = context.dataset.data[context.dataIndex];
                             const cost = context.chart.data.datasets[0].data[context.dataIndex];
                             return val >= cost ? '#d93025' : '#188038'; 
-                        }, barPercentage: 0.75, categoryPercentage: 0.6 
+                        }, 
+                        barPercentage: 0.75, 
+                        categoryPercentage: 0.6 
                     }
                 ]
             },
             options: { 
-                indexAxis: 'y', responsive: true, maintainAspectRatio: false, 
+                indexAxis: 'y', 
+                responsive: true, 
+                maintainAspectRatio: false, 
                 scales: { 
-                    x: { beginAtZero: true, grid: { display: false }, ticks: { callback: function(value) { return value + 'k'; } } }, 
-                    y: { grid: { display: false }, ticks: { font: { size: 11 } } } 
+                    x: { 
+                        beginAtZero: true, 
+                        grid: { display: false }, 
+                        ticks: { callback: function(value) { return value + 'k'; } } 
+                    }, 
+                    y: { 
+                        grid: { display: false }, 
+                        ticks: { font: { size: 11 } } 
+                    } 
                 }, 
                 plugins: { 
-                    legend: { position: 'top', align: 'end', labels: { boxWidth: 10, usePointStyle: true, font: { size: 10 } } },
-                    tooltip: { callbacks: { label: function(context) { return context.dataset.label + ': $' + (context.raw * 1000).toLocaleString(); } } }
+                    legend: { 
+                        position: 'top', 
+                        align: 'end', 
+                        labels: { boxWidth: 10, usePointStyle: true, font: { size: 10 } } 
+                    }, 
+                    tooltip: { 
+                        callbacks: { 
+                            label: function(context) { 
+                                return context.dataset.label + ': $' + (context.raw * 1000).toLocaleString(); 
+                            } 
+                        } 
+                    } 
                 } 
             }
         });
