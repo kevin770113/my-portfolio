@@ -1,6 +1,7 @@
-export default function handler(req, res) {
-    res.status(200).json({ 
-        status: "success", 
-        message: "恭喜！Vercel Serverless API 成功連線！" 
-    });
+{
+  "name": "portfolio-dashboard",
+  "version": "1.0.0",
+  "dependencies": {
+    "@vercel/kv": "^3.0.0"
+  }
 }
