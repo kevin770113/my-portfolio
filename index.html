@@ -15,59 +15,64 @@
             --border-color: #eaeaea;
             --red-profit: #d93025; 
             --green-loss: #188038;
+            --primary-dark: #2c3e50;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            margin: 0;
-            padding: 8px;
-            color: var(--text-main);
+            background-color: var(--bg-color); margin: 0; padding: 8px; color: var(--text-main);
         }
         * { box-sizing: border-box; }
 
         .num { font-variant-numeric: tabular-nums; font-family: "SF Pro Display", -apple-system, sans-serif; }
 
         .card {
-            background-color: var(--card-bg);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            background-color: var(--card-bg); border-radius: 12px; padding: 16px;
+            margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
         /* 讀取中的遮罩層 */
         #loading-overlay {
-            display: none;
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(255,255,255,0.9); z-index: 999;
             justify-content: center; align-items: center; flex-direction: column;
         }
         .spinner {
-            width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%;
-            animation: spin 1s linear infinite; margin-bottom: 10px;
+            width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db;
+            border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        .control-panel {
-            position: sticky; top: 0; z-index: 100;
-            background-color: var(--bg-color); padding-bottom: 8px; margin-bottom: 4px;
+        /* 自訂彈出視窗 (取代原生的 prompt) */
+        #custom-prompt-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center;
         }
-        
+        .custom-prompt-box {
+            background: var(--card-bg); border-radius: 12px; padding: 20px; width: 90%; max-width: 400px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2); animation: popIn 0.3s ease-out;
+        }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .prompt-title { font-size: 16px; font-weight: bold; margin-bottom: 12px; color: var(--text-main); }
+        .prompt-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.6; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; }
+        .prompt-input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; margin-bottom: 20px; text-transform: uppercase; }
+        .prompt-input:focus { outline: none; border-color: var(--primary-dark); box-shadow: 0 0 0 2px rgba(44,62,80,0.2); }
+        .prompt-actions { display: flex; justify-content: space-between; gap: 10px; }
+        .btn-skip { flex: 1; padding: 12px; background: #f0f2f5; border: none; border-radius: 6px; color: var(--text-muted); font-weight: bold; cursor: pointer; font-size: 14px; }
+        .btn-confirm { flex: 1; padding: 12px; background: var(--primary-dark); border: none; border-radius: 6px; color: white; font-weight: bold; cursor: pointer; font-size: 14px; }
+
+        .control-panel { position: sticky; top: 0; z-index: 100; background-color: var(--bg-color); padding-bottom: 8px; margin-bottom: 4px; }
         .tabs { display: flex; background-color: #e4e6eb; border-radius: 8px; padding: 3px; margin-bottom: 10px; }
         .tab-btn { flex: 1; text-align: center; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--text-muted); border-radius: 6px; cursor: pointer; }
         .tab-btn.active { background-color: var(--card-bg); color: var(--text-main); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-
         .import-row { display: flex; justify-content: space-between; align-items: center; }
         .import-buttons { display: flex; gap: 8px; }
         .btn-upload { background-color: var(--card-bg); border: 1px solid #ccc; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--text-main); display: inline-block; cursor: pointer; }
         input[type="file"] { display: none; }
-
         .exchange-rate { font-size: 11px; color: var(--text-muted); background-color: #e8f4fd; padding: 4px 8px; border-radius: 4px; border: 1px solid #cde4f7; display: flex; align-items: center; }
-
+        
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
         .card-title { font-size: 15px; font-weight: 700; margin: 0; color: #333; }
         .card-subtitle { font-size: 12px; color: var(--text-muted); }
-
         .top-stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 12px; margin-bottom: 16px; }
         .stat-item { display: flex; flex-direction: column; }
         .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px; display: flex; align-items: center; }
@@ -76,11 +81,9 @@
         
         .text-red { color: var(--red-profit); }
         .text-green { color: var(--green-loss); }
-
         .info-icon { display: inline-block; width: 14px; height: 14px; line-height: 14px; text-align: center; border-radius: 50%; background-color: #ccc; color: #fff; font-size: 10px; font-weight: bold; font-family: sans-serif; margin-left: 4px; cursor: pointer; }
-
         .badge-market { background-color: #e0e0e0; color: #333; font-size: 9px; padding: 2px 4px; border-radius: 3px; margin-right: 4px; }
-
+        
         .list-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-color); }
         .list-row:last-child { border-bottom: none; padding-bottom: 0; }
         .col-left { flex: 1.5; }
@@ -91,7 +94,6 @@
         .chart-container-small { position: relative; height: 160px; width: 100%; display: flex; justify-content: center; }
         .chart-container-large { position: relative; height: 260px; width: 100%; }
         .chart-container-bar { position: relative; height: 320px; width: 100%; } 
-        
         .scrollable-list { max-height: 250px; overflow-y: auto; }
     </style>
 </head>
@@ -100,20 +102,37 @@
     <div id="loading-overlay">
         <div class="spinner"></div>
         <div style="font-weight: 600; color: #555;">正在分析金融數據...</div>
-        <div style="font-size: 12px; color: #999; margin-top: 5px;">(正在抓取即時匯率與歷史股價)</div>
+        <div style="font-size: 12px; color: #999; margin-top: 5px;">(視資料量可能需要 3-10 秒)</div>
+    </div>
+
+    <div id="custom-prompt-overlay">
+        <div class="custom-prompt-box">
+            <div class="prompt-title">⚠️ 發現新股票：<span id="prompt-stock-name" style="color: var(--red-profit);"></span></div>
+            <div class="prompt-desc">
+                請輸入 <b>Yahoo Finance</b> 代號以利系統連網分析：<br><br>
+                📌 <b>範例格式參考：</b><br>
+                👉 <b>上市股票</b> (如台積電)：2330.TW<br>
+                👉 <b>上櫃股票</b> (如元太)：8069.TWO<br>
+                👉 <b>ETF</b> (如0050)：0050.TW
+            </div>
+            <input type="text" id="prompt-input-val" class="prompt-input" placeholder="請輸入完整代號 (包含 .TW)">
+            <div class="prompt-actions">
+                <button class="btn-skip" id="btn-prompt-skip">略過本筆</button>
+                <button class="btn-confirm" id="btn-prompt-confirm">確認送出</button>
+            </div>
+        </div>
     </div>
 
     <div class="control-panel">
         <div class="tabs">
-            <div class="tab-btn active" onclick="filterView('ALL')">全球總覽</div>
-            <div class="tab-btn" onclick="filterView('TW')">🇹🇼 台股</div>
-            <div class="tab-btn" onclick="filterView('US')">🇺🇸 美股</div>
+            <div class="tab-btn active">全球總覽</div>
+            <div class="tab-btn">🇹🇼 台股</div>
+            <div class="tab-btn">🇺🇸 美股</div>
         </div>
         <div class="import-row">
             <div class="import-buttons">
                 <label for="upload-tw" id="label-tw" class="btn-upload">📁 匯入台股</label>
                 <input type="file" id="upload-tw" accept=".csv">
-                
                 <label for="upload-us" id="label-us" class="btn-upload">📁 匯入美股</label>
                 <input type="file" id="upload-us" accept=".csv">
             </div>
@@ -147,20 +166,22 @@
         <div style="display: flex; align-items: center;">
             <div style="flex: 1;"><div class="chart-container-small"><canvas id="allocationChart"></canvas></div></div>
             <div style="flex: 1.2; padding-left: 10px; font-size: 12px;" class="scrollable-list" id="alloc-legend">
-                </div>
+                <div style="color: #999; text-align: center; margin-top: 50px;">請先匯入資料</div>
+            </div>
         </div>
     </div>
 
     <div class="card">
         <div class="card-header"><h2 class="card-title">全球持股績效排行</h2><span class="card-subtitle">成本 vs 目前現值 (TWD)</span></div>
         <div class="chart-container-bar"><canvas id="performanceChart"></canvas></div>
-        <div style="text-align: center; font-size: 11px; color: #888; margin-top: 8px;">依累積報酬率由高至低排序 (美股已換算台幣)</div>
+        <div style="text-align: center; font-size: 11px; color: #888; margin-top: 8px;">依累積報酬率由高至低排序</div>
     </div>
 
     <div class="card">
         <div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 標準差</span></div>
         <div class="scrollable-list" id="risk-list">
-            </div>
+             <div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div>
+        </div>
     </div>
 
     <script>
@@ -168,63 +189,98 @@
         // 全域變數與初始化
         // ==========================================
         let globalPortfolio = { tw: [], us: [] };
-        let currentRate = 32.5; // 預設匯率，會被 API 更新
-        let charts = {}; // 存放 Chart.js 實例
+        let currentRate = 32.5; 
+        let charts = {}; 
 
-        // 輔助：格式化數字
         const fmtMoney = (n) => Math.round(n).toLocaleString();
-        const fmtPct = (n) => (n * 100).toFixed(2) + '%';
         const parseNum = (str) => parseFloat((str || '0').toString().replace(/,/g, '').replace('%', ''));
         const setLoading = (show) => document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
 
-        // ==========================================
-        // 核心流程：上傳 -> 查字典 -> 抓報價 -> 渲染
-        // ==========================================
-        
+        // 綁定檔案上傳
         document.getElementById('upload-tw').addEventListener('change', (e) => handleFileUpload(e, 'tw'));
         document.getElementById('upload-us').addEventListener('change', (e) => handleFileUpload(e, 'us'));
 
+        // ==========================================
+        // 自訂視窗 Promise 封裝 (取代 prompt)
+        // ==========================================
+        function askForSymbol(stockName) {
+            return new Promise((resolve) => {
+                setLoading(false); // 隱藏讀取動畫，讓視窗清楚顯示
+                const overlay = document.getElementById('custom-prompt-overlay');
+                const nameEl = document.getElementById('prompt-stock-name');
+                const inputEl = document.getElementById('prompt-input-val');
+                const btnSkip = document.getElementById('btn-prompt-skip');
+                const btnConfirm = document.getElementById('btn-prompt-confirm');
+
+                nameEl.innerText = stockName;
+                inputEl.value = '';
+                overlay.style.display = 'flex';
+
+                const cleanup = () => {
+                    overlay.style.display = 'none';
+                    btnSkip.onclick = null;
+                    btnConfirm.onclick = null;
+                    setLoading(true); // 關閉視窗後繼續轉圈圈
+                };
+
+                btnSkip.onclick = () => { cleanup(); resolve('SKIP'); };
+                btnConfirm.onclick = () => {
+                    const val = inputEl.value.trim().toUpperCase();
+                    if (!val) { alert('請輸入代號，或選擇「略過本筆」'); return; }
+                    cleanup(); resolve(val);
+                };
+            });
+        }
+
+        // ==========================================
+        // 核心處理邏輯
+        // ==========================================
         async function handleFileUpload(event, market) {
             const file = event.target.files[0];
             if (!file) return;
-            
             setLoading(true);
 
             Papa.parse(file, {
                 header: true, skipEmptyLines: true,
                 complete: async function(results) {
                     try {
-                        const data = results.data;
+                        const rawData = results.data;
                         let normalized = [];
 
-                        // 1. 正規化 CSV 資料
+                        // 【防呆機制：嚴格的資料過濾器】
+                        // 剔除包含合計、總計等雜訊列，並確認股數大於 0
+                        const invalidKeywords = ['合計', '總計', '說明', '證券', '帳戶', '警語', '免責'];
+                        const validData = rawData.filter(row => {
+                            const name = row['股票名稱'] || '';
+                            const sharesStr = row['股數'] || row['目前庫存'] || '0';
+                            if (parseNum(sharesStr) <= 0) return false;
+                            if (invalidKeywords.some(kw => name.includes(kw))) return false;
+                            if (!name.trim()) return false;
+                            return true;
+                        });
+
+                        // 正規化資料
                         if (market === 'tw') {
-                            normalized = data.map(row => ({
-                                market: 'TW',
-                                name: row['股票名稱'],
-                                shares: parseNum(row['股數']),
-                                cost: parseNum(row['付出成本']),
-                                symbol: null // 待查
+                            normalized = validData.map(row => ({
+                                market: 'TW', name: row['股票名稱'], symbol: null,
+                                shares: parseNum(row['股數']), cost: parseNum(row['付出成本'])
                             }));
                             document.getElementById('label-tw').innerText = `✅ 台股 (${normalized.length})`;
                         } else {
-                            normalized = data.map(row => ({
-                                market: 'US',
-                                name: row['股票名稱'],
-                                symbol: row['代號'], // 美股自帶代號
-                                shares: parseNum(row['目前庫存']),
-                                cost: parseNum(row['庫存成本'])
+                            normalized = validData.map(row => ({
+                                market: 'US', name: row['股票名稱'], symbol: row['代號'],
+                                shares: parseNum(row['目前庫存']), cost: parseNum(row['庫存成本'])
                             }));
                             document.getElementById('label-us').innerText = `✅ 美股 (${normalized.length})`;
                         }
                         globalPortfolio[market] = normalized;
 
-                        // 2. 如果是台股，先處理字典查詢 (串接 API /dictionary)
+                        // 若為台股，處理字典查詢與詢問
                         if (market === 'tw') {
                             await processDictionary(normalized);
                         }
 
-                        // 3. 觸發金融數據更新 (串接 API /finance)
+                        // 觸發報價抓取
                         await updateFinanceData();
 
                     } catch (err) {
@@ -237,34 +293,29 @@
             });
         }
 
-        // 處理字典邏輯：查不到就彈窗問使用者
+        // 處理字典查詢與彈窗邏輯
         async function processDictionary(twList) {
             const names = twList.map(item => item.name);
-            // 批次查詢
             const res = await fetch('/api/dictionary', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ names })
             });
             const dictMap = await res.json();
 
-            // 檢查每一檔，若沒代號則詢問
             for (let item of twList) {
                 if (dictMap[item.name]) {
                     item.symbol = dictMap[item.name];
                 } else {
-                    // 使用者輸入提示
-                    let input = prompt(
-                        `⚠️ 系統發現新股票：『${item.name}』\n\n請輸入 Yahoo Finance 代號以利系統記錄與分析：\n\n📌 範例格式參考：\n👉 上市股票 (台積電)：2330.TW\n👉 上櫃股票 (元太)：8069.TWO\n👉 ETF (0050)：0050.TW\n\n(請輸入完整代號，包含 .TW 或 .TWO)`
-                    );
+                    // 呼叫自訂視窗 (程式會在此暫停等待使用者按鈕)
+                    const input = await askForSymbol(item.name);
                     
-                    if (input && input.trim() !== '') {
-                        input = input.trim().toUpperCase();
+                    if (input === 'SKIP') {
+                        item.symbol = 'SKIP'; // 標記為略過
+                    } else {
                         item.symbol = input;
-                        // 寫回資料庫
+                        // 寫入雲端字典
                         await fetch('/api/dictionary', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ update: { name: item.name, symbol: input } })
                         });
                     }
@@ -272,49 +323,43 @@
             }
         }
 
-        // 抓取即時報價與運算
+        // 抓報價與更新 UI
         async function updateFinanceData() {
-            // 收集所有代號
+            // 【防崩潰機制：徹底過濾無效代號】
             const allSymbols = [
-                ...globalPortfolio.tw.map(i => i.symbol).filter(s => s),
-                ...globalPortfolio.us.map(i => i.symbol).filter(s => s)
-            ];
+                ...globalPortfolio.tw.map(i => i.symbol),
+                ...globalPortfolio.us.map(i => i.symbol)
+            ].filter(s => s && s !== 'SKIP' && s.trim() !== '');
 
-            if (allSymbols.length === 0) return;
+            if (allSymbols.length === 0) {
+                alert("目前沒有可分析的有效股票代號！\n可能您略過了所有未知的股票。");
+                return;
+            }
 
-            // 呼叫後端 API
             const res = await fetch('/api/finance', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ symbols: allSymbols })
             });
             const json = await res.json();
             
-            if (json.status !== 'success') throw new Error('API Error');
+            if (json.status !== 'success') throw new Error(json.details || 'API 錯誤');
 
             currentRate = json.exchangeRate || 32.5;
             document.getElementById('display-rate').innerText = currentRate.toFixed(2);
 
-            // 合併數據到 Portfolio
             const stockMap = json.data;
-            let combinedList = [];
-
             const mergeData = (list) => {
-                return list.map(item => {
+                return list.filter(item => item.symbol && item.symbol !== 'SKIP').map(item => {
                     const m = stockMap[item.symbol];
-                    if (!m) return item; // 沒抓到資料就維持原樣
+                    if (!m) return { ...item, marketValueTWD: 0, costTWD: 0, cagr: 0 }; 
                     
-                    // 核心計算
-                    const price = m.price;
-                    const marketValRaw = price * item.shares;
-                    // 換算台幣
                     const exRate = item.market === 'US' ? currentRate : 1;
-                    const marketValTWD = marketValRaw * exRate;
-                    const costTWD = item.cost * (item.market === 'US' ? currentRate : 1); // 簡化：假設成本匯率同當下
+                    const marketValTWD = m.price * item.shares * exRate;
+                    const costTWD = item.cost * exRate; 
 
                     return {
                         ...item,
-                        currentPrice: price,
+                        currentPrice: m.price,
                         marketValueTWD: marketValTWD,
                         costTWD: costTWD,
                         profitTWD: marketValTWD - costTWD,
@@ -322,32 +367,26 @@
                         dayChangeTWD: m.change * item.shares * exRate,
                         cagr: m.cagr || 0,
                         stdev: m.stdev || 0,
-                        dividendTWD: (m.dividendYield * marketValRaw) * exRate, // 預估現金流
+                        dividendTWD: (m.dividendYield * (m.price * item.shares)) * exRate,
                         yield: m.dividendYield
                     };
-                });
+                }).filter(i => i.marketValueTWD > 0); // 防呆過濾
             };
 
-            const finalTW = mergeData(globalPortfolio.tw);
-            const finalUS = mergeData(globalPortfolio.us);
-            combinedList = [...finalTW, ...finalUS];
-
-            // 渲染畫面
-            renderDashboard(combinedList);
+            const combinedList = [...mergeData(globalPortfolio.tw), ...mergeData(globalPortfolio.us)];
+            if (combinedList.length > 0) renderDashboard(combinedList);
         }
 
         // ==========================================
-        // UI 渲染邏輯
+        // UI 渲染與 Chart.js 圖表更新
         // ==========================================
         function renderDashboard(list) {
-            // 1. 計算總量
             const totalVal = list.reduce((a, b) => a + (b.marketValueTWD || 0), 0);
             const totalCost = list.reduce((a, b) => a + (b.costTWD || 0), 0);
             const totalProfit = totalVal - totalCost;
             const dayChange = list.reduce((a, b) => a + (b.dayChangeTWD || 0), 0);
             const totalDividend = list.reduce((a, b) => a + (b.dividendTWD || 0), 0);
             
-            // 更新 DOM
             document.getElementById('val-total').innerText = fmtMoney(totalVal);
             document.getElementById('val-cost').innerText = fmtMoney(totalCost);
             
@@ -366,17 +405,11 @@
             document.getElementById('val-dividend').innerText = fmtMoney(totalDividend);
             document.getElementById('val-yield').innerText = (totalVal > 0 ? (totalDividend/totalVal*100).toFixed(2) : 0) + '%';
 
-            // 加權平均 CAGR
             let weightedCAGR = 0;
-            if (totalVal > 0) {
-                list.forEach(i => {
-                    if (i.cagr) weightedCAGR += i.cagr * (i.marketValueTWD / totalVal);
-                });
-            }
+            if (totalVal > 0) { list.forEach(i => { if (i.cagr) weightedCAGR += i.cagr * (i.marketValueTWD / totalVal); }); }
             document.getElementById('val-cagr').innerText = (weightedCAGR * 100).toFixed(1) + '%';
             document.getElementById('val-cagr').className = weightedCAGR >= 0 ? 'stat-main num text-red' : 'stat-main num text-green';
 
-            // 2. 更新圖表
             updateCharts(list, totalVal, weightedCAGR);
             updateRiskList(list);
         }
@@ -384,44 +417,24 @@
         function updateRiskList(list) {
             const container = document.getElementById('risk-list');
             container.innerHTML = '';
-            // 排序並過濾無效數據
             const validList = list.filter(i => i.cagr !== undefined).sort((a,b) => b.cagr - a.cagr);
-
             validList.forEach(item => {
                 const colorClass = item.cagr >= 0 ? 'text-red' : 'text-green';
                 const marketBadge = `<span class="badge-market">${item.market}</span>`;
-                const html = `
-                <div class="list-row">
-                    <div class="col-left">
-                        <div class="item-name">${marketBadge} ${item.name}</div>
-                        <div class="item-sub">波動率 (Risk): ${(item.stdev*100).toFixed(1)}%</div>
-                    </div>
-                    <div class="col-right">
-                        <div class="item-name ${colorClass} num">${(item.cagr*100).toFixed(1)}%</div>
-                        <div class="item-sub">CAGR</div>
-                    </div>
-                </div>`;
-                container.innerHTML += html;
+                container.innerHTML += `<div class="list-row"><div class="col-left"><div class="item-name">${marketBadge} ${item.name}</div><div class="item-sub">波動率 (Risk): ${(item.stdev*100).toFixed(1)}%</div></div><div class="col-right"><div class="item-name ${colorClass} num">${(item.cagr*100).toFixed(1)}%</div><div class="item-sub">CAGR</div></div></div>`;
             });
         }
 
         function updateCharts(list, totalVal, portfolioCAGR) {
-            // A. 資產配置 (圓餅圖)
+            // 資產配置圓餅圖
             const sortedByVal = [...list].sort((a,b) => b.marketValueTWD - a.marketValueTWD);
             const top5 = sortedByVal.slice(0, 5);
             const othersVal = sortedByVal.slice(5).reduce((a,b) => a + b.marketValueTWD, 0);
-            
             const labels = top5.map(i => i.name);
             const data = top5.map(i => i.marketValueTWD);
             const colors = ['#d93025', '#e2584f', '#ea8079', '#f2a8a4', '#f9cfce'];
-            
-            if (othersVal > 0) {
-                labels.push('其他');
-                data.push(othersVal);
-                colors.push('#dadce0');
-            }
+            if (othersVal > 0) { labels.push('其他'); data.push(othersVal); colors.push('#dadce0'); }
 
-            // 更新圓餅圖 Legend HTML
             const legendDiv = document.getElementById('alloc-legend');
             legendDiv.innerHTML = '';
             labels.forEach((lb, idx) => {
@@ -429,61 +442,24 @@
                 legendDiv.innerHTML += `<div style="margin-bottom:6px;"><span style="color:${colors[idx]};">■</span> ${lb} (${pct}%)</div>`;
             });
 
-            // 重繪圓餅
             if (charts.alloc) charts.alloc.destroy();
-            charts.alloc = new Chart(document.getElementById('allocationChart'), {
-                type: 'doughnut',
-                data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
-                options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } }
-            });
+            charts.alloc = new Chart(document.getElementById('allocationChart'), { type: 'doughnut', data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } } });
 
-            // B. 績效排行 (長條圖)
+            // 績效長條圖
             const sortedByRoi = [...list].sort((a,b) => b.roi - a.roi);
             if (charts.perf) charts.perf.destroy();
-            charts.perf = new Chart(document.getElementById('performanceChart'), {
-                type: 'bar',
-                data: {
-                    labels: sortedByRoi.map(i => i.name),
-                    datasets: [
-                        { label: '成本', data: sortedByRoi.map(i => i.costTWD), backgroundColor: '#e0e0e0', barPercentage: 0.7, categoryPercentage: 0.6 },
-                        { label: '現值', data: sortedByRoi.map(i => i.marketValueTWD), backgroundColor: sortedByRoi.map(i => i.marketValueTWD >= i.costTWD ? '#d93025' : '#188038'), barPercentage: 0.7, categoryPercentage: 0.6 }
-                    ]
-                },
-                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }, plugins: { legend: { display: false } } }
-            });
+            charts.perf = new Chart(document.getElementById('performanceChart'), { type: 'bar', data: { labels: sortedByRoi.map(i => i.name), datasets: [{ label: '成本', data: sortedByRoi.map(i => i.costTWD), backgroundColor: '#e0e0e0', barPercentage: 0.7, categoryPercentage: 0.6 }, { label: '現值', data: sortedByRoi.map(i => i.marketValueTWD), backgroundColor: sortedByRoi.map(i => i.marketValueTWD >= i.costTWD ? '#d93025' : '#188038'), barPercentage: 0.7, categoryPercentage: 0.6 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': $' + Math.round(c.raw).toLocaleString(); } } } } } });
 
-            // C. 蒙地卡羅 (簡單版：僅使用加權 CAGR 推算)
-            // 這裡為了簡化，使用加權 CAGR 當作中位數，並給定固定的假設波動範圍
+            // 蒙地卡羅熱力圖
             if (charts.mc) charts.mc.destroy();
-            
-            // 產生 10 年推算數據
-            const startVal = totalVal / 10000; // 萬單位
+            const startVal = totalVal / 10000; 
             const years = [0, 1, 3, 5, 10];
             const p50 = years.map(y => startVal * Math.pow(1 + portfolioCAGR, y));
-            const p90 = p50.map((v, i) => v * (1 + 0.15 * Math.sqrt(years[i]))); // 假設波動擴散
+            const p90 = p50.map((v, i) => v * (1 + 0.15 * Math.sqrt(years[i]))); 
             const p10 = p50.map((v, i) => v * (1 - 0.15 * Math.sqrt(years[i])));
             
-            charts.mc = new Chart(document.getElementById('monteCarloChart'), {
-                type: 'line',
-                data: {
-                    labels: ['現在', '+1年', '+3年', '+5年', '+10年'],
-                    datasets: [
-                        { data: p90, borderColor: 'transparent', backgroundColor: 'rgba(217, 48, 37, 0.1)', fill: '+2', pointRadius: 0, tension: 0.4 },
-                        { data: p50, borderColor: '#d93025', borderWidth: 2, borderDash: [5,5], fill: false, pointRadius: 2 },
-                        { data: p10, borderColor: 'transparent', backgroundColor: 'transparent', fill: false, pointRadius: 0 }
-                    ]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { position: 'right', ticks: { callback: v => Math.round(v)+'w' } } } }
-            });
+            charts.mc = new Chart(document.getElementById('monteCarloChart'), { type: 'line', data: { labels: ['現在', '+1年', '+3年', '+5年', '+10年'], datasets: [{ data: p90, borderColor: 'transparent', backgroundColor: 'rgba(217, 48, 37, 0.1)', fill: '+2', pointRadius: 0, tension: 0.4 }, { data: p50, borderColor: '#d93025', borderWidth: 2, borderDash: [5,5], fill: false, pointRadius: 2 }, { data: p10, borderColor: 'transparent', backgroundColor: 'transparent', fill: false, pointRadius: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { position: 'right', ticks: { callback: v => Math.round(v)+'w' }, border: { display: false } } } } });
         }
-        
-        // 頁籤切換 (簡易版：目前僅做視覺切換，資料過濾可留待擴充)
-        function filterView(mode) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            event.target.classList.add('active');
-            alert('目前版本為全資產檢視，頁籤切換功能可於後續擴充！');
-        }
-
     </script>
 </body>
 </html>
