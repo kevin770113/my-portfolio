@@ -17,16 +17,13 @@
         .num { font-variant-numeric: tabular-nums; font-family: "SF Pro Display", -apple-system, sans-serif; }
         .card { background-color: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
 
-        /* 讀取遮罩 */
         #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 999; justify-content: center; align-items: center; flex-direction: column; }
         .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* 浮動通知 */
         #toast-container { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 24px; border-radius: 24px; font-size: 13px; font-weight: 500; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         #toast-container.show { opacity: 1; }
 
-        /* 系統視窗 */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
         .custom-prompt-box { background: var(--card-bg); border-radius: 12px; padding: 20px; width: 90%; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); animation: popIn 0.3s ease-out; }
         @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -43,7 +40,6 @@
         .btn-confirm { background: var(--primary-dark); color: white; }
         .btn-success { background: var(--green-loss); color: white; }
 
-        /* UI 結構 */
         .control-panel { position: sticky; top: 0; z-index: 100; background-color: var(--bg-color); padding-bottom: 8px; margin-bottom: 4px; }
         .tabs { display: flex; background-color: #e4e6eb; border-radius: 8px; padding: 3px; margin-bottom: 10px; }
         .tab-btn { flex: 1; text-align: center; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--text-muted); border-radius: 6px; cursor: pointer; transition: all 0.2s; }
@@ -104,7 +100,6 @@
     <div id="custom-prompt-overlay" class="modal-overlay">
         <div class="custom-prompt-box">
             <div class="prompt-title">⚠️ 發現新股票：<span id="prompt-stock-name" style="color: var(--red-profit);"></span></div>
-            
             <div id="prompt-step-input">
                 <div class="prompt-desc">
                     請輸入 <b>Yahoo Finance</b> 代號：<br><br>
@@ -120,12 +115,10 @@
                     <button class="btn-confirm" id="btn-prompt-check">🔍 驗證代號</button>
                 </div>
             </div>
-
             <div id="prompt-step-loading" style="display:none; text-align:center; padding: 20px;">
                 <div class="spinner" style="margin: 0 auto 10px;"></div>
                 <div style="font-size: 13px; color: var(--text-muted);">連線驗證中...</div>
             </div>
-
             <div id="prompt-step-confirm" style="display:none;">
                 <div style="background: #e8f4fd; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #cde4f7;">
                     <div style="font-size: 11px; color: #555;">✅ 系統登記名稱：</div>
@@ -163,7 +156,7 @@
             <div class="stat-item"><span class="stat-label">今日損益 (預估)</span><span class="stat-main num" id="val-day-change">--</span><span class="stat-sub num" id="val-day-change-pct">--%</span></div>
             <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">YTD 績效 (今年以來)</span><span class="stat-main num" id="val-ytd">--</span><span class="stat-sub num" id="val-ytd-pct">--%</span></div>
             <div class="stat-item"><span class="stat-label">整體年化報酬 / 波動率</span><span class="stat-main num" id="val-cagr">--%</span><span class="stat-sub text-muted num">標準差 <span id="val-stdev">--%</span></span></div>
-            <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">未來 12 個月預估股息<span class="info-icon" onclick="showInfoModal('現金流計算方式', '此數據是依據您目前的總持股數，乘上「過去12個月的真實配息額」或「券商預估殖利率」所推算之總和。已自動將美股股息換算為新台幣。')">i</span></span><span class="stat-main text-red num" id="val-dividend">--</span><span class="stat-sub text-muted num">殖利率約 <span id="val-yield">--%</span></span></div>
+            <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">未來 12 個月預估股息<span class="info-icon" onclick="showInfoModal('現金流計算方式', '此數據是依據您目前的總持股數，乘上「過去12個月的真實配息額」所推算之總和。已自動將美股股息換算為新台幣。')">i</span></span><span class="stat-main text-red num" id="val-dividend">--</span><span class="stat-sub text-muted num">殖利率約 <span id="val-yield">--%</span></span></div>
         </div>
         <div class="chart-container-large" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 16px;">
             <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-align: center; font-weight: bold;">歷史真實軌跡 vs 蒙地卡羅未來推算 (熱力圖)</div>
@@ -172,7 +165,22 @@
     </div>
 
     <div class="card"><div class="card-header"><h2 class="card-title">資產配置 (總現值佔比)</h2></div><div style="display: flex; align-items: center;"><div style="flex: 1;"><div class="chart-container-small"><canvas id="allocationChart"></canvas></div></div><div style="flex: 1.2; padding-left: 10px; font-size: 12px;" class="scrollable-list" id="alloc-legend"><div style="color: #999; text-align: center; margin-top: 50px;">請先匯入資料</div></div></div></div>
-    <div class="card"><div class="card-header"><h2 class="card-title">全球持股績效排行</h2><span class="card-subtitle">成本 vs 目前現值</span></div><div class="chart-container-bar"><canvas id="performanceChart"></canvas></div></div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">月度現金流分析</h2>
+            <span class="card-subtitle">過去 12 個月 vs 未來推算</span>
+        </div>
+        <div class="chart-container-large">
+            <canvas id="cashflowChart"></canvas>
+        </div>
+        <div style="font-size: 11px; color: #999; text-align: center; margin-top: 12px; line-height: 1.4;">
+            * 預估現金流係根據各股過去 12 個月之真實配息紀錄進行等額平移推算。<br>實際發放金額與除息月份可能因企業政策而有所變動。
+        </div>
+    </div>
+
+    <div class="card"><div class="card-header"><h2 class="card-title">全球持股現值排行</h2><span class="card-subtitle">市值佔比高低排序</span></div><div class="chart-container-bar"><canvas id="performanceChart"></canvas></div></div>
+    
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
     <script>
@@ -340,7 +348,8 @@
                         ...item, currentPrice: m.price, marketValueTWD: marketValTWD, costTWD: costTWD,
                         profitTWD: marketValTWD - costTWD, roi: costTWD > 0 ? (marketValTWD - costTWD) / costTWD : 0,
                         dayChangeTWD: m.change * item.shares * exRate, ytd: m.ytd || 0, cagr: m.cagr || 0, stdev: m.stdev || 0,
-                        dividendTWD: (m.dividendYield * (m.price * item.shares)) * exRate, yield: m.dividendYield
+                        dividendTWD: (m.dividendYield * (m.price * item.shares)) * exRate, yield: m.dividendYield,
+                        historicalDividends: m.historicalDividends || [] // 承接後端新加入的明細陣列
                     };
                 }).filter(i => i.marketValueTWD > 0); 
             };
@@ -351,33 +360,20 @@
 
         function renderDashboard(list) {
             if (list.length === 0) {
-                document.getElementById('val-total').innerText = '0';
-                document.getElementById('val-cost').innerText = '0';
-                document.getElementById('val-profit').innerText = '0';
-                document.getElementById('val-profit').className = 'stat-main num text-muted';
-                document.getElementById('val-profit-pct').innerText = '0.00%';
-                document.getElementById('val-profit-pct').className = 'stat-sub num text-muted';
-                
-                document.getElementById('val-day-change').innerText = '0';
-                document.getElementById('val-day-change').className = 'stat-main num text-muted';
-                document.getElementById('val-day-change-pct').innerText = '0.00%';
-                document.getElementById('val-day-change-pct').className = 'stat-sub num text-muted';
-
-                document.getElementById('val-ytd').innerText = '0';
-                document.getElementById('val-ytd').className = 'stat-main num text-muted';
-                document.getElementById('val-ytd-pct').innerText = '0.00%';
-                document.getElementById('val-ytd-pct').className = 'stat-sub num text-muted';
-
-                document.getElementById('val-cagr').innerText = '0.0%';
-                document.getElementById('val-cagr').className = 'stat-main num text-muted';
-                // 清空標準差
-                document.getElementById('val-stdev').innerText = '--%';
-                document.getElementById('val-dividend').innerText = '0';
-                document.getElementById('val-yield').innerText = '0.00%';
+                document.getElementById('val-total').innerText = '0'; document.getElementById('val-cost').innerText = '0';
+                document.getElementById('val-profit').innerText = '0'; document.getElementById('val-profit').className = 'stat-main num text-muted';
+                document.getElementById('val-profit-pct').innerText = '0.00%'; document.getElementById('val-profit-pct').className = 'stat-sub num text-muted';
+                document.getElementById('val-day-change').innerText = '0'; document.getElementById('val-day-change').className = 'stat-main num text-muted';
+                document.getElementById('val-day-change-pct').innerText = '0.00%'; document.getElementById('val-day-change-pct').className = 'stat-sub num text-muted';
+                document.getElementById('val-ytd').innerText = '0'; document.getElementById('val-ytd').className = 'stat-main num text-muted';
+                document.getElementById('val-ytd-pct').innerText = '0.00%'; document.getElementById('val-ytd-pct').className = 'stat-sub num text-muted';
+                document.getElementById('val-cagr').innerText = '0.0%'; document.getElementById('val-cagr').className = 'stat-main num text-muted';
+                document.getElementById('val-stdev').innerText = '--%'; document.getElementById('val-dividend').innerText = '0'; document.getElementById('val-yield').innerText = '0.00%';
 
                 if (charts.alloc) charts.alloc.destroy();
                 if (charts.perf) charts.perf.destroy();
                 if (charts.mc) charts.mc.destroy();
+                if (charts.cf) charts.cf.destroy();
                 
                 document.getElementById('alloc-legend').innerHTML = '<div style="color: #999; text-align: center; margin-top: 50px;">此市場暫無資料</div>';
                 document.getElementById('risk-list').innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">此市場暫無資料</div>';
@@ -388,7 +384,6 @@
             const totalCost = list.reduce((a, b) => a + (b.costTWD || 0), 0);
             const totalProfit = totalVal - totalCost;
             const dayChange = list.reduce((a, b) => a + (b.dayChangeTWD || 0), 0);
-            const totalDividend = list.reduce((a, b) => a + (b.dividendTWD || 0), 0);
             
             document.getElementById('val-total').innerText = fmtMoney(totalVal);
             document.getElementById('val-cost').innerText = fmtMoney(totalCost);
@@ -422,8 +417,7 @@
             document.getElementById('val-ytd-pct').innerText = (weightedYTD > 0 ? '+' : '') + (weightedYTD * 100).toFixed(2) + '%';
             document.getElementById('val-ytd-pct').className = `stat-sub num ${ytdAmount >= 0 ? 'text-red' : 'text-green'}`;
 
-            let weightedCAGR = 0;
-            let weightedStdev = 0;
+            let weightedCAGR = 0; let weightedStdev = 0;
             if (totalVal > 0) { 
                 list.forEach(i => { 
                     if (i.cagr) weightedCAGR += i.cagr * (i.marketValueTWD / totalVal); 
@@ -432,14 +426,9 @@
             }
             document.getElementById('val-cagr').innerText = (weightedCAGR * 100).toFixed(1) + '%';
             document.getElementById('val-cagr').className = weightedCAGR >= 0 ? 'stat-main num text-red' : 'stat-main num text-green';
-            
-            // 【填入標準差數值】
             document.getElementById('val-stdev').innerText = (weightedStdev * 100).toFixed(1) + '%';
 
-            document.getElementById('val-dividend').innerText = fmtMoney(totalDividend);
-            document.getElementById('val-yield').innerText = (totalVal > 0 ? (totalDividend/totalVal*100).toFixed(2) : 0) + '%';
-
-            updateCharts(list, totalVal, weightedCAGR, weightedStdev, weightedYTD);
+            updateCharts(list, totalVal, weightedCAGR, weightedStdev);
             updateRiskList(list);
         }
 
@@ -450,45 +439,46 @@
             validList.forEach(item => {
                 const colorClass = item.cagr >= 0 ? 'text-red' : 'text-green';
                 const marketBadge = `<span class="badge-market">${item.market}</span>`;
-                container.innerHTML += `
-                <div class="list-row">
-                    <div class="col-left">
-                        <div class="item-name" title="${item.name}">${marketBadge} ${item.name}</div>
-                        <div class="item-sub">YTD: ${(item.ytd*100).toFixed(1)}% | 波動: ${(item.stdev*100).toFixed(1)}%</div>
-                    </div>
-                    <div class="col-right">
-                        <div class="item-name ${colorClass} num">${(item.cagr*100).toFixed(1)}%</div>
-                        <div class="item-sub">CAGR</div>
-                    </div>
-                </div>`;
+                container.innerHTML += `<div class="list-row"><div class="col-left"><div class="item-name" title="${item.name}">${marketBadge} ${item.name}</div><div class="item-sub">YTD: ${(item.ytd*100).toFixed(1)}% | 波動: ${(item.stdev*100).toFixed(1)}%</div></div><div class="col-right"><div class="item-name ${colorClass} num">${(item.cagr*100).toFixed(1)}%</div><div class="item-sub">CAGR</div></div></div>`;
             });
         }
 
-        function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev, portfolioYTD) {
+        function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
+            // 1. 資產配置 (圓餅圖)
             const sortedByVal = [...list].sort((a,b) => b.marketValueTWD - a.marketValueTWD);
             const top5 = sortedByVal.slice(0, 5);
             const othersVal = sortedByVal.slice(5).reduce((a,b) => a + b.marketValueTWD, 0);
             const labels = top5.map(i => i.name);
             const data = top5.map(i => i.marketValueTWD);
-            const colors = ['#d93025', '#e2584f', '#ea8079', '#f2a8a4', '#f9cfce'];
-            if (othersVal > 0) { labels.push('其他'); data.push(othersVal); colors.push('#dadce0'); }
+            const colors = ['#d93025', '#e2584f', '#ea8079', '#f2a8a4', '#f9cfce', '#dadce0', '#b0bec5', '#90a4ae', '#78909c', '#607d8b'];
+            if (othersVal > 0) { labels.push('其他'); data.push(othersVal); }
 
             const legendDiv = document.getElementById('alloc-legend');
             legendDiv.innerHTML = '';
             labels.forEach((lb, idx) => {
                 const pct = ((data[idx] / totalVal) * 100).toFixed(1);
-                legendDiv.innerHTML += `<div style="margin-bottom:6px;"><span style="color:${colors[idx]};">■</span> ${lb} (${pct}%)</div>`;
+                legendDiv.innerHTML += `<div style="margin-bottom:6px;"><span style="color:${colors[idx%colors.length]};">■</span> ${lb} (${pct}%)</div>`;
             });
 
             if (charts.alloc) charts.alloc.destroy();
             charts.alloc = new Chart(document.getElementById('allocationChart'), { type: 'doughnut', data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } } });
 
-            const sortedByRoi = [...list].sort((a,b) => b.roi - a.roi);
+            // 2. 績效排行圖 (已改為「現值高低」排序，產生瀑布階梯效果)
             if (charts.perf) charts.perf.destroy();
-            charts.perf = new Chart(document.getElementById('performanceChart'), { type: 'bar', data: { labels: sortedByRoi.map(i => i.name), datasets: [{ label: '成本', data: sortedByRoi.map(i => i.costTWD), backgroundColor: '#e0e0e0', barPercentage: 0.7, categoryPercentage: 0.6 }, { label: '現值', data: sortedByRoi.map(i => i.marketValueTWD), backgroundColor: sortedByRoi.map(i => i.marketValueTWD >= i.costTWD ? '#d93025' : '#188038'), barPercentage: 0.7, categoryPercentage: 0.6 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }, plugins: { legend: { display: false } } } });
+            charts.perf = new Chart(document.getElementById('performanceChart'), { 
+                type: 'bar', 
+                data: { 
+                    labels: sortedByVal.map(i => i.name), 
+                    datasets: [
+                        { label: '成本', data: sortedByVal.map(i => i.costTWD), backgroundColor: '#e0e0e0', barPercentage: 0.7, categoryPercentage: 0.6 }, 
+                        { label: '現值', data: sortedByVal.map(i => i.marketValueTWD), backgroundColor: sortedByVal.map(i => i.marketValueTWD >= i.costTWD ? '#d93025' : '#188038'), barPercentage: 0.7, categoryPercentage: 0.6 }
+                    ] 
+                }, 
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }, plugins: { legend: { display: false } } } 
+            });
 
+            // 3. 蒙地卡羅熱力圖
             if (charts.mc) charts.mc.destroy();
-            
             const startVal = totalVal / 10000; 
             const hist1YVal = startVal / (1 + portfolioCAGR); 
             const labelsMC = ['-1年', '今天', '+1年', '+3年', '+5年', '+10年'];
@@ -518,10 +508,113 @@
                         { label: '樂觀 P75', data: p75, borderColor: 'transparent', fill: 3, backgroundColor: 'rgba(217, 48, 37, 0.2)', pointRadius: 0, tension: 0.4 },
                         { label: '悲觀 P25', data: p25, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 },
                         { label: '未來中位數', data: p50, borderColor: '#d93025', borderWidth: 2, borderDash: [5,4], fill: false, pointRadius: 0, tension: 0.4 },
-                        { label: '過去1年真實走勢', data: hist, borderColor: '#1a1a1a', borderWidth: 2.5, fill: false, pointRadius: [3, 4, 0, 0, 0, 0], pointBackgroundColor: '#1a1a1a', tension: 0.1 }
+                        { label: '過去1年走勢', data: hist, borderColor: '#1a1a1a', borderWidth: 2.5, fill: false, pointRadius: [3, 4, 0, 0, 0, 0], pointBackgroundColor: '#1a1a1a', tension: 0.1 }
                     ] 
                 }, 
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { position: 'right', ticks: { callback: v => Math.round(v)+'w' }, border: { display: false } } } } 
+            });
+
+            // ==========================================
+            // 4. 【全新】月度現金流分析圖表 (雙色堆疊長條圖)
+            // ==========================================
+            const now = new Date();
+            const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+            
+            const labelsCF = [];
+            const monthKeys = [];
+            
+            // 建立 24 個月的 X 軸標籤 (如: 24/03)
+            for (let i = 0; i < 24; i++) {
+                const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
+                const yy = d.getFullYear().toString().slice(-2);
+                const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+                labelsCF.push(i < 12 ? `${yy}/${mm}` : `${yy}/${mm} (預估)`);
+                monthKeys.push(`${d.getFullYear()}-${mm}`);
+            }
+
+            const datasetsCF = [];
+            // 色票庫，轉換為 RGB 以利調整透明度
+            const cfColors = ['217,48,37', '24,128,56', '25FB,188,4', '26,115,232', '242,139,130', '129,201,149', '253,226,147', '138,180,248', '197,34,31', '13,101,45', '242,153,0', '24,90,188'];
+            let totalExpectedDividend = 0;
+
+            list.forEach((stock, sIdx) => {
+                const exRate = stock.market === 'US' ? currentRate : 1;
+                const dataArr = new Array(24).fill(0);
+                const bgColors = [];
+                
+                const rgb = cfColors[sIdx % cfColors.length];
+                const solidColor = `rgba(${rgb}, 0.9)`;
+                const transparentColor = `rgba(${rgb}, 0.35)`; // 未來 12 個月用半透明淺色
+                
+                for(let i=0; i<24; i++) bgColors.push(i < 12 ? solidColor : transparentColor);
+
+                if (stock.historicalDividends && stock.historicalDividends.length > 0) {
+                    stock.historicalDividends.forEach(div => {
+                        const dDate = new Date(div.date * 1000);
+                        const dYear = dDate.getFullYear();
+                        const dMonth = (dDate.getMonth() + 1).toString().padStart(2, '0');
+                        const key = `${dYear}-${dMonth}`;
+                        
+                        const totalDivTWD = div.amount * stock.shares * exRate;
+                        
+                        // 填入過去 12 個月
+                        const pastIdx = monthKeys.indexOf(key);
+                        if (pastIdx >= 0 && pastIdx < 12) {
+                            dataArr[pastIdx] += totalDivTWD;
+                        }
+                        
+                        // 平移推算未來 12 個月
+                        const futureKey = `${dYear + 1}-${dMonth}`;
+                        const futureIdx = monthKeys.indexOf(futureKey);
+                        if (futureIdx >= 12 && futureIdx < 24) {
+                            dataArr[futureIdx] += totalDivTWD;
+                            totalExpectedDividend += totalDivTWD;
+                        }
+                    });
+                }
+                
+                if (dataArr.some(v => v > 0)) {
+                    datasetsCF.push({ label: stock.name, data: dataArr, backgroundColor: bgColors, borderWidth: 0 });
+                }
+            });
+
+            // 更新上方看板的「未來 12 個月預估股息」數字 (取代原本粗估的殖利率算法)
+            document.getElementById('val-dividend').innerText = fmtMoney(totalExpectedDividend);
+            document.getElementById('val-yield').innerText = (totalVal > 0 ? (totalExpectedDividend/totalVal*100).toFixed(2) : 0) + '%';
+
+            if (charts.cf) charts.cf.destroy();
+            charts.cf = new Chart(document.getElementById('cashflowChart'), {
+                type: 'bar',
+                data: { labels: labelsCF, datasets: datasetsCF },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        // 【自訂浮動視窗】顯示當月所有發放股息的股票與明細，並按金額排序
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            itemSort: (a, b) => b.raw - a.raw, // 依貢獻金額由高到低排序
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    if (context.parsed.y !== null) label += '$' + Math.round(context.parsed.y).toLocaleString();
+                                    return label;
+                                },
+                                footer: function(tooltipItems) {
+                                    let total = 0;
+                                    tooltipItems.forEach(item => total += item.parsed.y);
+                                    return '\n當月總計: $' + Math.round(total).toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 45 } },
+                        y: { stacked: true, position: 'right', border: { display: false }, ticks: { callback: v => Math.round(v/1000)+'k' } }
+                    }
+                }
             });
         }
     </script>
