@@ -37,6 +37,7 @@ export default async function handler(req, res) {
             let cagr = 0; let stdev = 0; let historyYears = 0;
             let dividendYield = 0; let ytd = 0; 
             let change = 0; let changePercent = 0;
+            let historicalDividends = []; // 【新增】存放過去 12 個月配息明細的陣列
 
             try {
                 const chartRes = await fetch(chartUrl(sym), fetchOptions);
@@ -47,18 +48,15 @@ export default async function handler(req, res) {
                         const meta = result.meta;
                         const timestamps = result.timestamp || [];
                         
-                        // 分離價格：算績效用還原價(adj)，算單日漲跌用真實現價(raw)
                         const adjPrices = result.indicators.adjclose?.[0]?.adjclose || result.indicators.quote[0].close || [];
                         const rawCloses = result.indicators.quote[0].close || [];
 
                         currentPrice = meta.regularMarketPrice || 0;
                         stockName = meta.shortName || meta.longName || sym;
 
-                        // 🚨 終極修復：絕對不能用 10年線圖的 chartPreviousClose！只用 previousClose 或倒數第二天的 rawClose
                         const validRawCloses = rawCloses.filter(p => p !== null && p > 0);
                         prevClose = meta.previousClose || (validRawCloses.length > 1 ? validRawCloses[validRawCloses.length - 2] : 0);
 
-                        // 建立歷史紀錄算 CAGR & YTD
                         const history = [];
                         for (let k = 0; k < timestamps.length; k++) {
                             if (adjPrices[k] !== null && adjPrices[k] > 0) history.push({ time: timestamps[k], price: adjPrices[k] });
@@ -92,10 +90,18 @@ export default async function handler(req, res) {
                             }
                         }
 
+                        // 【修改】現金流明細抓取邏輯
                         let trailingDiv = 0;
                         if (result.events && result.events.dividends) {
                             const oneYearAgo = (Date.now() / 1000) - 31536000;
-                            Object.values(result.events.dividends).forEach(d => { if (d.date >= oneYearAgo) trailingDiv += d.amount; });
+                            Object.values(result.events.dividends).forEach(d => { 
+                                if (d.date >= oneYearAgo) {
+                                    trailingDiv += d.amount; 
+                                    historicalDividends.push({ date: d.date, amount: d.amount }); // 記錄時間與金額
+                                }
+                            });
+                            // 確保按照時間順序排列
+                            historicalDividends.sort((a, b) => a.date - b.date);
                         }
                         dividendYield = currentPrice ? (trailingDiv / currentPrice) : 0;
                     }
@@ -121,7 +127,12 @@ export default async function handler(req, res) {
 
                 return {
                     symbol: sym, error: false,
-                    data: { yahooName: stockName, price: currentPrice, change: change, changePercent: changePercent, ytd: ytd, cagr: cagr, stdev: stdev, dividendYield: dividendYield }
+                    data: { 
+                        yahooName: stockName, price: currentPrice, change: change, 
+                        changePercent: changePercent, ytd: ytd, cagr: cagr, 
+                        stdev: stdev, dividendYield: dividendYield, 
+                        historicalDividends: historicalDividends // 把明細傳給前端
+                    }
                 };
 
             } catch (err) { return { symbol: sym, error: true, message: '異常' }; }
