@@ -159,10 +159,10 @@
     <div class="card">
         <div class="top-stats-grid">
             <div class="stat-item"><span class="stat-label">總現值 (TWD)</span><span class="stat-main num" id="val-total">--</span><span class="stat-sub text-muted num">成本 <span id="val-cost">--</span></span></div>
-            <div class="stat-item" style="text-align: right;"><span class="stat-label">累積總損益</span><span class="stat-main num" id="val-profit">--</span><span class="stat-sub num" id="val-profit-pct">--%</span></div>
+            <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">累積總損益</span><span class="stat-main num" id="val-profit">--</span><span class="stat-sub num" id="val-profit-pct">--%</span></div>
             <div class="stat-item"><span class="stat-label">今日損益 (預估)</span><span class="stat-main num" id="val-day-change">--</span><span class="stat-sub num" id="val-day-change-pct">--%</span></div>
-            <div class="stat-item" style="text-align: right;"><span class="stat-label">YTD 績效 (今年以來)</span><span class="stat-main num" id="val-ytd">--</span><span class="stat-sub num" id="val-ytd-pct">--%</span></div>
-            <div class="stat-item"><span class="stat-label">整體年化報酬 (1Y)</span><span class="stat-main num" id="val-cagr">--%</span></div>
+            <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">YTD 績效 (今年以來)</span><span class="stat-main num" id="val-ytd">--</span><span class="stat-sub num" id="val-ytd-pct">--%</span></div>
+            <div class="stat-item"><span class="stat-label">整體年化報酬 / 波動率</span><span class="stat-main num" id="val-cagr">--%</span><span class="stat-sub text-muted num">標準差 <span id="val-stdev">--%</span></span></div>
             <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">未來 12 個月預估股息<span class="info-icon" onclick="showInfoModal('現金流計算方式', '此數據是依據您目前的總持股數，乘上「過去12個月的真實配息額」或「券商預估殖利率」所推算之總和。已自動將美股股息換算為新台幣。')">i</span></span><span class="stat-main text-red num" id="val-dividend">--</span><span class="stat-sub text-muted num">殖利率約 <span id="val-yield">--%</span></span></div>
         </div>
         <div class="chart-container-large" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 16px;">
@@ -180,9 +180,8 @@
         let currentRate = 32.5; 
         let charts = {}; 
 
-        // 【新增】狀態管理中樞
         let currentMarketView = 'ALL'; 
-        let globalCombinedList = []; // 存放所有已處理完畢的資料
+        let globalCombinedList = []; 
 
         const fmtMoney = (n) => Math.round(n).toLocaleString();
         const parseNum = (str) => { if (!str) return 0; const val = parseFloat(str.toString().replace(/,/g, '').replace('%', '')); return isNaN(val) ? 0 : val; };
@@ -198,30 +197,21 @@
         function showInfoModal(title, desc) { document.getElementById('info-modal-title').innerText = title; document.getElementById('info-modal-desc').innerText = desc; document.getElementById('info-modal-overlay').style.display = 'flex'; }
         function closeInfoModal() { document.getElementById('info-modal-overlay').style.display = 'none'; }
 
-        // 【新增】頁籤切換邏輯
         function switchMarket(market) {
             currentMarketView = market;
-            
-            // 變更 UI 外觀
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`tab-${market}`).classList.add('active');
-            
-            // 觸發重新繪圖
             renderCurrentView();
-            
             let marketName = market === 'ALL' ? '全球總覽' : (market === 'TW' ? '台股' : '美股');
             showToast(`已切換至 ${marketName}`);
         }
 
-        // 【新增】核心過濾器
         function renderCurrentView() {
             if (globalCombinedList.length === 0) return;
-
             let filteredList = globalCombinedList;
             if (currentMarketView !== 'ALL') {
                 filteredList = globalCombinedList.filter(item => item.market === currentMarketView);
             }
-            
             renderDashboard(filteredList);
         }
 
@@ -355,13 +345,11 @@
                 }).filter(i => i.marketValueTWD > 0); 
             };
 
-            // 【修改】將合併後的資料存入全域變數，並交由 renderCurrentView 處理顯示
             globalCombinedList = [...mergeData(globalPortfolio.tw), ...mergeData(globalPortfolio.us)];
             if (globalCombinedList.length > 0) renderCurrentView();
         }
 
         function renderDashboard(list) {
-            // 【新增】防呆機制：如果切換過去的市場沒有資料
             if (list.length === 0) {
                 document.getElementById('val-total').innerText = '0';
                 document.getElementById('val-cost').innerText = '0';
@@ -382,6 +370,8 @@
 
                 document.getElementById('val-cagr').innerText = '0.0%';
                 document.getElementById('val-cagr').className = 'stat-main num text-muted';
+                // 清空標準差
+                document.getElementById('val-stdev').innerText = '--%';
                 document.getElementById('val-dividend').innerText = '0';
                 document.getElementById('val-yield').innerText = '0.00%';
 
@@ -442,6 +432,9 @@
             }
             document.getElementById('val-cagr').innerText = (weightedCAGR * 100).toFixed(1) + '%';
             document.getElementById('val-cagr').className = weightedCAGR >= 0 ? 'stat-main num text-red' : 'stat-main num text-green';
+            
+            // 【填入標準差數值】
+            document.getElementById('val-stdev').innerText = (weightedStdev * 100).toFixed(1) + '%';
 
             document.getElementById('val-dividend').innerText = fmtMoney(totalDividend);
             document.getElementById('val-yield').innerText = (totalVal > 0 ? (totalDividend/totalVal*100).toFixed(2) : 0) + '%';
