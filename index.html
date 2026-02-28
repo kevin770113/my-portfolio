@@ -150,6 +150,7 @@
                 <label for="upload-us" id="label-us" class="btn-upload">📁 匯入美股</label><input type="file" id="upload-us" accept=".csv">
             </div>
             <div class="header-tools">
+                <button id="btn-clear" class="btn-privacy" onclick="clearAllData()" title="清空所有資料">🗑️</button>
                 <button id="btn-privacy" class="btn-privacy" onclick="togglePrivacy()" title="切換隱私模式">👁️</button>
                 <div class="exchange-rate"><span style="color:#0056b3; margin-right:4px;">USD/TWD</span><strong id="display-rate">--.--</strong></div>
             </div>
@@ -200,7 +201,6 @@
         let isPrivacyMode = false; 
 
         const fmtMoney = (n) => isPrivacyMode ? '****' : Math.round(n).toLocaleString();
-        
         const parseNum = (str) => { if (!str) return 0; const val = parseFloat(str.toString().replace(/,/g, '').replace('%', '')); return isNaN(val) ? 0 : val; };
         const setLoading = (show) => document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
 
@@ -213,6 +213,20 @@
 
         function showInfoModal(title, desc) { document.getElementById('info-modal-title').innerText = title; document.getElementById('info-modal-desc').innerText = desc; document.getElementById('info-modal-overlay').style.display = 'flex'; }
         function closeInfoModal() { document.getElementById('info-modal-overlay').style.display = 'none'; }
+
+        // 【新增】清空本地資料與畫面重置
+        function clearAllData() {
+            if (confirm("確定要清空所有持股資料嗎？\n這將移除儀表板上的所有股票，您需要重新匯入 CSV 檔。")) {
+                localStorage.removeItem('portfolio_tw');
+                localStorage.removeItem('portfolio_us');
+                globalPortfolio = { tw: [], us: [] };
+                globalCombinedList = [];
+                document.getElementById('label-tw').innerText = '📁 匯入台股';
+                document.getElementById('label-us').innerText = '📁 匯入美股';
+                renderCurrentView(); // 觸發清空畫面
+                showToast('已清空所有資料');
+            }
+        }
 
         function togglePrivacy() {
             isPrivacyMode = !isPrivacyMode;
@@ -231,7 +245,10 @@
         }
 
         function renderCurrentView() {
-            if (globalCombinedList.length === 0) return;
+            if (globalCombinedList.length === 0) {
+                renderDashboard([]); // 若無資料則直接丟空陣列清空圖表
+                return;
+            }
             let filteredList = globalCombinedList;
             if (currentMarketView !== 'ALL') {
                 filteredList = globalCombinedList.filter(item => item.market === currentMarketView);
@@ -311,9 +328,13 @@
                             ? validData.map(row => ({ market: 'TW', name: row['股票名稱'], symbol: null, shares: parseNum(row['股數']), cost: parseNum(row['付出成本']) }))
                             : validData.map(row => ({ market: 'US', name: row['股票名稱'], symbol: row['代號'], shares: parseNum(row['目前庫存']), cost: parseNum(row['庫存成本']) }));
 
-                        document.getElementById(`label-${market}`).innerText = `✅ ${market === 'tw' ? '台股' : '美股'} (${normalized.length})`;
                         globalPortfolio[market] = normalized;
-                        showToast(`成功讀取 ${market === 'tw' ? '台股' : '美股'} CSV`);
+                        
+                        // 【新增】自動儲存至 Local Storage，實現覆蓋與記憶
+                        localStorage.setItem(`portfolio_${market}`, JSON.stringify(normalized));
+
+                        document.getElementById(`label-${market}`).innerText = `✅ ${market === 'tw' ? '台股' : '美股'} (${normalized.length})`;
+                        showToast(`成功讀取並記憶 ${market === 'tw' ? '台股' : '美股'} CSV`);
 
                         if (market === 'tw') { await processDictionary(normalized); }
                         await updateFinanceData();
@@ -339,11 +360,16 @@
                     }
                 }
             }
+            // 【新增】如果用戶查完字典了，將填上代號的新陣列再次存回 Local Storage
+            localStorage.setItem('portfolio_tw', JSON.stringify(twList));
         }
 
         async function updateFinanceData() {
             const allSymbols = [...globalPortfolio.tw.map(i => i.symbol), ...globalPortfolio.us.map(i => i.symbol)].filter(s => s && s !== 'SKIP' && s.trim() !== '');
-            if (allSymbols.length === 0) { showToast("無可分析之股票代號"); return; }
+            if (allSymbols.length === 0) { 
+                renderCurrentView(); // 如果沒有有效代號，就清空畫面
+                return; 
+            }
 
             const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: allSymbols }) });
             const json = await res.json();
@@ -523,12 +549,10 @@
                 } 
             });
 
-            // ==========================================
-            // 3. 蒙地卡羅熱力圖 (【全新】線性數值軸引擎)
-            // ==========================================
+            // 3. 蒙地卡羅熱力圖
             if (charts.mc) charts.mc.destroy();
             let startVal, hist1YVal;
-            const years = [-1, 0, 1, 3, 5, 10]; // 我們只算這幾個節點的資料
+            const years = [-1, 0, 1, 3, 5, 10]; 
             const p50=[], p90=[], p75=[], p25=[], p10=[], hist=[];
             
             if (isPrivacyMode) {
@@ -568,7 +592,6 @@
             charts.mc = new Chart(document.getElementById('monteCarloChart'), { 
                 type: 'line', 
                 data: { 
-                    // 不再使用字串 labels 陣列，直接讓座標決定位置
                     datasets: [
                         { label: '極樂觀 P90', data: p90, borderColor: 'transparent', fill: 1, backgroundColor: 'rgba(217, 48, 37, 0.08)', pointRadius: 0, tension: 0.4 },
                         { label: '極悲觀 P10', data: p10, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 },
@@ -604,15 +627,14 @@
                     }, 
                     scales: { 
                         x: { 
-                            type: 'linear', // 關鍵：改用線性座標軸
+                            type: 'linear',
                             grid: { display: false },
                             min: -1,
                             max: 10,
                             ticks: {
-                                stepSize: 1, // 每 1 年為一個刻度單位
+                                stepSize: 1,
                                 callback: function(value) {
                                     const map = { '-1': '-1年', '0': '今天', '1': '+1年', '3': '+3年', '5': '+5年', '10': '+10年' };
-                                    // 只顯示我們有計算資料的重點年份標籤，其餘隱藏
                                     return map[value] || ''; 
                                 }
                             }
@@ -720,6 +742,42 @@
                 }
             });
         }
+
+        // 【新增】開機自動讀取 Local Storage 啟動引擎
+        document.addEventListener('DOMContentLoaded', async () => {
+            const savedTW = localStorage.getItem('portfolio_tw');
+            const savedUS = localStorage.getItem('portfolio_us');
+            let hasData = false;
+
+            if (savedTW) {
+                try {
+                    globalPortfolio.tw = JSON.parse(savedTW);
+                    document.getElementById('label-tw').innerText = `✅ 台股 (已載入)`;
+                    hasData = true;
+                } catch(e) { console.error("解析本地台股資料失敗", e); }
+            }
+            if (savedUS) {
+                try {
+                    globalPortfolio.us = JSON.parse(savedUS);
+                    document.getElementById('label-us').innerText = `✅ 美股 (已載入)`;
+                    hasData = true;
+                } catch(e) { console.error("解析本地美股資料失敗", e); }
+            }
+
+            if (hasData) {
+                setLoading(true);
+                try {
+                    await updateFinanceData();
+                } catch (err) {
+                    showInfoModal('更新失敗', '無法取得最新報價，請稍後再試。');
+                } finally {
+                    setLoading(false);
+                }
+            } else {
+                // 如果是第一次使用，完全沒有資料，顯示乾淨的初始畫面
+                renderCurrentView(); 
+            }
+        });
     </script>
 </body>
 </html>
