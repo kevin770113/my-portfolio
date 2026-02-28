@@ -49,7 +49,6 @@
         .btn-upload { background-color: var(--card-bg); border: 1px solid #ccc; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--text-main); display: inline-block; cursor: pointer; }
         input[type="file"] { display: none; }
         
-        /* 隱私按鈕與匯率 */
         .header-tools { display: flex; align-items: center; gap: 8px; }
         .btn-privacy { background: none; border: none; font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 6px; transition: background 0.2s; }
         .btn-privacy:hover { background: #e0e0e0; }
@@ -198,9 +197,8 @@
 
         let currentMarketView = 'ALL'; 
         let globalCombinedList = []; 
-        let isPrivacyMode = false; // 【新增】隱私模式狀態
+        let isPrivacyMode = false; 
 
-        // 【新增】動態遮蔽金額的格式化工具
         const fmtMoney = (n) => isPrivacyMode ? '****' : Math.round(n).toLocaleString();
         
         const parseNum = (str) => { if (!str) return 0; const val = parseFloat(str.toString().replace(/,/g, '').replace('%', '')); return isNaN(val) ? 0 : val; };
@@ -216,11 +214,10 @@
         function showInfoModal(title, desc) { document.getElementById('info-modal-title').innerText = title; document.getElementById('info-modal-desc').innerText = desc; document.getElementById('info-modal-overlay').style.display = 'flex'; }
         function closeInfoModal() { document.getElementById('info-modal-overlay').style.display = 'none'; }
 
-        // 【新增】切換隱私模式功能
         function togglePrivacy() {
             isPrivacyMode = !isPrivacyMode;
             document.getElementById('btn-privacy').innerText = isPrivacyMode ? '🙈' : '👁️';
-            renderCurrentView(); // 重新渲染畫面與圖表
+            renderCurrentView(); 
             showToast(isPrivacyMode ? "隱私模式已開啟 (隱藏金額)" : "隱私模式已關閉");
         }
 
@@ -379,26 +376,16 @@
 
         function renderDashboard(list) {
             if (list.length === 0) {
-                // 即使清空，也透過 fmtMoney 確保格式正確
                 document.getElementById('val-total').innerText = fmtMoney(0); 
                 document.getElementById('val-cost').innerText = fmtMoney(0);
-                document.getElementById('val-profit').innerText = fmtMoney(0); 
-                document.getElementById('val-profit').className = 'stat-main num text-muted';
-                document.getElementById('val-profit-pct').innerText = '0.00%'; 
-                document.getElementById('val-profit-pct').className = 'stat-sub num text-muted';
-                document.getElementById('val-day-change').innerText = fmtMoney(0); 
-                document.getElementById('val-day-change').className = 'stat-main num text-muted';
-                document.getElementById('val-day-change-pct').innerText = '0.00%'; 
-                document.getElementById('val-day-change-pct').className = 'stat-sub num text-muted';
-                document.getElementById('val-ytd').innerText = fmtMoney(0); 
-                document.getElementById('val-ytd').className = 'stat-main num text-muted';
-                document.getElementById('val-ytd-pct').innerText = '0.00%'; 
-                document.getElementById('val-ytd-pct').className = 'stat-sub num text-muted';
-                document.getElementById('val-cagr').innerText = '0.0%'; 
-                document.getElementById('val-cagr').className = 'stat-main num text-muted';
-                document.getElementById('val-stdev').innerText = '--%'; 
-                document.getElementById('val-dividend').innerText = fmtMoney(0); 
-                document.getElementById('val-yield').innerText = '0.00%';
+                document.getElementById('val-profit').innerText = fmtMoney(0); document.getElementById('val-profit').className = 'stat-main num text-muted';
+                document.getElementById('val-profit-pct').innerText = '0.00%'; document.getElementById('val-profit-pct').className = 'stat-sub num text-muted';
+                document.getElementById('val-day-change').innerText = fmtMoney(0); document.getElementById('val-day-change').className = 'stat-main num text-muted';
+                document.getElementById('val-day-change-pct').innerText = '0.00%'; document.getElementById('val-day-change-pct').className = 'stat-sub num text-muted';
+                document.getElementById('val-ytd').innerText = fmtMoney(0); document.getElementById('val-ytd').className = 'stat-main num text-muted';
+                document.getElementById('val-ytd-pct').innerText = '0.00%'; document.getElementById('val-ytd-pct').className = 'stat-sub num text-muted';
+                document.getElementById('val-cagr').innerText = '0.0%'; document.getElementById('val-cagr').className = 'stat-main num text-muted';
+                document.getElementById('val-stdev').innerText = '--%'; document.getElementById('val-dividend').innerText = fmtMoney(0); document.getElementById('val-yield').innerText = '0.00%';
 
                 if (charts.alloc) charts.alloc.destroy();
                 if (charts.perf) charts.perf.destroy();
@@ -418,7 +405,6 @@
             document.getElementById('val-total').innerText = fmtMoney(totalVal);
             document.getElementById('val-cost').innerText = fmtMoney(totalCost);
             
-            // 損益面板：自動加上 + 號與隱私遮罩 (例如: +****)
             const profitEl = document.getElementById('val-profit');
             profitEl.innerText = (totalProfit > 0 ? '+' : '') + fmtMoney(totalProfit);
             profitEl.className = `stat-main num ${totalProfit >= 0 ? 'text-red' : 'text-green'}`;
@@ -475,7 +461,7 @@
         }
 
         function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
-            // 1. 資產配置 (圓餅圖)
+            // 1. 資產配置
             const sortedByVal = [...list].sort((a,b) => b.marketValueTWD - a.marketValueTWD);
             const top5 = sortedByVal.slice(0, 5);
             const othersVal = sortedByVal.slice(5).reduce((a,b) => a + b.marketValueTWD, 0);
@@ -500,7 +486,7 @@
                     plugins: { 
                         legend: { display: false },
                         tooltip: {
-                            callbacks: { // 【隱私防護】圓餅圖 Tooltip
+                            callbacks: {
                                 label: function(context) {
                                     const val = isPrivacyMode ? '****' : '$' + Math.round(context.raw).toLocaleString();
                                     const pct = ((context.raw / totalVal) * 100).toFixed(1);
@@ -529,53 +515,52 @@
                     plugins: { 
                         legend: { display: false },
                         tooltip: {
-                            callbacks: { // 【隱私防護】長條圖 Tooltip
-                                label: function(context) {
-                                    return context.dataset.label + ': ' + (isPrivacyMode ? '****' : '$' + Math.round(context.raw).toLocaleString());
-                                }
+                            callbacks: {
+                                label: function(context) { return context.dataset.label + ': ' + (isPrivacyMode ? '****' : '$' + Math.round(context.raw).toLocaleString()); }
                             }
                         }
                     } 
                 } 
             });
 
-            // 3. 蒙地卡羅熱力圖 (【降維打擊】動態切換 % 數與絕對金額)
+            // ==========================================
+            // 3. 蒙地卡羅熱力圖 (【全新】線性數值軸引擎)
+            // ==========================================
             if (charts.mc) charts.mc.destroy();
             let startVal, hist1YVal;
-            const labelsMC = ['-1年', '今天', '+1年', '+3年', '+5年', '+10年'];
-            const years = [-1, 0, 1, 3, 5, 10];
+            const years = [-1, 0, 1, 3, 5, 10]; // 我們只算這幾個節點的資料
             const p50=[], p90=[], p75=[], p25=[], p10=[], hist=[];
             
             if (isPrivacyMode) {
-                // 隱私模式：Y 軸改為顯示累積報酬率 (%)，今天 = 0%
                 startVal = 0; 
                 hist1YVal = ((1 / (1 + portfolioCAGR)) - 1) * 100;
                 years.forEach(y => {
-                    if (y < 0) { hist.push(hist1YVal); p50.push(null); p90.push(null); p75.push(null); p25.push(null); p10.push(null); } 
-                    else if (y === 0) { hist.push(startVal); p50.push(startVal); p90.push(startVal); p75.push(startVal); p25.push(startVal); p10.push(startVal); } 
-                    else {
-                        hist.push(null);
+                    if (y < 0) { 
+                        hist.push({x: y, y: hist1YVal}); 
+                    } else if (y === 0) { 
+                        hist.push({x: y, y: startVal}); p50.push({x: y, y: startVal}); p90.push({x: y, y: startVal}); p75.push({x: y, y: startVal}); p25.push({x: y, y: startVal}); p10.push({x: y, y: startVal}); 
+                    } else {
                         const multiplier = Math.pow(1 + portfolioCAGR, y);
                         const diffusion = portfolioStdev * Math.sqrt(y);
-                        p50.push((multiplier - 1) * 100);
-                        p90.push((multiplier * (1 + 1.28 * diffusion) - 1) * 100);
-                        p75.push((multiplier * (1 + 0.67 * diffusion) - 1) * 100);
-                        p25.push((multiplier * (1 - 0.67 * diffusion) - 1) * 100);
-                        p10.push((multiplier * (1 - 1.28 * diffusion) - 1) * 100);
+                        p50.push({x: y, y: (multiplier - 1) * 100});
+                        p90.push({x: y, y: (multiplier * (1 + 1.28 * diffusion) - 1) * 100});
+                        p75.push({x: y, y: (multiplier * (1 + 0.67 * diffusion) - 1) * 100});
+                        p25.push({x: y, y: (multiplier * (1 - 0.67 * diffusion) - 1) * 100});
+                        p10.push({x: y, y: (multiplier * (1 - 1.28 * diffusion) - 1) * 100});
                     }
                 });
             } else {
-                // 一般模式：顯示萬 (w) 為單位
                 startVal = totalVal / 10000; 
                 hist1YVal = startVal / (1 + portfolioCAGR); 
                 years.forEach(y => {
-                    if (y < 0) { hist.push(hist1YVal); p50.push(null); p90.push(null); p75.push(null); p25.push(null); p10.push(null); } 
-                    else if (y === 0) { hist.push(startVal); p50.push(startVal); p90.push(startVal); p75.push(startVal); p25.push(startVal); p10.push(startVal); } 
-                    else {
-                        hist.push(null);
+                    if (y < 0) { 
+                        hist.push({x: y, y: hist1YVal}); 
+                    } else if (y === 0) { 
+                        hist.push({x: y, y: startVal}); p50.push({x: y, y: startVal}); p90.push({x: y, y: startVal}); p75.push({x: y, y: startVal}); p25.push({x: y, y: startVal}); p10.push({x: y, y: startVal}); 
+                    } else {
                         const median = startVal * Math.pow(1 + portfolioCAGR, y);
                         const diffusion = portfolioStdev * Math.sqrt(y);
-                        p50.push(median); p90.push(median * (1 + 1.28 * diffusion)); p75.push(median * (1 + 0.67 * diffusion)); p25.push(median * (1 - 0.67 * diffusion)); p10.push(median * (1 - 1.28 * diffusion)); 
+                        p50.push({x: y, y: median}); p90.push({x: y, y: median * (1 + 1.28 * diffusion)}); p75.push({x: y, y: median * (1 + 0.67 * diffusion)}); p25.push({x: y, y: median * (1 - 0.67 * diffusion)}); p10.push({x: y, y: median * (1 - 1.28 * diffusion)}); 
                     }
                 });
             }
@@ -583,22 +568,27 @@
             charts.mc = new Chart(document.getElementById('monteCarloChart'), { 
                 type: 'line', 
                 data: { 
-                    labels: labelsMC, 
+                    // 不再使用字串 labels 陣列，直接讓座標決定位置
                     datasets: [
                         { label: '極樂觀 P90', data: p90, borderColor: 'transparent', fill: 1, backgroundColor: 'rgba(217, 48, 37, 0.08)', pointRadius: 0, tension: 0.4 },
                         { label: '極悲觀 P10', data: p10, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 },
                         { label: '樂觀 P75', data: p75, borderColor: 'transparent', fill: 3, backgroundColor: 'rgba(217, 48, 37, 0.2)', pointRadius: 0, tension: 0.4 },
                         { label: '悲觀 P25', data: p25, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 },
                         { label: '未來中位數', data: p50, borderColor: '#d93025', borderWidth: 2, borderDash: [5,4], fill: false, pointRadius: 0, tension: 0.4 },
-                        { label: '過去1年走勢', data: hist, borderColor: '#1a1a1a', borderWidth: 2.5, fill: false, pointRadius: [3, 4, 0, 0, 0, 0], pointBackgroundColor: '#1a1a1a', tension: 0.1 }
+                        { label: '過去1年走勢', data: hist, borderColor: '#1a1a1a', borderWidth: 2.5, fill: false, pointRadius: 3, pointBackgroundColor: '#1a1a1a', tension: 0.1 }
                     ] 
                 }, 
                 options: { 
                     responsive: true, maintainAspectRatio: false, 
                     plugins: { 
                         legend: { display: false },
-                        tooltip: { // 【隱私防護】MC 浮動視窗切換單位
+                        tooltip: { 
                             callbacks: {
+                                title: function(context) {
+                                    const xVal = context[0].parsed.x;
+                                    const map = { '-1': '過去 1 年', '0': '今天', '1': '未來第 1 年', '3': '未來第 3 年', '5': '未來第 5 年', '10': '未來第 10 年' };
+                                    return map[xVal] || `未來第 ${xVal} 年`;
+                                },
                                 label: function(context) {
                                     let label = context.dataset.label || '';
                                     if (label) label += ': ';
@@ -613,11 +603,24 @@
                         }
                     }, 
                     scales: { 
-                        x: { grid: { display: false } }, 
+                        x: { 
+                            type: 'linear', // 關鍵：改用線性座標軸
+                            grid: { display: false },
+                            min: -1,
+                            max: 10,
+                            ticks: {
+                                stepSize: 1, // 每 1 年為一個刻度單位
+                                callback: function(value) {
+                                    const map = { '-1': '-1年', '0': '今天', '1': '+1年', '3': '+3年', '5': '+5年', '10': '+10年' };
+                                    // 只顯示我們有計算資料的重點年份標籤，其餘隱藏
+                                    return map[value] || ''; 
+                                }
+                            }
+                        }, 
                         y: { 
                             position: 'right', 
                             border: { display: false },
-                            ticks: { callback: v => isPrivacyMode ? Math.round(v) + '%' : Math.round(v)+'w' } // 【隱私防護】Y軸動態單位
+                            ticks: { callback: v => isPrivacyMode ? Math.round(v) + '%' : Math.round(v)+'w' } 
                         } 
                     } 
                 } 
@@ -699,14 +702,12 @@
                                 label: function(context) {
                                     let label = context.dataset.label || '';
                                     if (label) label += ': ';
-                                    // 【隱私防護】現金流 Tooltip 隱藏股票單體金額
                                     if (context.parsed.y !== null) label += isPrivacyMode ? '****' : '$' + Math.round(context.parsed.y).toLocaleString();
                                     return label;
                                 },
                                 footer: function(tooltipItems) {
                                     let total = 0;
                                     tooltipItems.forEach(item => total += item.parsed.y);
-                                    // 【隱私防護】現金流 Tooltip 隱藏當月總計
                                     return '\n當月總計: ' + (isPrivacyMode ? '****' : '$' + Math.round(total).toLocaleString());
                                 }
                             }
@@ -714,11 +715,7 @@
                     },
                     scales: {
                         x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12 } },
-                        y: { 
-                            stacked: true, position: 'right', border: { display: false }, 
-                            // 【隱私防護】隱藏現金流 Y 軸座標
-                            ticks: { callback: v => isPrivacyMode ? '***' : Math.round(v/1000)+'k' } 
-                        }
+                        y: { stacked: true, position: 'right', border: { display: false }, ticks: { callback: v => isPrivacyMode ? '***' : Math.round(v/1000)+'k' } }
                     }
                 }
             });
