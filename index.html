@@ -349,7 +349,7 @@
                         profitTWD: marketValTWD - costTWD, roi: costTWD > 0 ? (marketValTWD - costTWD) / costTWD : 0,
                         dayChangeTWD: m.change * item.shares * exRate, ytd: m.ytd || 0, cagr: m.cagr || 0, stdev: m.stdev || 0,
                         dividendTWD: (m.dividendYield * (m.price * item.shares)) * exRate, yield: m.dividendYield,
-                        historicalDividends: m.historicalDividends || [] // 承接後端新加入的明細陣列
+                        historicalDividends: m.historicalDividends || [] 
                     };
                 }).filter(i => i.marketValueTWD > 0); 
             };
@@ -444,7 +444,6 @@
         }
 
         function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
-            // 1. 資產配置 (圓餅圖)
             const sortedByVal = [...list].sort((a,b) => b.marketValueTWD - a.marketValueTWD);
             const top5 = sortedByVal.slice(0, 5);
             const othersVal = sortedByVal.slice(5).reduce((a,b) => a + b.marketValueTWD, 0);
@@ -463,7 +462,6 @@
             if (charts.alloc) charts.alloc.destroy();
             charts.alloc = new Chart(document.getElementById('allocationChart'), { type: 'doughnut', data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } } });
 
-            // 2. 績效排行圖 (已改為「現值高低」排序，產生瀑布階梯效果)
             if (charts.perf) charts.perf.destroy();
             charts.perf = new Chart(document.getElementById('performanceChart'), { 
                 type: 'bar', 
@@ -477,7 +475,6 @@
                 options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }, plugins: { legend: { display: false } } } 
             });
 
-            // 3. 蒙地卡羅熱力圖
             if (charts.mc) charts.mc.destroy();
             const startVal = totalVal / 10000; 
             const hist1YVal = startVal / (1 + portfolioCAGR); 
@@ -515,7 +512,7 @@
             });
 
             // ==========================================
-            // 4. 【全新】月度現金流分析圖表 (雙色堆疊長條圖)
+            // 月度現金流分析圖表 (修復黑框、過濾 0 元、強制單行標籤)
             // ==========================================
             const now = new Date();
             const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1);
@@ -523,7 +520,6 @@
             const labelsCF = [];
             const monthKeys = [];
             
-            // 建立 24 個月的 X 軸標籤 (如: 24/03)
             for (let i = 0; i < 24; i++) {
                 const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
                 const yy = d.getFullYear().toString().slice(-2);
@@ -533,8 +529,8 @@
             }
 
             const datasetsCF = [];
-            // 色票庫，轉換為 RGB 以利調整透明度
-            const cfColors = ['217,48,37', '24,128,56', '25FB,188,4', '26,115,232', '242,139,130', '129,201,149', '253,226,147', '138,180,248', '197,34,31', '13,101,45', '242,153,0', '24,90,188'];
+            // 【修正 1】色碼打錯字 25FB -> 253，黑色消失！
+            const cfColors = ['217,48,37', '24,128,56', '253,188,4', '26,115,232', '242,139,130', '129,201,149', '253,226,147', '138,180,248', '197,34,31', '13,101,45', '242,153,0', '24,90,188'];
             let totalExpectedDividend = 0;
 
             list.forEach((stock, sIdx) => {
@@ -544,7 +540,7 @@
                 
                 const rgb = cfColors[sIdx % cfColors.length];
                 const solidColor = `rgba(${rgb}, 0.9)`;
-                const transparentColor = `rgba(${rgb}, 0.35)`; // 未來 12 個月用半透明淺色
+                const transparentColor = `rgba(${rgb}, 0.35)`; 
                 
                 for(let i=0; i<24; i++) bgColors.push(i < 12 ? solidColor : transparentColor);
 
@@ -557,13 +553,9 @@
                         
                         const totalDivTWD = div.amount * stock.shares * exRate;
                         
-                        // 填入過去 12 個月
                         const pastIdx = monthKeys.indexOf(key);
-                        if (pastIdx >= 0 && pastIdx < 12) {
-                            dataArr[pastIdx] += totalDivTWD;
-                        }
+                        if (pastIdx >= 0 && pastIdx < 12) dataArr[pastIdx] += totalDivTWD;
                         
-                        // 平移推算未來 12 個月
                         const futureKey = `${dYear + 1}-${dMonth}`;
                         const futureIdx = monthKeys.indexOf(futureKey);
                         if (futureIdx >= 12 && futureIdx < 24) {
@@ -578,7 +570,6 @@
                 }
             });
 
-            // 更新上方看板的「未來 12 個月預估股息」數字 (取代原本粗估的殖利率算法)
             document.getElementById('val-dividend').innerText = fmtMoney(totalExpectedDividend);
             document.getElementById('val-yield').innerText = (totalVal > 0 ? (totalExpectedDividend/totalVal*100).toFixed(2) : 0) + '%';
 
@@ -590,11 +581,14 @@
                     responsive: true, maintainAspectRatio: false,
                     plugins: {
                         legend: { display: false },
-                        // 【自訂浮動視窗】顯示當月所有發放股息的股票與明細，並按金額排序
                         tooltip: {
                             mode: 'index',
                             intersect: false,
-                            itemSort: (a, b) => b.raw - a.raw, // 依貢獻金額由高到低排序
+                            // 【修正 2】只顯示該月份有發股息 (>0) 的股票，不再塞滿整個黑框
+                            filter: function(tooltipItem) {
+                                return tooltipItem.raw > 0;
+                            },
+                            itemSort: (a, b) => b.raw - a.raw,
                             callbacks: {
                                 label: function(context) {
                                     let label = context.dataset.label || '';
@@ -611,7 +605,17 @@
                         }
                     },
                     scales: {
-                        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 45 } },
+                        x: { 
+                            stacked: true, 
+                            grid: { display: false }, 
+                            ticks: { 
+                                font: { size: 10 }, 
+                                maxRotation: 45, 
+                                minRotation: 45,
+                                autoSkip: true,         // 【修正 3】開啟自動省略
+                                maxTicksLimit: 12       // 【修正 3】強制最多只顯示 12 個月份，確保乖乖排成一列
+                            } 
+                        },
                         y: { stacked: true, position: 'right', border: { display: false }, ticks: { callback: v => Math.round(v/1000)+'k' } }
                     }
                 }
