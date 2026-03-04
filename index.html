@@ -12,8 +12,16 @@
             --text-muted: #666666; --border-color: #eaeaea;
             --red-profit: #d93025; --green-loss: #188038; --primary-dark: #2c3e50;
         }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; background-color: var(--bg-color); margin: 0; padding: 8px; color: var(--text-main); }
-        * { box-sizing: border-box; }
+        
+        /* 【整合優化】加入淡入動畫與鎖死 X 軸 */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; 
+            background-color: var(--bg-color); margin: 0; padding: 8px; color: var(--text-main); 
+            animation: fadeIn 0.4s ease-out;
+            overflow-x: hidden; overscroll-behavior-x: none;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         .num { font-variant-numeric: tabular-nums; font-family: "SF Pro Display", -apple-system, sans-serif; }
         .card { background-color: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
 
@@ -24,38 +32,59 @@
         #toast-container { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 24px; border-radius: 24px; font-size: 13px; font-weight: 500; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         #toast-container.show { opacity: 1; }
 
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
-        .custom-prompt-box { background: var(--card-bg); border-radius: 12px; padding: 20px; width: 90%; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); animation: popIn 0.3s ease-out; }
+        /* 系統視窗 */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .custom-prompt-box { background: var(--card-bg); border-radius: 16px; padding: 24px; width: 85%; max-width: 320px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); text-align: center; }
         @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .prompt-title { font-size: 16px; font-weight: bold; margin-bottom: 12px; color: var(--text-main); }
-        .prompt-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.6; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; }
-        .prompt-input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; margin-bottom: 10px; text-transform: uppercase; transition: border-color 0.2s; }
+        .prompt-icon { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; margin: 0 auto 16px; font-weight: bold; }
+        .prompt-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; color: var(--text-main); }
+        .prompt-desc { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5; }
+        .prompt-input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; margin-bottom: 10px; text-transform: uppercase; transition: border-color 0.2s; text-align: left; }
         .prompt-input:focus { outline: none; border-color: var(--primary-dark); box-shadow: 0 0 0 2px rgba(44,62,80,0.2); }
         .prompt-input.error { border-color: var(--red-profit); box-shadow: 0 0 0 2px rgba(217,48,37,0.2); }
-        .error-msg { color: var(--red-profit); font-size: 12px; margin-bottom: 15px; display: none; font-weight: bold; }
+        .error-msg { color: var(--red-profit); font-size: 12px; margin-bottom: 15px; display: none; font-weight: bold; text-align: left; }
         
-        .prompt-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 5px; }
-        /* 【新增】danger 紅色按鈕樣式 */
-        .btn-skip, .btn-confirm, .btn-success, .btn-danger { flex: 1; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; text-align: center; }
-        .btn-skip { background: #f0f2f5; color: var(--text-muted); }
+        .prompt-actions { display: flex; gap: 10px; justify-content: center; }
+        .btn-skip, .btn-confirm, .btn-success, .btn-danger { flex: 1; padding: 14px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 15px; }
+        .btn-skip { background: #e0e6ed; color: #7f8c8d; }
         .btn-confirm { background: var(--primary-dark); color: white; }
         .btn-success { background: var(--green-loss); color: white; }
         .btn-danger { background: var(--red-profit); color: white; }
 
-        .control-panel { position: sticky; top: 0; z-index: 100; background-color: var(--bg-color); padding-bottom: 8px; margin-bottom: 4px; }
-        .tabs { display: flex; background-color: #e4e6eb; border-radius: 8px; padding: 3px; margin-bottom: 10px; }
+        /* ================= 【全新】側邊抽屜選單 ================= */
+        .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 3000; opacity: 0; visibility: hidden; transition: 0.3s ease; }
+        .drawer-overlay.show { opacity: 1; visibility: visible; }
+        .drawer-menu { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1A252F; box-shadow: 4px 0 16px rgba(0,0,0,0.3); z-index: 3001; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; }
+        .drawer-overlay.show .drawer-menu { transform: translateX(280px); }
+        .drawer-header { padding: 40px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .drawer-avatar { width: 60px; height: 60px; background: #CF9236; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; }
+        .drawer-title { color: white; font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+        .drawer-subtitle { color: #95A5A6; font-size: 12px; }
+        .drawer-nav { padding: 20px 0; flex: 1; }
+        .drawer-item { display: flex; align-items: center; padding: 16px 24px; color: #BDC3C7; font-size: 16px; font-weight: 500; text-decoration: none; transition: 0.2s; cursor: pointer; }
+        .drawer-item:active { background: rgba(255,255,255,0.05); }
+        .drawer-item.active { background: rgba(255,255,255,0.1); border-left: 4px solid #CF9236; color: white; }
+        .drawer-icon { margin-right: 16px; font-size: 20px; width: 24px; text-align: center; }
+
+        /* UI 結構 */
+        .control-panel { position: sticky; top: 0; z-index: 100; background-color: var(--bg-color); padding-bottom: 8px; margin-bottom: 4px; display: flex; flex-direction: column; gap: 10px; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; }
+        .btn-menu { background: none; border: none; font-size: 24px; color: var(--primary-dark); cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+        .btn-menu:active { background: rgba(0,0,0,0.05); }
+        
+        .tabs { display: flex; background-color: #e4e6eb; border-radius: 8px; padding: 3px; flex: 1; margin-left: 8px; }
         .tab-btn { flex: 1; text-align: center; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--text-muted); border-radius: 6px; cursor: pointer; transition: all 0.2s; }
         .tab-btn.active { background-color: var(--card-bg); color: var(--text-main); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
         .import-row { display: flex; justify-content: space-between; align-items: center; }
         .import-buttons { display: flex; gap: 8px; }
-        /* 【修正】加入 white-space: nowrap 避免按鈕文字換行 */
         .btn-upload { background-color: var(--card-bg); border: 1px solid #ccc; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--text-main); display: inline-block; cursor: pointer; white-space: nowrap; }
         input[type="file"] { display: none; }
         
         .header-tools { display: flex; align-items: center; gap: 8px; }
         .btn-privacy { background: none; border: none; font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 6px; transition: background 0.2s; }
         .btn-privacy:hover { background: #e0e0e0; }
-        .exchange-rate { font-size: 11px; color: var(--text-muted); background-color: #e8f4fd; padding: 4px 8px; border-radius: 4px; border: 1px solid #cde4f7; display: flex; align-items: center; }
+        .exchange-rate { font-size: 11px; color: var(--text-muted); background-color: #e8f4fd; padding: 4px 8px; border-radius: 4px; border: 1px solid #cde4f7; display: flex; align-items: center; white-space: nowrap; }
         
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
         .card-title { font-size: 15px; font-weight: 700; margin: 0; color: #333; }
@@ -86,6 +115,24 @@
 </head>
 <body>
 
+    <div id="drawer-overlay" class="drawer-overlay" onclick="closeDrawer()">
+        <div class="drawer-menu" onclick="event.stopPropagation();">
+            <div class="drawer-header">
+                <div class="drawer-avatar">莊</div>
+                <div class="drawer-title">財富管理中心</div>
+                <div class="drawer-subtitle">資產增值與守備儀表板</div>
+            </div>
+            <div class="drawer-nav">
+                <a href="index.html" class="drawer-item active">
+                    <span class="drawer-icon">📈</span> 投資儀表板
+                </a>
+                <a href="accounting.html" class="drawer-item">
+                    <span class="drawer-icon">🏦</span> 財務記帳本
+                </a>
+            </div>
+        </div>
+    </div>
+
     <div id="toast-container"></div>
 
     <div id="loading-overlay">
@@ -96,20 +143,21 @@
 
     <div id="info-modal-overlay" class="modal-overlay">
         <div class="custom-prompt-box">
+            <div class="prompt-icon" style="background:#E8F5E9; color:#4E8765;">✓</div>
             <div class="prompt-title" id="info-modal-title">提示</div>
-            <div class="prompt-desc" id="info-modal-desc" style="background:none; border:none; padding:0; font-size: 14px;"></div>
+            <div class="prompt-desc" id="info-modal-desc"></div>
             <div class="prompt-actions">
-                <button class="btn-confirm" onclick="closeInfoModal()" style="width: 100%; flex: none;">我知道了</button>
+                <button class="btn-confirm" onclick="closeInfoModal()">我知道了</button>
             </div>
         </div>
     </div>
 
     <div id="confirm-modal-overlay" class="modal-overlay">
         <div class="custom-prompt-box">
-            <div class="prompt-title">⚠️ 警告</div>
-            <div class="prompt-desc" style="font-size: 14px;">
-                確定要清空所有持股資料嗎？<br><br>
-                這將移除儀表板上的所有紀錄，您下次需要重新匯入 CSV 檔。
+            <div class="prompt-icon" style="background:#FFF4E5; color:#CF9236;">?</div>
+            <div class="prompt-title">警告</div>
+            <div class="prompt-desc">
+                確定要清空所有持股資料嗎？<br><br>這將移除儀表板上的所有紀錄，您下次需要重新匯入 CSV 檔。
             </div>
             <div class="prompt-actions">
                 <button class="btn-skip" onclick="closeConfirmModal()">取消</button>
@@ -119,10 +167,10 @@
     </div>
 
     <div id="custom-prompt-overlay" class="modal-overlay">
-        <div class="custom-prompt-box">
-            <div class="prompt-title">⚠️ 發現新股票：<span id="prompt-stock-name" style="color: var(--red-profit);"></span></div>
+        <div class="custom-prompt-box" style="padding: 20px; text-align: left;">
+            <div class="prompt-title" style="text-align: center;">⚠️ 發現新股票：<span id="prompt-stock-name" style="color: var(--red-profit);"></span></div>
             <div id="prompt-step-input">
-                <div class="prompt-desc">
+                <div class="prompt-desc" style="background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px dashed #ccc;">
                     請輸入 <b>Yahoo Finance</b> 代號：<br><br>
                     📌 <b>範例格式：</b><br>
                     👉 <b>上市</b> (台積電)：2330.TW<br>
@@ -141,7 +189,7 @@
                 <div style="font-size: 13px; color: var(--text-muted);">連線驗證中...</div>
             </div>
             <div id="prompt-step-confirm" style="display:none;">
-                <div style="background: #e8f4fd; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #cde4f7;">
+                <div style="background: #e8f4fd; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #cde4f7; text-align: center;">
                     <div style="font-size: 11px; color: #555;">✅ 系統登記名稱：</div>
                     <div id="prompt-yahoo-name" style="font-weight: bold; font-size: 15px; margin: 4px 0 8px 0; color: #0056b3;"></div>
                     <div style="font-size: 11px; color: #555;">💰 最新收盤價：</div>
@@ -156,10 +204,13 @@
     </div>
 
     <div class="control-panel">
-        <div class="tabs">
-            <div id="tab-ALL" class="tab-btn active" onclick="switchMarket('ALL')">全球總覽</div>
-            <div id="tab-TW" class="tab-btn" onclick="switchMarket('TW')">🇹🇼 台股</div>
-            <div id="tab-US" class="tab-btn" onclick="switchMarket('US')">🇺🇸 美股</div>
+        <div class="top-bar">
+            <button class="btn-menu" onclick="openDrawer()">☰</button>
+            <div class="tabs">
+                <div id="tab-ALL" class="tab-btn active" onclick="switchMarket('ALL')">全球總覽</div>
+                <div id="tab-TW" class="tab-btn" onclick="switchMarket('TW')">🇹🇼 台股</div>
+                <div id="tab-US" class="tab-btn" onclick="switchMarket('US')">🇺🇸 美股</div>
+            </div>
         </div>
         <div class="import-row">
             <div class="import-buttons">
@@ -209,6 +260,10 @@
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
     <script>
+        // 側邊選單控制
+        function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
+        function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
+
         let globalPortfolio = { tw: [], us: [] };
         let currentRate = 32.5; 
         let charts = {}; 
@@ -228,10 +283,13 @@
             clearTimeout(toastTimeout); toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500);
         }
 
-        function showInfoModal(title, desc) { document.getElementById('info-modal-title').innerText = title; document.getElementById('info-modal-desc').innerText = desc; document.getElementById('info-modal-overlay').style.display = 'flex'; }
+        function showInfoModal(title, desc) { 
+            document.getElementById('info-modal-title').innerText = title; 
+            document.getElementById('info-modal-desc').innerText = desc; 
+            document.getElementById('info-modal-overlay').style.display = 'flex'; 
+        }
         function closeInfoModal() { document.getElementById('info-modal-overlay').style.display = 'none'; }
 
-        // 【修改】專屬質感清空視窗的控制邏輯
         function showConfirmModal() { document.getElementById('confirm-modal-overlay').style.display = 'flex'; }
         function closeConfirmModal() { document.getElementById('confirm-modal-overlay').style.display = 'none'; }
         
@@ -350,7 +408,6 @@
                         globalPortfolio[market] = normalized;
                         localStorage.setItem(`portfolio_${market}`, JSON.stringify(normalized));
 
-                        // 匯入完成後顯示簡短數量，避免換行
                         document.getElementById(`label-${market}`).innerText = `✅ ${market === 'tw' ? '台股' : '美股'} (${normalized.length})`;
                         showToast(`成功讀取並記憶 ${market === 'tw' ? '台股' : '美股'} CSV`);
 
@@ -756,7 +813,6 @@
             });
         }
 
-        // 【修改】按鈕文字精簡為「(記憶)」
         document.addEventListener('DOMContentLoaded', async () => {
             const savedTW = localStorage.getItem('portfolio_tw');
             const savedUS = localStorage.getItem('portfolio_us');

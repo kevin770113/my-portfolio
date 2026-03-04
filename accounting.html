@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>財務記帳本 - 財富管理中心</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <style>
+        :root {
+            /* 【視覺統一】將底色改為與投資板一致的 #f0f2f5 */
+            --primary-bg: #f0f2f5;
+            --card-bg: #FFFFFF;
+            --text-main: #2C3E50;
+            --text-sub: #7F8C8D;
+            --expense-color: #B25858; 
+            --income-color: #4E8765;  
+            --invest-color: #4A6C8C; 
+            --balance-color: #E5C07B; 
+            --border-color: #E0E6ED;
+            --btn-bg: #FFFFFF;
+            --btn-active: #E3EBF3;
+            --btn-border: #CBD5E1;
+        }
+
+        /* 【整合優化】加入淡入動畫 */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent;}
+        
+        /* 物理級防護：徹底鎖死外層的 X 軸與回彈特效，並套用動畫 */
+        body { background-color: var(--primary-bg); color: var(--text-main); height: 100vh; overflow: hidden; overscroll-behavior-x: none; animation: fadeIn 0.4s ease-out; }
+
+        .page { display: none; height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior-x: none; padding-bottom: 120px; }
+        .page.active { display: block; }
+
+        .header {
+            background-color: #1A252F; color: #FFFFFF; padding: 16px 20px;
+            text-align: center; font-size: 16px; font-weight: 600;
+            position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .container { padding: 16px; }
+
+        /* ================= 【全新】側邊抽屜選單 ================= */
+        .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 3000; opacity: 0; visibility: hidden; transition: 0.3s ease; }
+        .drawer-overlay.show { opacity: 1; visibility: visible; }
+        .drawer-menu { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1A252F; box-shadow: 4px 0 16px rgba(0,0,0,0.3); z-index: 3001; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; }
+        .drawer-overlay.show .drawer-menu { transform: translateX(280px); }
+        .drawer-header-menu { padding: 40px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left; }
+        .drawer-avatar { width: 60px; height: 60px; background: #CF9236; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; }
+        .drawer-title { color: white; font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+        .drawer-subtitle { color: #95A5A6; font-size: 12px; }
+        .drawer-nav { padding: 20px 0; flex: 1; }
+        .drawer-item { display: flex; align-items: center; padding: 16px 24px; color: #BDC3C7; font-size: 16px; font-weight: 500; text-decoration: none; transition: 0.2s; cursor: pointer; }
+        .drawer-item:active { background: rgba(255,255,255,0.05); }
+        .drawer-item.active { background: rgba(255,255,255,0.1); border-left: 4px solid #CF9236; color: white; }
+        .drawer-icon { margin-right: 16px; font-size: 20px; width: 24px; text-align: center; }
+
+        .btn-menu { background: none; border: none; font-size: 24px; color: #FFFFFF; cursor: pointer; padding: 0 10px; margin-left: -10px; }
+        .btn-menu:active { opacity: 0.7; }
+
+        /* ================= 共用卡片 ================= */
+        /* 【視覺統一】將陰影對齊投資板 */
+        .chart-card { background: var(--card-bg); border-radius: 12px; padding: 20px 12px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
+        .card-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; border-left: 4px solid #1A252F; padding-left: 8px; margin-left: 4px; color: var(--text-main); }
+        .card-desc { font-size: 12px; color: var(--text-sub); margin-left: 12px; margin-bottom: 16px; line-height: 1.4; }
+
+        /* ================= 頁面一：歷史總覽 ================= */
+        .kpi-wrapper { background: linear-gradient(135deg, #1A252F 0%, #2C3E50 100%); border-radius: 16px; padding: 20px; margin-bottom: 24px; box-shadow: 0 10px 24px rgba(26, 37, 47, 0.2); color: white; }
+        .kpi-hero { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; }
+        .kpi-hero-title { font-size: 12px; color: #BDC3C7; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 16px; display: flex; justify-content: space-between; }
+        .kpi-hero-balance { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px dashed rgba(255,255,255,0.15); }
+        .kpi-hero-balance-label { font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px; display: block;}
+        .kpi-hero-balance-val { font-size: 34px; font-weight: 700; font-family: 'Helvetica Neue', sans-serif; color: var(--balance-color); letter-spacing: 0.5px;}
+        .kpi-hero-row { display: flex; justify-content: space-between; align-items: flex-end;}
+        .kpi-hero-item { display: flex; flex-direction: column; gap: 4px; flex: 1;}
+        .kpi-hero-label { font-size: 12px; color: rgba(255,255,255,0.6); }
+        .kpi-hero-val { font-size: 20px; font-weight: 600; font-family: 'Helvetica Neue', sans-serif; white-space: nowrap;}
+        
+        .val-in { color: #88C0A0; } 
+        .val-out { color: #E3A3A3; }
+        .val-inv { color: #9ABCE0; } 
+
+        .kpi-sub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .kpi-sub-card { background: rgba(0, 0, 0, 0.15); border-radius: 10px; padding: 12px 16px; }
+        .kpi-sub-title { font-size: 11px; color: #95A5A6; margin-bottom: 8px; font-weight: 500;}
+        .kpi-sub-item { display: flex; justify-content: space-between; margin-bottom: 4px; align-items: baseline;}
+        .kpi-sub-item:last-child { margin-bottom: 0; }
+        .kpi-sub-label { font-size: 12px; color: rgba(255,255,255,0.6); }
+        .kpi-sub-val { font-size: 15px; font-weight: 600; font-family: 'Helvetica Neue', sans-serif; }
+
+        .fab-btn { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background-color: #CF9236; color: white; border: none; padding: 16px 32px; border-radius: 30px; font-size: 16px; font-weight: 600; box-shadow: 0 6px 16px rgba(207, 146, 54, 0.4); cursor: pointer; z-index: 100; display: flex; align-items: center; gap: 8px; transition: 0.2s; white-space: nowrap; }
+        .fab-btn:active { transform: translateX(-50%) scale(0.95); }
+
+        .btn-clear { background-color: transparent; border: 1px solid #E0E6ED; color: #7F8C8D; padding: 12px; width: 100%; border-radius: 8px; font-size: 14px; cursor: pointer; margin-top: 10px; }
+        .btn-clear:active { background-color: #F4F6F9; }
+
+        /* ================= 頁面二：分類作業 ================= */
+        .transaction-card { background-color: var(--card-bg); border-radius: 12px; padding: 24px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px; border: 1px solid var(--border-color); }
+        .tx-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .tx-date { font-size: 14px; color: var(--text-sub); }
+        .tx-amount { font-size: 28px; font-weight: bold; }
+        .tx-amount.expense { color: var(--expense-color); }
+        .tx-amount.income { color: var(--income-color); }
+        .tx-divider { height: 1px; background-color: var(--border-color); margin: 16px 0; }
+        .tx-memo { font-size: 22px; font-weight: 600; color: var(--text-main); line-height: 1.4; margin-top: 4px; }
+        
+        .cat-section-title { font-size: 13px; color: var(--text-sub); margin-bottom: 12px; font-weight: 600; margin-top: 8px;}
+        .btn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;}
+        .category-btn { background-color: var(--btn-bg); border: 1px solid var(--btn-border); color: #34495E; padding: 14px 8px; border-radius: 8px; font-size: 15px; font-weight: 500; text-align: center; cursor: pointer; }
+        .category-btn:active { background-color: var(--btn-active); }
+        
+        .btn-expense { border-left: 3px solid var(--expense-color); }
+        .btn-income { border-left: 3px solid var(--income-color); }
+        .btn-invest { border-left: 3px solid var(--invest-color); }
+        .btn-other { border-left: 3px solid #95A5A6; }
+
+        /* ================= 頁面三：批次結算 ================= */
+        .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+        .summary-card { background: var(--card-bg); padding: 16px 12px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
+        .summary-title { font-size: 12px; color: var(--text-sub); margin-bottom: 6px; }
+        .summary-value { font-size: 18px; font-weight: 700; }
+        .summary-val-in { color: var(--income-color); }
+        .summary-val-out { color: var(--expense-color); }
+        .summary-val-inv { color: var(--invest-color); }
+
+        .expense-list { display: flex; flex-direction: column; gap: 16px; padding: 0 8px;}
+        .expense-item { width: 100%; }
+        .item-header { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 6px; }
+        .item-name { color: var(--text-main); font-weight: 500;}
+        .item-amount { color: var(--text-main); font-weight: 600; }
+        .progress-bar-bg { background-color: var(--border-color); height: 6px; border-radius: 3px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; border-radius: 3px; }
+        .progress-bar-fill.expense { background-color: var(--expense-color); }
+        .progress-bar-fill.income { background-color: var(--income-color); }
+        .progress-bar-fill.invest { background-color: var(--invest-color); }
+
+        .btn-export { background-color: #1A252F; color: white; border: none; padding: 16px 24px; border-radius: 12px; font-size: 16px; font-weight: 500; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 10px; cursor: pointer; }
+        .btn-export:active { background-color: #2C3E50; }
+
+        /* ================= 自訂彈出視窗 ================= */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; visibility: hidden; transition: 0.3s ease; }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+        .modal-content { background: #FFFFFF; width: 85%; max-width: 320px; border-radius: 24px; padding: 32px 24px 24px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.2); transform: scale(0.9); transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .modal-overlay.active .modal-content { transform: scale(1); }
+        .modal-icon { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; margin: 0 auto 16px; font-weight: bold; }
+        .modal-title { font-size: 20px; font-weight: 700; color: #2C3E50; margin-bottom: 8px; }
+        .modal-text { font-size: 14px; color: #7F8C8D; margin-bottom: 24px; line-height: 1.5; white-space: pre-line; }
+        .modal-btn { background: #1A252F; color: white; border: none; padding: 14px; width: 100%; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
+        .modal-btn.cancel { background: #95A5A6; }
+        .modal-actions { display: flex; gap: 10px; }
+
+        .chart-container { width: 100%; min-height: 280px; touch-action: pan-y; }
+    </style>
+</head>
+<body>
+
+    <div id="drawer-overlay" class="drawer-overlay" onclick="closeDrawer()">
+        <div class="drawer-menu" onclick="event.stopPropagation();">
+            <div class="drawer-header-menu">
+                <div class="drawer-avatar">莊</div>
+                <div class="drawer-title">財富管理中心</div>
+                <div class="drawer-subtitle">資產增值與守備儀表板</div>
+            </div>
+            <div class="drawer-nav">
+                <a href="index.html" class="drawer-item">
+                    <span class="drawer-icon">📈</span> 投資儀表板
+                </a>
+                <a href="accounting.html" class="drawer-item active">
+                    <span class="drawer-icon">🏦</span> 財務記帳本
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div id="customAlert" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-icon" id="alertIcon">✓</div>
+            <div class="modal-title" id="alertTitle">提示</div>
+            <div class="modal-text" id="alertMessage">訊息內容</div>
+            <div class="modal-actions" id="alertActions">
+                <button class="modal-btn" onclick="closeAlert(true)">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="conflictAlert" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-icon" style="background:#FFF4E5; color:#CF9236;">?</div>
+            <div class="modal-title">發現重複月份</div>
+            <div class="modal-text" id="conflictMessage">歷史紀錄中已有 X 月的資料。</div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" onclick="resolveConflict('skip')">捨棄重複</button>
+                <button class="modal-btn" style="background: #B25858;" onclick="resolveConflict('overwrite')">覆蓋舊檔</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept=".csv" multiple style="display: none;">
+
+    <div id="page-historical" class="page active">
+        <div class="header">
+            <button class="btn-menu" onclick="openDrawer()">☰</button>
+            <span style="flex: 1;">歷史財務趨勢 (總資料庫)</span>
+            <div style="width: 24px;"></div>
+        </div>
+        <div class="container">
+            
+            <div class="kpi-wrapper">
+                <div class="kpi-hero">
+                    <div class="kpi-hero-title">
+                        <span>最新月份概況</span>
+                        <span id="kpi-month" style="color: #FFFFFF; font-weight: 600;">尚無資料</span>
+                    </div>
+                    <div class="kpi-hero-balance">
+                        <span class="kpi-hero-balance-label">最新真實存款餘額</span>
+                        <span class="kpi-hero-balance-val" id="kpi-balance">$ 0</span>
+                    </div>
+                    <div class="kpi-hero-row">
+                        <div class="kpi-hero-item">
+                            <span class="kpi-hero-label">當月總收入</span>
+                            <span class="kpi-hero-val val-in" id="kpi-income">$ 0</span>
+                        </div>
+                        <div class="kpi-hero-item" style="text-align: center;">
+                            <span class="kpi-hero-label">當月總消費</span>
+                            <span class="kpi-hero-val val-out" id="kpi-expense">$ 0</span>
+                        </div>
+                        <div class="kpi-hero-item" style="text-align: right;">
+                            <span class="kpi-hero-label">當月總投資</span>
+                            <span class="kpi-hero-val val-inv" id="kpi-invest">$ 0</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="kpi-sub-grid">
+                    <div class="kpi-sub-card">
+                        <div class="kpi-sub-title">近 1 年月平均</div>
+                        <div class="kpi-sub-item"><span class="kpi-sub-label">收</span><span class="kpi-sub-val val-in" id="kpi-avg-in">0</span></div>
+                        <div class="kpi-sub-item"><span class="kpi-sub-label">消</span><span class="kpi-sub-val val-out" id="kpi-avg-out">0</span></div>
+                        <div class="kpi-sub-item"><span class="kpi-sub-label">投</span><span class="kpi-sub-val val-inv" id="kpi-avg-inv">0</span></div>
+                    </div>
+                    <div class="kpi-sub-card">
+                        <div class="kpi-sub-title">歷史總平均</div>
+                        <div class="kpi-sub-item"><span class="kpi-sub-label">收</span><span class="kpi-sub-val val-in" id="kpi-total-avg-in">0</span></div>
+                        <div class="kpi-sub-item"><span class="kpi-sub-label">消</span><span class="kpi-sub-val val-out" id="kpi-total-avg-out">0</span></div>
+                        <div class="kpi-sub-item"><span class="kpi-sub-label">投</span><span class="kpi-sub-val val-inv" id="kpi-total-avg-inv">0</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="card-title">三大核心指標歷史趨勢</div>
+                <div class="card-desc">全歷史平滑曲線走勢，專注比較收入、消費與投資的活躍度。</div>
+                <div id="trendChart" class="chart-container" style="height: 280px;"></div>
+            </div>
+
+            <div class="chart-card">
+                <div class="card-title">銀行餘額 vs 當月淨結餘</div>
+                <div class="card-desc">同軸觀測總資產(黃金實線)與當月守財能力(綠色實線)。</div>
+                <div id="balanceNetChart" class="chart-container" style="height: 280px;"></div>
+            </div>
+
+            <div class="chart-card">
+                <div class="card-title">全歷史收支與投資熱力圖</div>
+                <div class="card-desc">一眼看穿財務極端值。底部附帶滑桿，可平移回溯歷史。</div>
+                <div id="heatmapChart" class="chart-container" style="height: 500px;"></div>
+            </div>
+
+            <div class="chart-card">
+                <div class="card-title">最新月花費 vs 近1年平均</div>
+                <div class="card-desc">立即診斷最新月份的各項支出，是否有嚴重超出您平常水準的情況。</div>
+                <div id="compareChart" class="chart-container" style="height: 280px;"></div>
+            </div>
+
+            <button class="btn-clear" onclick="confirmClearData()">🗑️ 清除所有歷史資料</button>
+
+            <button class="fab-btn" onclick="triggerUpload()">
+                <span style="font-size: 20px;">+</span> 匯入單筆 / 多筆明細
+            </button>
+        </div>
+    </div>
+
+    <div id="page-categorize" class="page">
+        <div class="header">
+            <div id="cat-progress" style="font-size: 14px; font-weight: 500; width: 100%;">處理進度：--</div>
+        </div>
+        <div class="container">
+            <div class="transaction-card">
+                <div class="tx-header">
+                    <div>
+                        <div class="tx-date" id="tx-date">--</div>
+                        <div style="font-size: 12px; color: #7F8C8D; margin-top: 4px;">說明：<span id="tx-desc">--</span></div>
+                    </div>
+                    <div class="tx-amount" id="tx-amount">--</div> 
+                </div>
+                <div class="tx-divider"></div>
+                <div>
+                    <div style="font-size: 12px; color: #7F8C8D;">備註內容</div>
+                    <div class="tx-memo" id="tx-memo">--</div>
+                </div>
+            </div>
+
+            <div id="expense-buttons" style="display: none;">
+                <div class="cat-section-title">選擇【消費支出】項目</div>
+                <div class="btn-grid">
+                    <button class="category-btn btn-expense" onclick="categorize('信用卡')">信用卡</button>
+                    <button class="category-btn btn-expense" onclick="categorize('現金提出')">現金提出</button>
+                    <button class="category-btn btn-expense" onclick="categorize('固定支出')">固定支出</button>
+                    <button class="category-btn btn-expense" onclick="categorize('電信費')">電信費</button>
+                    <button class="category-btn btn-other" onclick="categorize('其他支出')">其他支出</button> 
+                </div>
+                
+                <div class="cat-section-title">選擇【投資與轉換】項目</div>
+                <div class="btn-grid">
+                    <button class="category-btn btn-invest" onclick="categorize('投資買入')">投資買入 (交割)</button>
+                    <button class="category-btn btn-invest" onclick="categorize('外幣轉匯')">外幣轉匯</button>
+                    <button class="category-btn btn-expense" onclick="categorize('投資管理費')">投資管理費</button>
+                </div>
+            </div>
+
+            <div id="income-buttons" style="display: none;">
+                <div class="cat-section-title">選擇【收入】項目</div>
+                <div class="btn-grid">
+                    <button class="category-btn btn-income" onclick="categorize('薪資')">薪資</button>
+                    <button class="category-btn btn-income" onclick="categorize('獎金')">獎金</button>
+                    <button class="category-btn btn-income" onclick="categorize('股息')">股息</button>
+                    <button class="category-btn btn-income" onclick="categorize('其他收入')">其他收入</button>
+                </div>
+                
+                <div class="cat-section-title">資產變現</div>
+                <div class="btn-grid">
+                    <button class="category-btn btn-invest" onclick="categorize('投資賣出')">投資賣出 / 退回</button>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                 <button class="category-btn" style="width: 100%; border-color: #E0E6ED;" onclick="categorize('忽略')">略過此筆 (內部轉帳/無效交易)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-monthly" class="page">
+        <div class="header">
+            <div style="width: 100%;">本次批次匯入總覽</div>
+        </div>
+        <div class="container">
+            
+            <div class="summary-grid" style="grid-template-columns: repeat(3, 1fr);">
+                <div class="summary-card">
+                    <div class="summary-title">本次總收入</div>
+                    <div class="summary-value summary-val-in" id="b-kpi-in">$ 0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-title">本次總消費</div>
+                    <div class="summary-value summary-val-out" id="b-kpi-out">$ 0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-title">本次總投資</div>
+                    <div class="summary-value summary-val-inv" id="b-kpi-inv">$ 0</div>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="card-title">資金分配比例 (宏觀與微觀)</div>
+                <div class="card-desc">內層：投資與消費總佔比<br>外層：自動依金額分配漸層色的細項佔比</div>
+                <div id="doughnutChart" class="chart-container" style="height: 280px;"></div>
+            </div>
+
+            <div class="chart-card">
+                <div class="card-title">本次批次流向分析</div>
+                <div id="sankeyChart" class="chart-container" style="height: 350px;"></div>
+            </div>
+
+            <div class="chart-card">
+                <div class="card-title">各項收支明細排行</div>
+                <div class="expense-list" id="batch-detail-list"></div>
+            </div>
+
+            <button class="btn-export" onclick="saveToDatabase()">💾 將資料分裝並寫入資料庫</button>
+        </div>
+    </div>
+
+    <script>
+        // 側邊選單控制
+        function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
+        function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
+
+        let pendingTransactions = []; 
+        let parsedTransactions = [];  
+        let currentTxIndex = 0;       
+        let currentConflicts = [];    
+        let currentConflictMode = 'none'; 
+        
+        let batchAgg = { '收入': 0, '消費': 0, '投資': 0, detail: {} };
+        let monthAggs = {};     
+
+        let eChartsInstances = {};    
+
+        const CAT_INCOME = ['薪資', '獎金', '股息', '其他收入', '投資賣出'];
+        const CAT_INVEST = ['投資買入', '外幣轉匯'];
+        const CAT_EXPENSE = ['信用卡', '現金提出', '固定支出', '電信費', '投資管理費', '其他支出'];
+
+        function initDatabase() {
+            let db = localStorage.getItem('financeDB');
+            if (!db) { localStorage.setItem('financeDB', JSON.stringify([])); }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initDatabase();
+            eChartsInstances.trend = echarts.init(document.getElementById('trendChart'));
+            eChartsInstances.balanceNet = echarts.init(document.getElementById('balanceNetChart'));
+            eChartsInstances.heatmap = echarts.init(document.getElementById('heatmapChart'));
+            eChartsInstances.compare = echarts.init(document.getElementById('compareChart'));
+            eChartsInstances.sankey = echarts.init(document.getElementById('sankeyChart'));
+            eChartsInstances.doughnut = echarts.init(document.getElementById('doughnutChart'));
+            
+            const observer = new ResizeObserver(entries => {
+                entries.forEach(entry => {
+                    const chartInstance = echarts.getInstanceByDom(entry.target);
+                    if (chartInstance) chartInstance.resize();
+                });
+            });
+            document.querySelectorAll('.chart-container').forEach(el => observer.observe(el));
+
+            renderDashboard();
+        });
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+        }
+
+        let alertConfirmCallback = null;
+        function showAlert(title, message, type='success', callback=null) {
+            document.getElementById('alertTitle').innerText = title;
+            document.getElementById('alertMessage').innerText = message;
+            let icon = document.getElementById('alertIcon');
+            let actions = document.getElementById('alertActions');
+            
+            if (type === 'error') { 
+                icon.innerText = '!'; icon.style.background = '#FDECEA'; icon.style.color = '#B25858';
+                actions.innerHTML = `<button class="modal-btn" onclick="closeAlert(true)">確定</button>`;
+            } else if (type === 'confirm') {
+                icon.innerText = '?'; icon.style.background = '#FFF4E5'; icon.style.color = '#CF9236';
+                actions.innerHTML = `
+                    <button class="modal-btn cancel" onclick="closeAlert(false)">取消</button>
+                    <button class="modal-btn" style="background: #B25858;" onclick="closeAlert(true)">確定清除</button>
+                `;
+            } else { 
+                icon.innerText = '✓'; icon.style.background = '#E8F5E9'; icon.style.color = '#4E8765';
+                actions.innerHTML = `<button class="modal-btn" onclick="closeAlert(true)">確定</button>`;
+            }
+            document.getElementById('customAlert').classList.add('active');
+            alertConfirmCallback = callback;
+        }
+
+        function closeAlert(isConfirmed) {
+            document.getElementById('customAlert').classList.remove('active');
+            if (alertConfirmCallback) { 
+                setTimeout(() => { alertConfirmCallback(isConfirmed); alertConfirmCallback = null; }, 300); 
+            }
+        }
+
+        function confirmClearData() {
+            showAlert("警告", "確定要清空所有歷史資料嗎？此動作無法復原。", 'confirm', function(isConfirmed) {
+                if(isConfirmed) {
+                    localStorage.setItem('financeDB', JSON.stringify([]));
+                    renderDashboard();
+                    showAlert("已清除", "所有歷史資料已成功清空。", 'success');
+                }
+            });
+        }
+
+        function triggerUpload() { document.getElementById('fileInput').click(); }
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            if(files.length === 0) return;
+            
+            let allParsedData = [];
+            let filesRead = 0;
+            
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.readAsText(file, 'big5'); 
+                reader.onload = function(event) {
+                    Papa.parse(event.target.result, {
+                        header: false, skipEmptyLines: true,
+                        complete: function(results) { 
+                            allParsedData.push(results.data);
+                            filesRead++;
+                            if(filesRead === files.length) {
+                                processCombinedCSV(allParsedData);
+                            }
+                        }
+                    });
+                };
+            });
+            this.value = ''; 
+        });
+
+        function processCombinedCSV(allDataArrays) {
+            pendingTransactions = [];
+
+            allDataArrays.forEach(data => {
+                let headerIdx = data.findIndex(row => row.some(cell => typeof cell==='string' && ['交易日期','提出','存入'].includes(cell.trim())));
+                if(headerIdx === -1) return;
+
+                let headers = data[headerIdx].map(h => typeof h==='string' ? h.trim() : '');
+
+                for(let i = headerIdx + 1; i < data.length; i++) {
+                    let row = data[i]; let obj = {};
+                    headers.forEach((h, j) => { if(h) obj[h] = (row[j] !== undefined && row[j] !== null) ? String(row[j]).trim() : ''; });
+                    
+                    let outAmt = parseFloat((obj['提出'] || '').replace(/,/g, '')) || 0;
+                    let inAmt = parseFloat((obj['存入'] || '').replace(/,/g, '')) || 0;
+                    let balAmt = parseFloat((obj['餘額'] || '').replace(/,/g, '')) || 0;
+                    
+                    let rawDate = (obj['交易日期'] || '').trim();
+                    let dateVal = 0;
+                    let formattedDateStr = rawDate;
+
+                    if (rawDate.includes('/')) {
+                        let parts = rawDate.split('/');
+                        if (parts.length === 3) {
+                            let y = parts[0]; let m = parts[1].padStart(2, '0'); let d = parts[2].padStart(2, '0');
+                            dateVal = parseInt(y + m + d); formattedDateStr = `${y}/${m}/${d}`;
+                        }
+                    } else if (rawDate.includes('-')) {
+                         let parts = rawDate.split('-');
+                        if (parts.length === 3) {
+                            let y = parts[0]; let m = parts[1].padStart(2, '0'); let d = parts[2].padStart(2, '0');
+                            dateVal = parseInt(y + m + d); formattedDateStr = `${y}/${m}/${d}`;
+                        }
+                    } else {
+                        dateVal = parseInt(rawDate.replace(/\D/g, '')) || 0;
+                        if (dateVal >= 10000000) {
+                             let str = dateVal.toString();
+                             formattedDateStr = `${str.substring(0,4)}/${str.substring(4,6)}/${str.substring(6,8)}`;
+                        }
+                    }
+
+                    if(outAmt === 0 && inAmt === 0) continue; 
+                    if(dateVal < 10000000) continue; 
+
+                    let year = Math.floor(dateVal / 10000);
+                    let month = Math.floor((dateVal % 10000) / 100);
+                    let monthKey = `${year}-${month.toString().padStart(2, '0')}`;
+
+                    pendingTransactions.push({
+                        dateStr: formattedDateStr, dateVal: dateVal, monthKey: monthKey,
+                        desc: obj['說明'] || '-', memo: obj['備註'] || '-',
+                        type: outAmt > 0 ? 'expense' : 'income', amount: outAmt > 0 ? outAmt : inAmt,
+                        balance: balAmt
+                    });
+                }
+            });
+
+            if(pendingTransactions.length === 0) { showAlert('提示', '檔案中沒有擷取到有效的交易紀錄！', 'error'); return; }
+
+            let incomingMonths = Array.from(new Set(pendingTransactions.map(t => t.monthKey)));
+            let db = JSON.parse(localStorage.getItem('financeDB')) || [];
+            let existingMonths = db.map(d => d.month);
+            
+            currentConflicts = incomingMonths.filter(m => existingMonths.includes(m));
+            
+            if (currentConflicts.length > 0) {
+                document.getElementById('conflictMessage').innerText = `歷史紀錄中已存在以下月份的資料：\n【 ${currentConflicts.join(', ')} 】\n\n請問要覆蓋舊紀錄，還是捨棄本次重複月份的明細？`;
+                document.getElementById('conflictAlert').classList.add('active');
+            } else {
+                startCategorization('none');
+            }
+        }
+
+        function resolveConflict(mode) {
+            document.getElementById('conflictAlert').classList.remove('active');
+            startCategorization(mode);
+        }
+
+        function startCategorization(mode) {
+            currentConflictMode = mode;
+            if (mode === 'skip') parsedTransactions = pendingTransactions.filter(t => !currentConflicts.includes(t.monthKey));
+            else parsedTransactions = [...pendingTransactions];
+
+            if (parsedTransactions.length === 0) { showAlert('提示', '重複的月份皆已捨棄，無新資料可處理。', 'success'); return; }
+
+            parsedTransactions.sort((a, b) => a.dateVal - b.dateVal);
+            
+            currentTxIndex = 0;
+            batchAgg = { '收入': 0, '消費': 0, '投資': 0, detail: {} };
+            monthAggs = {}; 
+            
+            updateCategorizeUI(); showPage('page-categorize');
+        }
+
+        function updateCategorizeUI() {
+            const tx = parsedTransactions[currentTxIndex];
+            document.getElementById('cat-progress').innerText = `處理月份：${tx.monthKey} ｜ 總進度：${currentTxIndex + 1} / ${parsedTransactions.length} 筆`;
+            document.getElementById('tx-date').innerText = tx.dateStr; 
+            
+            let amtElement = document.getElementById('tx-amount');
+            if(tx.type === 'expense') {
+                amtElement.innerText = `- ${tx.amount.toLocaleString()}`; amtElement.className = 'tx-amount expense';
+                document.getElementById('expense-buttons').style.display = 'block'; document.getElementById('income-buttons').style.display = 'none';
+            } else {
+                amtElement.innerText = `+ ${tx.amount.toLocaleString()}`; amtElement.className = 'tx-amount income';
+                document.getElementById('expense-buttons').style.display = 'none'; document.getElementById('income-buttons').style.display = 'block';
+            }
+            document.getElementById('tx-desc').innerText = tx.desc; document.getElementById('tx-memo').innerText = tx.memo || '無備註';
+        }
+
+        function categorize(categoryName) {
+            if(categoryName !== '忽略') {
+                const tx = parsedTransactions[currentTxIndex];
+                
+                if (CAT_INVEST.includes(categoryName)) batchAgg['投資'] += tx.amount;
+                else if (CAT_INCOME.includes(categoryName)) batchAgg['收入'] += tx.amount;
+                else batchAgg['消費'] += tx.amount;
+                batchAgg.detail[categoryName] = (batchAgg.detail[categoryName] || 0) + tx.amount;
+
+                let mk = tx.monthKey;
+                if(!monthAggs[mk]) monthAggs[mk] = { income: 0, expense: 0, invest: 0, detail: {}, balance: 0, maxDate: 0 };
+                
+                if (CAT_INVEST.includes(categoryName)) monthAggs[mk].invest += tx.amount;
+                else if (CAT_INCOME.includes(categoryName)) monthAggs[mk].income += tx.amount;
+                else monthAggs[mk].expense += tx.amount;
+                monthAggs[mk].detail[categoryName] = (monthAggs[mk].detail[categoryName] || 0) + tx.amount;
+
+                if(tx.dateVal >= monthAggs[mk].maxDate && tx.balance > 0) {
+                    monthAggs[mk].maxDate = tx.dateVal; monthAggs[mk].balance = tx.balance;
+                }
+            }
+            
+            currentTxIndex++;
+            if (currentTxIndex < parsedTransactions.length) updateCategorizeUI();
+            else generateBatchReport();
+        }
+
+        function generateBatchReport() {
+            let inc = batchAgg['收入']; let exp = batchAgg['消費']; let inv = batchAgg['投資'];
+            
+            document.getElementById('b-kpi-in').innerText = `$ ${inc.toLocaleString()}`;
+            document.getElementById('b-kpi-out').innerText = `$ ${exp.toLocaleString()}`;
+            document.getElementById('b-kpi-inv').innerText = `$ ${inv.toLocaleString()}`;
+
+            let innerData = [];
+            if(inv > 0) innerData.push({ value: inv, name: '資產投資', itemStyle: {color: '#4A6C8C'} });
+            if(exp > 0) innerData.push({ value: exp, name: '純消費', itemStyle: {color: '#B25858'} });
+
+            let outerData = [];
+            let investColors = ['#4A6C8C', '#5F84A8', '#769DC4', '#8FB6E0']; 
+            let investSorted = CAT_INVEST.map(cat => ({cat, val: batchAgg.detail[cat] || 0})).filter(x => x.val > 0).sort((a,b) => b.val - a.val);
+            investSorted.forEach((item, idx) => outerData.push({ name: item.cat, value: item.val, itemStyle: { color: investColors[idx % investColors.length] } }));
+
+            let expenseColors = ['#B25858', '#C96868', '#DF7A7A', '#F28E8E', '#FFB3B3', '#FFD1D1'];
+            let expenseSorted = CAT_EXPENSE.map(cat => ({cat, val: batchAgg.detail[cat] || 0})).filter(x => x.val > 0).sort((a,b) => b.val - a.val);
+            expenseSorted.forEach((item, idx) => outerData.push({ name: item.cat, value: item.val, itemStyle: { color: expenseColors[idx % expenseColors.length] } }));
+
+            eChartsInstances.doughnut.setOption({
+                tooltip: { trigger: 'item', formatter: '{a} <br/>{b}: $ {c} ({d}%)', backgroundColor: 'rgba(255,255,255,0.95)', textStyle: {color: '#2C3E50'} },
+                series: [
+                    { name: '宏觀分類', type: 'pie', selectedMode: 'single', radius: [0, '35%'], label: { position: 'inner', fontSize: 11, color: '#FFF' }, labelLine: { show: false }, itemStyle: { borderColor: '#FFFFFF', borderWidth: 2, borderRadius: 4 }, data: innerData },
+                    { name: '流出細項', type: 'pie', radius: ['50%', '75%'], label: { fontSize: 11, color: '#2C3E50' }, itemStyle: { borderColor: '#FFFFFF', borderWidth: 3, borderRadius: 5 }, data: outerData }
+                ]
+            });
+
+            let nodes = [ { name: '總匯入資金', itemStyle: { color: '#2C3E50' }, label: {show: false} } ];
+            let links = [];
+
+            CAT_INCOME.forEach(cat => { let val = batchAgg.detail[cat]; if(val > 0) { nodes.push({ name: cat, itemStyle: { color: '#4E8765' }, label: { position: 'right' } }); links.push({ source: cat, target: '總匯入資金', value: val }); } });
+            CAT_INVEST.forEach(cat => { let val = batchAgg.detail[cat]; if(val > 0) { nodes.push({ name: cat, itemStyle: { color: '#4A6C8C' }, label: { position: 'left' } }); links.push({ source: '總匯入資金', target: cat, value: val }); } });
+            CAT_EXPENSE.forEach(cat => { let val = batchAgg.detail[cat]; if(val > 0) { nodes.push({ name: cat, itemStyle: { color: '#B25858' }, label: { position: 'left' } }); links.push({ source: '總匯入資金', target: cat, value: val }); } });
+
+            let balanceFlow = inc - exp - inv;
+            if(balanceFlow > 0) { nodes.push({ name: '現金流剩餘', itemStyle: { color: '#CF9236' }, label: { position: 'left' } }); links.push({ source: '總匯入資金', target: '現金流剩餘', value: balanceFlow }); } 
+            else if (balanceFlow < 0) { nodes.push({ name: '動用存款(超支)', itemStyle: { color: '#B25858' }, label: { position: 'right' } }); links.push({ source: '動用存款(超支)', target: '總匯入資金', value: Math.abs(balanceFlow) }); }
+
+            eChartsInstances.sankey.setOption({
+                tooltip: { trigger: 'item', formatter: p => p.dataType==='edge' ? `${p.data.source} ➔ ${p.data.target}<br/>$ ${p.data.value.toLocaleString()}` : `${p.name}<br/>$ ${p.value.toLocaleString()}`, backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: '#E0E6ED', borderWidth: 1, textStyle: { color: '#2C3E50' } },
+                series: { type: 'sankey', layout: 'none', draggable: false, left: '5%', right: '5%', top: '5%', bottom: '5%', data: nodes, links: links, lineStyle: { color: 'source', curveness: 0.5, opacity: 0.4 }, label: { color: '#1A252F', fontSize: 13, fontWeight: 600, textBorderColor: '#FFFFFF', textBorderWidth: 2 } }
+            });
+
+            let listHtml = '';
+            let sortedDetails = Object.entries(batchAgg.detail).sort((a,b) => b[1] - a[1]); 
+            let maxAmt = sortedDetails.length > 0 ? sortedDetails[0][1] : 1;
+            
+            sortedDetails.forEach(([name, amt]) => {
+                if(amt === 0) return;
+                let pct = (amt / maxAmt) * 100;
+                let colorClass = CAT_INVEST.includes(name) ? 'invest' : (CAT_INCOME.includes(name) ? 'income' : 'expense');
+                listHtml += `
+                <div class="expense-item"><div class="item-header"><span class="item-name">${name}</span><span class="item-amount">$ ${amt.toLocaleString()}</span></div><div class="progress-bar-bg"><div class="progress-bar-fill ${colorClass}" style="width: ${pct}%;"></div></div></div>`;
+            });
+            document.getElementById('batch-detail-list').innerHTML = listHtml;
+
+            showPage('page-monthly');
+        }
+
+        function saveToDatabase() {
+            let db = JSON.parse(localStorage.getItem('financeDB')) || [];
+            if (currentConflictMode === 'overwrite') db = db.filter(d => !currentConflicts.includes(d.month));
+
+            for (let mk in monthAggs) {
+                let mData = monthAggs[mk];
+                let existingIdx = db.findIndex(d => d.month === mk);
+                if (existingIdx >= 0) db[existingIdx] = { month: mk, income: mData.income, expense: mData.expense, invest: mData.invest, balance: mData.balance, detail: mData.detail };
+                else db.push({ month: mk, income: mData.income, expense: mData.expense, invest: mData.invest, balance: mData.balance, detail: mData.detail });
+            }
+            db.sort((a, b) => a.month.localeCompare(b.month));
+            localStorage.setItem('financeDB', JSON.stringify(db));
+
+            showAlert("寫入成功", `批次資料已成功分裝並寫入歷史資料庫！`, 'success', function() {
+                renderDashboard(); showPage('page-historical');
+            });
+        }
+
+        function renderDashboard() {
+            let db = JSON.parse(localStorage.getItem('financeDB')) || [];
+            
+            if(db.length === 0) {
+                document.getElementById('kpi-month').innerText = '尚無資料';
+                ['kpi-balance', 'kpi-income', 'kpi-expense', 'kpi-invest', 'kpi-avg-in', 'kpi-avg-out', 'kpi-avg-inv', 'kpi-total-avg-in', 'kpi-total-avg-out', 'kpi-total-avg-inv'].forEach(id => {
+                    document.getElementById(id).innerText = (id==='kpi-balance' || id==='kpi-income' || id==='kpi-expense' || id==='kpi-invest') ? '$ 0' : '0';
+                });
+                eChartsInstances.trend.clear(); 
+                eChartsInstances.balanceNet.clear(); 
+                eChartsInstances.heatmap.clear(); 
+                eChartsInstances.compare.clear();
+                return;
+            }
+
+            let latest = db[db.length - 1] || {};
+            document.getElementById('kpi-month').innerText = latest.month ? `${latest.month.substring(2,4)}年${latest.month.substring(5,7)}月` : '無';
+            document.getElementById('kpi-balance').innerText = `$ ${(latest.balance || 0).toLocaleString()}`; 
+            document.getElementById('kpi-income').innerText = `$ ${(latest.income || 0).toLocaleString()}`;
+            document.getElementById('kpi-expense').innerText = `$ ${(latest.expense || 0).toLocaleString()}`;
+            document.getElementById('kpi-invest').innerText = `$ ${(latest.invest || 0).toLocaleString()}`;
+
+            let recent1YearDb = db.slice(-12);
+            let avgLen = recent1YearDb.length || 1;
+            document.getElementById('kpi-avg-in').innerText = Math.round(recent1YearDb.reduce((s, i) => s + (i.income || 0), 0) / avgLen).toLocaleString();
+            document.getElementById('kpi-avg-out').innerText = Math.round(recent1YearDb.reduce((s, i) => s + (i.expense || 0), 0) / avgLen).toLocaleString();
+            document.getElementById('kpi-avg-inv').innerText = Math.round(recent1YearDb.reduce((s, i) => s + (i.invest || 0), 0) / avgLen).toLocaleString();
+
+            let totalLenDb = db.length || 1;
+            document.getElementById('kpi-total-avg-in').innerText = Math.round(db.reduce((s, i) => s + (i.income || 0), 0) / totalLenDb).toLocaleString();
+            document.getElementById('kpi-total-avg-out').innerText = Math.round(db.reduce((s, i) => s + (i.expense || 0), 0) / totalLenDb).toLocaleString();
+            document.getElementById('kpi-total-avg-inv').innerText = Math.round(db.reduce((s, i) => s + (i.invest || 0), 0) / totalLenDb).toLocaleString();
+
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            let trendMonths = db.map(i => {
+                if(!i.month) return '';
+                let y = i.month.substring(0, 4);
+                let m = parseInt(i.month.substring(5, 7), 10) - 1;
+                return `${y} ${monthNames[m]}`; 
+            }); 
+            
+            // 資料處理與防呆
+            let trendIn = db.map(i => Math.round((i.income || 0)/1000) || 0);
+            let trendOut = db.map(i => Math.round((i.expense || 0)/1000) || 0);
+            let trendInv = db.map(i => Math.round((i.invest || 0)/1000) || 0);
+            let trendBal = db.map(i => Math.round((i.balance || 0)/1000) || 0);
+            let trendNet = db.map(i => Math.round(((i.income || 0) - (i.expense || 0))/1000) || 0); 
+            
+            let totalLen = trendMonths.length;
+            let showIndices = [];
+            if (totalLen <= 5) {
+                for(let i = 0; i < totalLen; i++) showIndices.push(i);
+            } else {
+                for(let i = 0; i < 5; i++) showIndices.push(Math.round(i * (totalLen - 1) / 4));
+            }
+
+            // ==========================================
+            // 【第一張圖表】三大核心指標
+            // ==========================================
+            eChartsInstances.trend.setOption({
+                tooltip: { trigger: 'axis' }, 
+                legend: { data: ['收入', '消費', '投資'], bottom: 0, textStyle: {fontSize: 11} },
+                grid: { left: '3%', right: '3%', top: '10%', bottom: '15%', containLabel: true },
+                xAxis: { 
+                    type: 'category', 
+                    data: trendMonths, 
+                    axisTick: { alignWithLabel: true },
+                    axisLabel: { 
+                        fontSize: 10,
+                        interval: function (index) { return showIndices.includes(index); }
+                    } 
+                }, 
+                yAxis: { type: 'value', axisLabel: { formatter: '{value}k' } },
+                series: [
+                    { name: '收入', type: 'line', smooth: true, symbol: 'none', itemStyle: { color: '#4E8765' }, lineStyle: { width: 3 }, data: trendIn },
+                    { name: '消費', type: 'line', smooth: true, symbol: 'none', itemStyle: { color: '#B25858' }, lineStyle: { width: 3 }, data: trendOut },
+                    { name: '投資', type: 'line', smooth: true, symbol: 'none', itemStyle: { color: '#4A6C8C' }, lineStyle: { width: 3 }, data: trendInv }
+                ]
+            }, true);
+
+            // ==========================================
+            // 【第二張圖表】銀行餘額 vs 當月淨結餘
+            // ==========================================
+            eChartsInstances.balanceNet.setOption({
+                tooltip: { trigger: 'axis' },
+                legend: { data: ['銀行餘額', '當月淨結餘'], bottom: 0, textStyle: {fontSize: 11} },
+                grid: { left: '3%', right: '3%', top: '10%', bottom: '15%', containLabel: true },
+                xAxis: { 
+                    type: 'category', 
+                    data: trendMonths, 
+                    axisTick: { alignWithLabel: true },
+                    axisLabel: { 
+                        fontSize: 10,
+                        interval: function (index) { return showIndices.includes(index); }
+                    } 
+                }, 
+                yAxis: { 
+                    type: 'value',
+                    axisLabel: { formatter: '{value}k' }, 
+                    nameTextStyle: { color: '#7F8C8D', fontSize: 10 }
+                },
+                series: [
+                    { 
+                        name: '銀行餘額', type: 'line', smooth: true, symbol: 'none', 
+                        itemStyle: { color: '#CF9236' }, lineStyle: { width: 3, type: 'solid' }, data: trendBal 
+                    },
+                    { 
+                        name: '當月淨結餘', type: 'line', smooth: true, symbol: 'none', 
+                        itemStyle: { color: '#4E8765' }, lineStyle: { width: 3 }, data: trendNet,
+                        markLine: {
+                            data: [ { yAxis: 0 } ],
+                            symbol: 'none',
+                            label: { show: false },
+                            lineStyle: { color: '#95A5A6', type: 'solid', width: 1 }
+                        }
+                    }
+                ]
+            }, true);
+
+            // ==========================================
+            // 熱力圖
+            // ==========================================
+            let hmCategories = ['薪資', '獎金', '股息', '其他收入', '投資賣出', '投資買入', '外幣轉匯', '信用卡', '現金提出', '固定支出', '電信費', '其他支出']; 
+            let hmIncomeData = [], hmInvestData = [], hmExpenseData = [];
+            
+            let displayDb = db;
+            let displayMonths = displayDb.map(i => {
+                if(!i.month) return '';
+                let y = i.month.substring(0, 4);
+                let m = parseInt(i.month.substring(5, 7), 10) - 1;
+                return `${y} ${monthNames[m]}`;
+            });
+
+            displayDb.forEach((item, i) => {
+                let detail = item.detail || {};
+                hmCategories.forEach((cat, j) => {
+                    let val = ((detail[cat] || 0) / 10000) || 0; 
+                    if (j <= 4) hmIncomeData.push([i, j, val]);
+                    else if (j >= 5 && j <= 6) hmInvestData.push([i, j, val]);
+                    else hmExpenseData.push([i, j, val]);
+                });
+            });
+
+            let dataZoomConfig = [];
+            if (displayMonths.length > 1) {
+                let spanValue = Math.min(11, displayMonths.length - 1);
+                let startIdx = Math.max(0, displayMonths.length - 12);
+                dataZoomConfig = [
+                    { 
+                        type: 'slider', show: true, xAxisIndex: 0, bottom: 0, height: 18, 
+                        startValue: startIdx, endValue: displayMonths.length - 1, 
+                        minValueSpan: spanValue, maxValueSpan: spanValue, 
+                        zoomLock: true, 
+                        borderColor: 'transparent', backgroundColor: '#f0f2f5', fillerColor: 'rgba(44,62,80,0.15)' 
+                    },
+                    { 
+                        type: 'inside', xAxisIndex: 0, zoomLock: true,
+                        minValueSpan: spanValue, maxValueSpan: spanValue
+                    }
+                ];
+            }
+
+            eChartsInstances.heatmap.setOption({
+                tooltip: { position: 'top', formatter: p => `${displayMonths[p.value[0]]} ${hmCategories[p.value[1]]}<br/>$ ${(p.value[2]*10000).toLocaleString()}`, backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: '#E0E6ED', borderWidth: 1, textStyle: { color: '#2C3E50' } },
+                grid: { height: '75%', top: '2%', left: '20%', right: '2%' }, 
+                dataZoom: dataZoomConfig,
+                xAxis: { type: 'category', data: displayMonths, axisLabel: { interval: 0, fontSize: 10, color: '#7F8C8D', rotate: 45 } },
+                yAxis: { type: 'category', data: hmCategories, axisLabel: { color: (val, idx) => { if(idx<=4) return '#4E8765'; if(idx>=5&&idx<=6) return '#4A6C8C'; return '#2C3E50'; }, fontWeight: 600, fontSize: 10 } },
+                visualMap: [ { seriesIndex: 0, min: 0, max: 12, inRange: { color: ['#F0F7F3', '#388E3C'] }, show: false }, { seriesIndex: 1, min: 0, max: 8, inRange: { color: ['#F0F4F8', '#4A6C8C'] }, show: false }, { seriesIndex: 2, min: 0, max: 5, inRange: { color: ['#F9FBFD', '#B25858'] }, show: false } ],
+                series: [
+                    { name: '收入', type: 'heatmap', data: hmIncomeData, label: { show: true, formatter: p => p.value[2]>0 ? p.value[2].toFixed(1) : '', fontSize: 9 }, itemStyle: { borderColor: '#FFF', borderWidth: 2 } },
+                    { name: '投資', type: 'heatmap', data: hmInvestData, label: { show: true, formatter: p => p.value[2]>0 ? p.value[2].toFixed(1) : '', fontSize: 9 }, itemStyle: { borderColor: '#FFF', borderWidth: 2 } },
+                    { name: '消費', type: 'heatmap', data: hmExpenseData, label: { show: true, formatter: p => p.value[2]>0 ? p.value[2].toFixed(1) : '', fontSize: 9 }, itemStyle: { borderColor: '#FFF', borderWidth: 2 } }
+                ]
+            }, true);
+
+            // ==========================================
+            // 比較圖保持不變
+            // ==========================================
+            let compareCats = ['其他支出', '投資買入', '電信費', '固定支出', '現金提出', '信用卡'];
+            let latestDetail = latest.detail || {};
+            let avgDetail = {};
+            compareCats.forEach(cat => { avgDetail[cat] = recent1YearDb.reduce((s, i) => s + ((i.detail || {})[cat] || 0), 0) / avgLen; });
+
+            eChartsInstances.compare.setOption({
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, legend: { data: ['最新月花費', '近1年平均'], bottom: 0 },
+                grid: { left: '3%', right: '5%', top: '5%', bottom: '15%', containLabel: true }, xAxis: { type: 'value', axisLabel: { formatter: '{value}k' } },
+                yAxis: { type: 'category', data: compareCats, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontWeight: 500 } },
+                series: [
+                    { name: '最新月花費', type: 'bar', itemStyle: { color: '#B25858', borderRadius: [0,4,4,0] }, data: compareCats.map(c => (((latestDetail[c]||0)/1000)||0).toFixed(1)) },
+                    { name: '近1年平均', type: 'bar', itemStyle: { color: '#E0E6ED', borderRadius: [0,4,4,0] }, data: compareCats.map(c => ((avgDetail[c]/1000)||0).toFixed(1)) }
+                ]
+            }, true);
+        }
+    </script>
+</body>
+</html>
