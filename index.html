@@ -13,7 +13,6 @@
             --red-profit: #d93025; --green-loss: #188038; --primary-dark: #2c3e50;
         }
         
-        /* 【整合優化】加入淡入動畫與鎖死 X 軸 */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; 
@@ -32,7 +31,6 @@
         #toast-container { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 24px; border-radius: 24px; font-size: 13px; font-weight: 500; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         #toast-container.show { opacity: 1; }
 
-        /* 系統視窗 */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
         .custom-prompt-box { background: var(--card-bg); border-radius: 16px; padding: 24px; width: 85%; max-width: 320px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); text-align: center; }
         @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -51,7 +49,6 @@
         .btn-success { background: var(--green-loss); color: white; }
         .btn-danger { background: var(--red-profit); color: white; }
 
-        /* ================= 【全新】側邊抽屜選單 ================= */
         .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 3000; opacity: 0; visibility: hidden; transition: 0.3s ease; }
         .drawer-overlay.show { opacity: 1; visibility: visible; }
         .drawer-menu { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1A252F; box-shadow: 4px 0 16px rgba(0,0,0,0.3); z-index: 3001; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; }
@@ -66,7 +63,6 @@
         .drawer-item.active { background: rgba(255,255,255,0.1); border-left: 4px solid #CF9236; color: white; }
         .drawer-icon { margin-right: 16px; font-size: 20px; width: 24px; text-align: center; }
 
-        /* UI 結構 */
         .control-panel { position: sticky; top: 0; z-index: 100; background-color: var(--bg-color); padding-bottom: 8px; margin-bottom: 4px; display: flex; flex-direction: column; gap: 10px; }
         .top-bar { display: flex; justify-content: space-between; align-items: center; }
         .btn-menu { background: none; border: none; font-size: 24px; color: var(--primary-dark); cursor: pointer; padding: 4px 8px; border-radius: 6px; }
@@ -260,7 +256,6 @@
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
     <script>
-        // 側邊選單控制
         function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
         function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
 
@@ -381,6 +376,7 @@
             });
         }
 
+        // 【重點更新】：相容新舊版 CSV 不同的 Header 名稱
         async function handleFileUpload(event, market) {
             const file = event.target.files[0];
             if (!file) return;
@@ -393,8 +389,10 @@
                         const rawData = results.data;
                         const invalidKeywords = ['合計', '總計', '說明', '證券', '帳戶', '警語', '免責', '總預估', '現值', '損益', '小計'];
                         const validData = rawData.filter(row => {
-                            const name = row['股票名稱'] || '';
-                            const parsedShares = parseNum(row['股數'] || row['目前庫存'] || '0');
+                            // 相容多種欄位名稱
+                            const name = row['股票名稱'] || row['股名'] || '';
+                            const parsedShares = parseNum(row['股數'] || row['目前庫存'] || row['餘股數'] || '0');
+                            
                             if (parsedShares <= 0) return false;
                             if (invalidKeywords.some(kw => name.includes(kw))) return false;
                             if (!name.trim()) return false;
@@ -402,8 +400,20 @@
                         });
 
                         let normalized = market === 'tw' 
-                            ? validData.map(row => ({ market: 'TW', name: row['股票名稱'], symbol: null, shares: parseNum(row['股數']), cost: parseNum(row['付出成本']) }))
-                            : validData.map(row => ({ market: 'US', name: row['股票名稱'], symbol: row['代號'], shares: parseNum(row['目前庫存']), cost: parseNum(row['庫存成本']) }));
+                            ? validData.map(row => ({ 
+                                market: 'TW', 
+                                name: row['股票名稱'] || row['股名'], 
+                                symbol: null, 
+                                shares: parseNum(row['股數'] || row['餘股數']), 
+                                cost: parseNum(row['付出成本'] || row['成本']) 
+                            }))
+                            : validData.map(row => ({ 
+                                market: 'US', 
+                                name: row['股票名稱'] || row['股名'], 
+                                symbol: row['代號'] || row['股票'], 
+                                shares: parseNum(row['目前庫存'] || row['股數'] || row['餘股數']), 
+                                cost: parseNum(row['庫存成本'] || row['成本'] || row['付出成本']) 
+                            }));
 
                         globalPortfolio[market] = normalized;
                         localStorage.setItem(`portfolio_${market}`, JSON.stringify(normalized));
