@@ -3,1293 +3,992 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>收支結構與資產分析</title>
+    <title>個人投資儀表板 (全球資產版)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        /* ================= 系統色票與全域變數 ================= */
         :root {
-            --bg-body: #F8F9FA;
-            --bg-card: #FFFFFF;
-            --text-main: #212529;
-            --text-muted: #6C757D;
-            --color-primary: #0056B3;
-            --color-positive: #20C997;
-            --color-negative: #D9534F;
-            --color-warning: #F5A623;
-            --border-light: #DEE2E6;
-            --header-height: 75px;
-            --scenario-bar-height: 38px;
-            --nav-height: 60px;
+            --bg-color: #f0f2f5; --card-bg: #ffffff; --text-main: #1a1a1a;
+            --text-muted: #666666; --border-color: #eaeaea;
+            --red-profit: #d93025; --green-loss: #188038; --primary-dark: #2c3e50;
         }
-
-        /* ================= 基礎重置與排版 ================= */
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
-        body { background-color: var(--bg-body); color: var(--text-main); padding-top: calc(var(--header-height) + var(--scenario-bar-height)); padding-bottom: calc(var(--nav-height) + 20px); }
-
-        /* ================= 凍結狀態列 ================= */
-        .sticky-header { position: fixed; top: 0; left: 0; width: 100%; height: var(--header-height); background-color: var(--color-primary); color: white; z-index: 100; display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .summary-block { flex: 1; display: flex; flex-direction: column; }
-        .summary-label { font-size: 11px; opacity: 0.8; margin-bottom: 2px; }
-        .summary-val { font-size: 18px; font-weight: bold; transition: color 0.3s; }
-        .summary-val.positive { color: #A8E6CF; }
-        .summary-val.negative { color: #FFD3B6; }
-        .center-block { text-align: center; }
-        .right-block { text-align: right; cursor: pointer; } 
-
-        /* ================= 全域劇本切換列 ================= */
-        .scenario-bar { position: fixed; top: var(--header-height); left: 0; width: 100%; height: var(--scenario-bar-height); background-color: #E2E8F0; color: var(--color-primary); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; z-index: 99; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; }
-
-        /* ================= 底部導覽列 ================= */
-        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: var(--nav-height); background-color: var(--bg-card); border-top: 1px solid var(--border-light); display: flex; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
-        .nav-btn { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-muted); font-size: 10px; font-weight: 500; padding: 5px; cursor: pointer; transition: color 0.2s; }
-        .nav-btn .icon { font-size: 20px; margin-bottom: 2px; }
-        .nav-btn.active { color: var(--color-primary); }
-
-        /* ================= 頁面與卡片 ================= */
-        .tab-content { display: none; padding: 15px; animation: fadeIn 0.3s ease; }
-        .tab-content.active { display: block; }
-        .card { background-color: var(--bg-card); border-radius: 12px; padding: 15px; margin-bottom: 15px; border: 1px solid var(--border-light); box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-        .card-header { font-size: 15px; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; }
-
-        /* ================= 表單元素 ================= */
-        .form-group { margin-bottom: 12px; }
-        .form-row { display: flex; gap: 10px; margin-bottom: 12px; }
-        .form-col { flex: 1; }
-        label { display: flex; align-items: center; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
-        input[type="number"], input[type="text"] { width: 100%; height: 40px; border: 1px solid var(--border-light); border-radius: 8px; padding: 0 10px; font-size: 14px; color: var(--text-main); background-color: #FAFAFA; outline: none; }
-        input[type="number"]:focus, input[type="text"]:focus { border-color: var(--color-primary); background-color: #FFF; }
-        ::placeholder { color: #D1D5DB !important; opacity: 1; font-weight: normal; }
-
-        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 24px; }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
-        input:checked + .slider { background-color: var(--color-primary); }
-        input:checked + .slider:before { transform: translateX(20px); }
-
-        /* 【優化】放寬了文字框(flex:2.5)，縮小了金額框(flex:1) */
-        .list-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-        .btn-remove { width: 30px; height: 40px; display: flex; justify-content: center; align-items: center; color: var(--color-negative); font-size: 20px; border: none; background: none; }
-        .btn-add { width: 100%; padding: 10px; background-color: transparent; border: 1px dashed var(--border-light); color: var(--text-muted); border-radius: 8px; font-size: 13px; margin-top: 5px; }
-
-        /* ================= 浮動覆蓋層與彈窗 ================= */
-        .overlay-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; display: none; justify-content: center; align-items: center; padding: 20px; }
-        .cp-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); z-index: 2000; display: none; justify-content: center; align-items: center; padding: 20px; backdrop-filter: blur(2px); }
         
-        .tooltip-icon { display: inline-flex; justify-content: center; align-items: center; width: 18px; height: 18px; border-radius: 50%; background-color: var(--border-light); color: var(--text-muted); font-size: 10px; font-weight: bold; margin-left: 5px; padding: 10px; margin: -10px -10px -10px 5px; background-clip: content-box; cursor: pointer; }
-        .tooltip-box { background-color: rgba(33, 37, 41, 0.95); color: white; padding: 15px 20px; border-radius: 12px; font-size: 13px; line-height: 1.5; max-width: 300px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); animation: popIn 0.2s ease; }
-        
-        .eq-box { background-color: var(--color-primary); color: white; padding: 20px; border-radius: 12px; font-size: 14px; line-height: 1.6; width: 100%; max-width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); animation: popIn 0.2s ease; }
-        .eq-title { font-weight: bold; font-size: 16px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 8px; text-align: center;}
-        .eq-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-        .eq-sub { color: #A8E6CF; font-size: 12px; padding-left: 10px; }
-        .eq-sub.neg { color: #FFD3B6; }
-
-        .cp-box { background: #fff; width: 100%; max-width: 320px; border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: popIn 0.2s ease; }
-        .cp-title { font-size: 16px; font-weight: bold; color: var(--text-main); margin-bottom: 15px; text-align: center; }
-        .cp-input { width: 100%; height: 45px; border: 1px solid var(--color-primary); border-radius: 8px; padding: 0 15px; font-size: 15px; margin-bottom: 20px; background-color: #FAFAFA; outline: none; }
-        .cp-input:focus { background-color: #FFF; box-shadow: 0 0 0 2px rgba(0,86,179,0.2); }
-        .cp-btn-group { display: flex; gap: 10px; }
-        .cp-btn { flex: 1; height: 45px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; border: none; }
-        .cp-btn-cancel { background-color: #E2E8F0; color: var(--text-muted); }
-        .cp-btn-confirm { background-color: var(--color-primary); color: white; }
-
-        /* ================= 劇本管理 Bottom Sheet ================= */
-        .bottom-sheet { position: fixed; bottom: -100%; left: 0; width: 100%; background: #fff; border-radius: 20px 20px 0 0; z-index: 1001; transition: bottom 0.3s ease; padding: 20px; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); max-height: 80vh; overflow-y: auto; }
-        .bottom-sheet.show { bottom: 0; }
-        .scen-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border-light); }
-        .scen-name { font-size: 15px; flex: 1; display: flex; align-items: center; gap: 8px; }
-        .scen-actions { display: flex; gap: 10px; }
-        .scen-btn { background: none; border: none; font-size: 18px; color: var(--text-muted); cursor: pointer; padding: 5px; }
-        .scen-add-btn { width: 100%; padding: 14px; background: var(--color-primary); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; margin-top: 15px; cursor: pointer; }
-
-        /* ================= 橫向比較表 ================= */
-        .comp-table-wrapper { overflow-x: auto; margin-top: 10px; border-radius: 8px; border: 1px solid var(--border-light); -webkit-overflow-scrolling: touch; }
-        .comp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        .comp-table th, .comp-table td { border-bottom: 1px solid var(--border-light); border-right: 1px solid var(--border-light); padding: 12px 10px; text-align: center; white-space: nowrap; }
-        .comp-table th { background: #f0f0f0; color: var(--text-muted); font-weight: bold; position: sticky; top: 0; }
-        .comp-table tr:last-child td { border-bottom: none; }
-        .comp-table td:last-child, .comp-table th:last-child { border-right: none; }
-
-        /* ================= 生涯熱力圖 (Heatmap) ================= */
-        .hm-legend { font-size: 11px; color: var(--text-muted); text-align: center; margin-bottom: 10px; background: #f0f0f0; padding: 6px; border-radius: 6px; display: flex; justify-content: space-evenly; flex-wrap: wrap; line-height: 1.5; }
-        .hm-wrapper { max-height: 320px; overflow-y: auto; overflow-x: hidden; border-radius: 8px; border: 1px solid var(--border-light); -webkit-overflow-scrolling: touch; }
-        .hm-table { width: 100%; border-collapse: separate; border-spacing: 4px; font-size: 11px; table-layout: fixed; }
-        .hm-table th { position: sticky; top: 0; background: #fff; z-index: 2; padding: 6px 0; text-align: center; color: var(--text-main); font-weight: bold; box-shadow: 0 1px 2px rgba(0,0,0,0.1); line-height: 1.3; }
-        .clickable-th { cursor: pointer; transition: background-color 0.2s; border-radius: 6px; border: 1px solid transparent; }
-        .clickable-th:active { background-color: #e2e8f0; }
-        .clickable-th:hover { border-color: var(--border-light); background-color: #fafafa; }
-        .hm-table th:first-child { z-index: 3; left: 0; cursor: default; border: none; background: #fff; }
-        .hm-table td { padding: 0; text-align: center; height: 26px; }
-        .hm-table td.hm-age { position: sticky; left: 0; background: #fff; z-index: 1; font-weight: bold; color: var(--text-muted); box-shadow: 1px 0 2px rgba(0,0,0,0.05); }
-        .hm-cell { width: 100%; height: 100%; border-radius: 6px; cursor: pointer; display: block; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);}
-        
-        .c-g { background-color: #20C997; }
-        .c-y { background-color: #F5A623; }
-        .c-r { background-color: #D9534F; }
-
-        /* 【優化】強制防斷行 Badge */
-        .badge-auto { background-color: rgba(32, 201, 151, 0.1); color: var(--color-positive); font-size: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(32, 201, 151, 0.3); margin-left: 5px; white-space: nowrap; display: inline-block; }
-        
-        .sub-text { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
-        .milestone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .milestone-box { background: var(--bg-body); padding: 10px; border-radius: 8px; text-align: center; border: 1px solid var(--border-light); }
-        .chart-container { position: relative; height: 250px; width: 100%; margin-bottom: 15px; }
-
-        .section-divider { border-top: 1px dashed var(--border-light); margin: 15px 0; padding-top: 15px; position: relative; }
-        .section-label { position: absolute; top: -10px; left: 10px; background: var(--bg-card); padding: 0 5px; font-size: 11px; color: var(--color-primary); font-weight: bold; }
-
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; 
+            background-color: var(--bg-color); margin: 0; padding: 8px; color: var(--text-main); 
+            animation: fadeIn 0.4s ease-out;
+            overflow-x: hidden; overscroll-behavior-x: none;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        .num { font-variant-numeric: tabular-nums; font-family: "SF Pro Display", -apple-system, sans-serif; }
+        .card { background-color: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+
+        #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 999; justify-content: center; align-items: center; flex-direction: column; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        #toast-container { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 24px; border-radius: 24px; font-size: 13px; font-weight: 500; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        #toast-container.show { opacity: 1; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .custom-prompt-box { background: var(--card-bg); border-radius: 16px; padding: 24px; width: 85%; max-width: 380px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); text-align: center; }
         @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .prompt-icon { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; margin: 0 auto 16px; font-weight: bold; }
+        .prompt-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; color: var(--text-main); }
+        .prompt-desc { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5; }
+        .prompt-input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; margin-bottom: 10px; text-transform: uppercase; transition: border-color 0.2s; text-align: left; }
+        .prompt-input:focus { outline: none; border-color: var(--primary-dark); box-shadow: 0 0 0 2px rgba(44,62,80,0.2); }
+        .prompt-input.error { border-color: var(--red-profit); box-shadow: 0 0 0 2px rgba(217,48,37,0.2); }
+        .error-msg { color: var(--red-profit); font-size: 12px; margin-bottom: 15px; display: none; font-weight: bold; text-align: left; }
+        
+        .prompt-actions { display: flex; gap: 10px; justify-content: center; }
+        .btn-skip, .btn-confirm, .btn-success, .btn-danger { flex: 1; padding: 14px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 15px; }
+        .btn-skip { background: #e0e6ed; color: #7f8c8d; }
+        .btn-confirm { background: var(--primary-dark); color: white; }
+        .btn-success { background: var(--green-loss); color: white; }
+        .btn-danger { background: var(--red-profit); color: white; }
+
+        .inv-list-container { max-height: 50vh; overflow-y: auto; text-align: left; margin-bottom: 20px; padding-right: 5px; }
+        .inv-item { background: #f8f9fa; padding: 12px; border-radius: 10px; margin-bottom: 10px; border: 1px solid #e0e6ed; }
+        .inv-item-header { font-weight: bold; font-size: 14px; margin-bottom: 8px; color: var(--primary-dark); display: flex; justify-content: space-between; }
+        .inv-input-group { display: flex; gap: 10px; }
+        .inv-input-box { flex: 1; display: flex; flex-direction: column; }
+        .inv-input-label { font-size: 11px; color: #7f8c8d; margin-bottom: 4px; font-weight: 600; }
+        .inv-input-field { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; font-family: "SF Pro Display", monospace; transition: all 0.2s; }
+        .inv-input-field:focus { outline: none; border-color: var(--primary-dark); background: #fff; }
+
+        .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 3000; opacity: 0; visibility: hidden; transition: 0.3s ease; }
+        .drawer-overlay.show { opacity: 1; visibility: visible; }
+        .drawer-menu { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1A252F; box-shadow: 4px 0 16px rgba(0,0,0,0.3); z-index: 3001; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; }
+        .drawer-overlay.show .drawer-menu { transform: translateX(280px); }
+        .drawer-header { padding: 40px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .drawer-avatar { width: 60px; height: 60px; background: #CF9236; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; }
+        .drawer-title { color: white; font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+        .drawer-subtitle { color: #95A5A6; font-size: 12px; }
+        .drawer-nav { padding: 20px 0; flex: 1; }
+        .drawer-item { display: flex; align-items: center; padding: 16px 24px; color: #BDC3C7; font-size: 16px; font-weight: 500; text-decoration: none; transition: 0.2s; cursor: pointer; }
+        .drawer-item:active { background: rgba(255,255,255,0.05); }
+        .drawer-item.active { background: rgba(255,255,255,0.1); border-left: 4px solid #CF9236; color: white; }
+        .drawer-icon { margin-right: 16px; font-size: 20px; width: 24px; text-align: center; }
+
+        /* 【全新】雙層控制面板排版 */
+        .control-panel { position: sticky; top: 0; z-index: 100; background-color: var(--bg-color); padding-bottom: 12px; display: flex; flex-direction: column; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; }
+        .btn-menu { background: none; border: none; font-size: 24px; color: var(--primary-dark); cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+        .btn-menu:active { background: rgba(0,0,0,0.05); }
+        
+        .tabs { display: flex; background-color: #e4e6eb; border-radius: 8px; padding: 3px; flex: 1; margin-left: 8px; }
+        .tab-btn { flex: 1; text-align: center; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--text-muted); border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .tab-btn.active { background-color: var(--card-bg); color: var(--text-main); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
+        .action-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+        .action-row { display: flex; gap: 8px; justify-content: space-between; align-items: stretch; }
+        .btn-upload { background-color: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; white-space: nowrap; flex: 1; text-align: center; padding: 12px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: 0.2s; }
+        .btn-upload:active { background-color: #f8f9fa; transform: scale(0.98); }
+        input[type="file"] { display: none; }
+        
+        .btn-tool { background-color: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; white-space: nowrap; flex: 1; display: flex; justify-content: center; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding: 10px 0; transition: 0.2s; }
+        .btn-tool:active { background-color: #f8f9fa; transform: scale(0.96); }
+        .exchange-rate { flex: 1.3; justify-content: center; font-size: 12px; background-color: #e8f4fd; border: 1px solid #cde4f7; border-radius: 8px; display: flex; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); white-space: nowrap; font-weight: 600; }
+        
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+        .card-title { font-size: 15px; font-weight: 700; margin: 0; color: #333; }
+        .card-subtitle { font-size: 12px; color: var(--text-muted); }
+        .top-stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 12px; margin-bottom: 16px; }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px; display: flex; align-items: center; }
+        .stat-main { font-size: 18px; font-weight: 800; }
+        .stat-sub { font-size: 12px; font-weight: 600; margin-top: 2px; }
+        
+        .text-red { color: var(--red-profit); }
+        .text-green { color: var(--green-loss); }
+        .info-icon { display: inline-block; width: 14px; height: 14px; line-height: 14px; text-align: center; border-radius: 50%; background-color: #ccc; color: #fff; font-size: 10px; font-weight: bold; font-family: sans-serif; margin-left: 4px; cursor: pointer; }
+        .badge-market { background-color: #e0e0e0; color: #333; font-size: 9px; padding: 2px 4px; border-radius: 3px; margin-right: 4px; }
+        
+        .list-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border-color); }
+        .list-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .col-left { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding-right: 10px; }
+        .col-right { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+        .item-name { font-size: 14px; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .item-sub { font-size: 11px; color: var(--text-muted); }
+        
+        .chart-container-small { position: relative; height: 160px; width: 100%; display: flex; justify-content: center; }
+        .chart-container-large { position: relative; height: 260px; width: 100%; }
+        .chart-container-bar { position: relative; height: 320px; width: 100%; } 
+        .scrollable-list { max-height: 250px; overflow-y: auto; }
     </style>
 </head>
 <body>
 
-    <header class="sticky-header">
-        <div class="summary-block">
-            <div class="summary-label">流動淨資產</div>
-            <div class="summary-val" id="disp-liquid">0</div>
+    <div id="drawer-overlay" class="drawer-overlay" onclick="closeDrawer()">
+        <div class="drawer-menu" onclick="event.stopPropagation();">
+            <div class="drawer-header">
+                <div class="drawer-avatar">莊</div>
+                <div class="drawer-title">財富管理中心</div>
+                <div class="drawer-subtitle">資產增值與守備儀表板</div>
+            </div>
+            <div class="drawer-nav">
+                <a href="index.html" class="drawer-item active">
+                    <span class="drawer-icon">📈</span> 投資儀表板
+                </a>
+                <a href="accounting.html" class="drawer-item">
+                    <span class="drawer-icon">🏦</span> 財務記帳本
+                </a>
+            </div>
         </div>
-        <div class="summary-block center-block">
-            <div class="summary-label">耗盡年齡</div>
-            <div class="summary-val negative" id="disp-depletion">--</div>
-        </div>
-        <div class="summary-block right-block" id="btn-cashflow-eq">
-            <div class="summary-label">月現金流 ⓘ</div>
-            <div class="summary-val positive" id="disp-cashflow">+0</div>
-        </div>
-    </header>
-
-    <div class="scenario-bar" id="scenario-bar">
-        📂 目前劇本：載入中... ▾
     </div>
 
-    <main>
-        <section id="tab-env" class="tab-content active">
-            <div class="card">
-                <div class="card-header">⚙️ 環境參數</div>
-                <div class="form-row">
-                    <div class="form-col"><label>預估年通膨 (%)</label><input type="number" id="env-inflation" value="2.5" step="0.1"></div>
-                    <div class="form-col"><label>現在年紀</label><input type="number" id="env-curAge" value="30"></div>
-                    <div class="form-col"><label>退休年紀</label><input type="number" id="env-retAge" value="60"></div>
-                </div>
-                <div class="form-group">
-                    <label>預估老年醫療費 (月) <span class="tooltip-icon" data-tip="退休後每月會額外增加的醫療照護預算。">?</span></label>
-                    <input type="number" id="env-medical" placeholder="例如: 20000">
-                </div>
-            </div>
+    <div id="toast-container"></div>
 
-            <div class="card">
-                <div class="card-header">
-                    <span>📈 每月結餘分配</span>
-                    <label class="switch"><input type="checkbox" id="invest-switch"><span class="slider"></span></label>
-                </div>
-                <p class="sub-text" style="margin-bottom: 10px;">扣除所有生活開銷與「預定投資」後，剩餘的閒錢去向：</p>
-                <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; font-size: 12px; color: var(--text-main);">
-                    <div id="invest-hint-off"><b>[關閉] 保守型</b>：剩餘閒錢與配息，將全數流入「現金/活存」部位作為安全池。</div>
-                    <div id="invest-hint-on" style="display: none; color: var(--color-primary);"><b>[開啟] 積極型 / DRIP</b>：剩餘閒錢與配息，將全數自動加碼買入「核心投資部位」，加速複利。</div>
-                </div>
-            </div>
-        </section>
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div style="font-weight: 600; color: #555;">正在分析金融數據...</div>
+        <div style="font-size: 12px; color: #999; margin-top: 5px;">(正在從 Yahoo Finance 獲取最新資料)</div>
+    </div>
 
-        <section id="tab-assets" class="tab-content">
+    <div id="info-modal-overlay" class="modal-overlay">
+        <div class="custom-prompt-box">
+            <div class="prompt-icon" style="background:#E8F5E9; color:#4E8765;">✓</div>
+            <div class="prompt-title" id="info-modal-title">提示</div>
+            <div class="prompt-desc" id="info-modal-desc"></div>
+            <div class="prompt-actions">
+                <button class="btn-confirm" onclick="closeInfoModal()">我知道了</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-modal-overlay" class="modal-overlay">
+        <div class="custom-prompt-box">
+            <div class="prompt-icon" style="background:#FFF4E5; color:#CF9236;">?</div>
+            <div class="prompt-title">警告</div>
+            <div class="prompt-desc">
+                確定要清空所有持股資料嗎？<br><br>這將移除儀表板上的所有紀錄，您下次需要重新匯入 CSV 檔。
+            </div>
+            <div class="prompt-actions">
+                <button class="btn-skip" onclick="closeConfirmModal()">取消</button>
+                <button class="btn-danger" onclick="executeClearAllData()">確定清空</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="inventory-modal-overlay" class="modal-overlay">
+        <div class="custom-prompt-box" style="padding: 20px; width: 90%; max-width: 450px;">
+            <div class="prompt-title" style="margin-bottom: 4px;">⚙️ 庫存校正中心</div>
+            <div class="prompt-desc" style="margin-bottom: 16px; font-size: 12px;">
+                若有質押或配息再投入導致成本失真，可在此手動調整。儲存後將覆寫本機記憶並重新計算。
+            </div>
             
-            <div class="card" style="border: 2px solid var(--color-primary);">
-                <div class="card-header" style="color: var(--color-primary); border-bottom: none; padding-bottom: 0;">
-                    📈 核心投資部位 (股票/ETF/基金)
-                </div>
-                <p class="sub-text" style="margin-bottom: 15px;">統整您的投資本金、紀律投入與退休轉倉計畫。</p>
+            <div id="inventory-list-container" class="inv-list-container"></div>
 
-                <div class="form-group">
-                    <label>目前已投資本金 <span class="tooltip-icon" data-tip="您目前已經持有的投資總市值。">?</span></label>
-                    <input type="number" id="core-principal" placeholder="例如: 1000000">
-                </div>
+            <div class="prompt-actions">
+                <button class="btn-skip" onclick="closeInventoryManager()">取消</button>
+                <button class="btn-confirm" onclick="saveInventoryChanges()">💾 儲存並重算</button>
+            </div>
+        </div>
+    </div>
 
-                <div class="section-divider"><span class="section-label">累積期 (退休前)</span></div>
-                <div class="form-group">
-                    <label>每年預計新增投入 <span class="tooltip-icon" data-tip="系統將自動除以 12 作為每月預定扣款額。若現金流不足將觸發智慧停扣。">?</span></label>
-                    <input type="number" id="core-annual-add" placeholder="例如: 120000">
+    <div id="custom-prompt-overlay" class="modal-overlay">
+        <div class="custom-prompt-box" style="padding: 20px; text-align: left;">
+            <div class="prompt-title" style="text-align: center;">⚠️ 發現新股票：<span id="prompt-stock-name" style="color: var(--red-profit);"></span></div>
+            <div id="prompt-step-input">
+                <div class="prompt-desc" style="background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px dashed #ccc;">
+                    請輸入 <b>Yahoo Finance</b> 代號：<br><br>
+                    📌 <b>範例格式：</b><br>
+                    👉 <b>上市</b> (台積電)：2330.TW<br>
+                    👉 <b>上櫃</b> (元太)：8069.TWO<br>
+                    👉 <b>ETF</b> (0050)：0050.TW
                 </div>
-                <div class="form-row">
-                    <div class="form-col"><label>年增值率 (%) <span class="tooltip-icon" data-tip="資本利得。使本金長大，不發現金。">?</span></label><input type="number" id="core-pre-growth" value="6.0" step="0.1"></div>
-                    <div class="form-col"><label>年殖利率 (%) <span class="tooltip-icon" data-tip="現金配息。每月將發放現金流至水庫。">?</span></label><input type="number" id="core-pre-yield" value="2.0" step="0.1"></div>
-                </div>
-
-                <div class="section-divider"><span class="section-label">提領期轉倉 (退休後)</span></div>
-                <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <label style="margin:0;">退休後停止投入本金 <span class="tooltip-icon" data-tip="開啟後，達退休年紀時將自動停止預定扣款。">?</span></label>
-                    <label class="switch"><input type="checkbox" id="core-stop-retire" checked><span class="slider"></span></label>
-                </div>
-                <div class="form-row">
-                    <div class="form-col"><label>退休後增值率 (%)</label><input type="number" id="core-post-growth" value="2.0" step="0.1"></div>
-                    <div class="form-col"><label>退休後殖利率 (%)</label><input type="number" id="core-post-yield" value="5.0" step="0.1"></div>
+                <input type="text" id="prompt-input-val" class="prompt-input" placeholder="請輸入完整代號 (含 .TW)">
+                <div id="prompt-error-msg" class="error-msg"></div>
+                <div class="prompt-actions">
+                    <button class="btn-skip" id="btn-prompt-skip">略過本筆</button>
+                    <button class="btn-confirm" id="btn-prompt-check">🔍 驗證代號</button>
                 </div>
             </div>
-
-            <div class="card">
-                <div class="card-header">🟦 其他資產 (活存/保單等)</div>
-                <div class="list-row" style="font-size: 11px; color: var(--text-muted); padding-left: 5px;">
-                    <div style="flex:2.5;">項目</div><div style="flex:1;">金額</div><div style="flex:0.8;">年化%</div><div style="width:30px;"></div>
-                </div>
-                <div id="asset-list"></div>
-                <button class="btn-add" id="btn-add-asset">+ 新增資產</button>
+            <div id="prompt-step-loading" style="display:none; text-align:center; padding: 20px;">
+                <div class="spinner" style="margin: 0 auto 10px;"></div>
+                <div style="font-size: 13px; color: var(--text-muted);">連線驗證中...</div>
             </div>
-
-            <div class="card">
-                <div class="card-header" style="color: var(--color-negative);">🟥 一般負債 (信貸/卡債)</div>
-                <div class="list-row" style="font-size: 11px; color: var(--text-muted); padding-left: 5px;">
-                    <div style="flex:2.5;">項目</div><div style="flex:1;">剩餘金額</div><div style="flex:0.8;">年利率%</div><div style="width:30px;"></div>
+            <div id="prompt-step-confirm" style="display:none;">
+                <div style="background: #e8f4fd; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #cde4f7; text-align: center;">
+                    <div style="font-size: 11px; color: #555;">✅ 系統登記名稱：</div>
+                    <div id="prompt-yahoo-name" style="font-weight: bold; font-size: 15px; margin: 4px 0 8px 0; color: #0056b3;"></div>
+                    <div style="font-size: 11px; color: #555;">💰 最新收盤價：</div>
+                    <div id="prompt-yahoo-price" style="font-weight:bold; font-size: 16px;"></div>
                 </div>
-                <div id="debt-list"></div>
-                <button class="btn-add" id="btn-add-debt">+ 新增負債</button>
-            </div>
-
-            <div class="card" style="border-color: rgba(245, 166, 35, 0.5);">
-                <div class="card-header" style="color: var(--color-warning);">🏠 房屋貸款現況</div>
-                <div class="form-row">
-                    <div class="form-col"><label>房產現值</label><input type="number" id="loan-value" placeholder="0"></div>
-                    <div class="form-col"><label>剩餘本金</label><input type="number" id="loan-principal" placeholder="0"></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-col"><label>年利率 (%)</label><input type="number" id="loan-rate" placeholder="0" step="0.1"></div>
-                    <div class="form-col"><label>剩餘年數</label><input type="number" id="loan-years" placeholder="0"></div>
-                </div>
-                <div class="form-group">
-                    <label>預估房價年增率 (%) <span class="tooltip-icon" data-tip="建議設定 2~3% (抗通膨)。老屋因折舊可能增值趨緩。">?</span></label>
-                    <input type="number" id="loan-growth" value="3.0" step="0.1">
-                </div>
-                <div style="margin-top: 15px; padding-top: 12px; border-top: 1px dashed var(--border-light); display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 13px; color: var(--text-muted); font-weight: bold;">預計本息攤還月付款</span>
-                    <span style="font-size: 16px; font-weight: bold; color: var(--color-warning);" id="disp-loan-pay">$0</span>
+                <div class="prompt-actions">
+                    <button class="btn-skip" id="btn-prompt-retry">重新輸入</button>
+                    <button class="btn-success" id="btn-prompt-save">✅ 確認並記住</button>
                 </div>
             </div>
-        </section>
+        </div>
+    </div>
 
-        <section id="tab-flows" class="tab-content">
-            
-            <div style="background: rgba(32, 201, 151, 0.1); border: 1px solid rgba(32, 201, 151, 0.3); border-radius: 8px; padding: 10px; font-size: 12px; color: var(--text-main); margin-bottom: 15px;">
-                💡 <b>溫馨提示：</b>核心投資的動態配息 (殖利率) 已在背景逐年自動計入您的現金流水庫中。
+    <div class="control-panel">
+        <div class="top-bar">
+            <button class="btn-menu" onclick="openDrawer()">☰</button>
+            <div class="tabs">
+                <div id="tab-ALL" class="tab-btn active" onclick="switchMarket('ALL')">全球總覽</div>
+                <div id="tab-TW" class="tab-btn" onclick="switchMarket('TW')">🇹🇼 台股</div>
+                <div id="tab-US" class="tab-btn" onclick="switchMarket('US')">🇺🇸 美股</div>
             </div>
-
-            <div class="card">
-                <div class="card-header" style="color: var(--color-positive);">🟢 退休前收支 (月)</div>
-                <label style="color: var(--color-positive); font-weight: bold; margin-top: 10px; display:flex; align-items:center;">
-                    主要薪資 <span class="badge-auto">每年自動成長</span>
-                </label>
-                <div class="list-row" style="margin-bottom: 4px;">
-                    <input type="text" value="工作薪資" readonly style="flex: 2.5; background-color:#eee; color:#888;">
-                    <input type="number" id="sys-salary-val" placeholder="目前月薪" style="flex: 1;">
-                    <button class="btn-remove" disabled style="opacity:0.3;">🔒</button>
-                </div>
-                <div class="list-row" style="justify-content: flex-end; margin-bottom: 12px;">
-                    <span style="font-size: 11px; color: var(--text-muted); margin-right: 5px;">每年提升率 (%)</span>
-                    <input type="number" id="sys-salary-growth" value="3.0" step="0.1" style="width: 70px; height: 30px; font-size: 12px; text-align: center;">
-                    <div style="width: 30px;"></div> 
-                </div>
-
-                <label style="color: var(--color-positive); font-weight: bold; margin-top: 15px;">其他主動收入</label>
-                <div id="pre-income-list"></div>
-                <button class="btn-add" id="btn-add-pre-inc">+ 新增其他收入</button>
-
-                <label style="color: var(--color-negative); font-weight: bold; margin-top: 25px;">生活與投資支出</label>
-                <div class="list-row">
-                    <input type="text" value="房貸月付款 (自動帶入)" readonly style="flex: 2.5; background-color:#eee; color:#888;">
-                    <input type="text" id="sys-loan-pre" value="0" readonly style="flex: 1; background-color:#eee; color:#888;">
-                    <button class="btn-remove" disabled style="opacity:0.3;">🔒</button>
-                </div>
-                <div class="list-row">
-                    <input type="text" value="預定投資扣款 (自動帶入)" readonly style="flex: 2.5; background-color:#eee; color: var(--color-primary); font-weight:bold;">
-                    <input type="text" id="sys-core-inv-pre" value="0" readonly style="flex: 1; background-color:#eee; color: var(--color-primary); font-weight:bold;">
-                    <button class="btn-remove" disabled style="opacity:0.3;">🔒</button>
-                </div>
-                <div id="pre-expense-list"></div>
-                <button class="btn-add" id="btn-add-pre-exp">+ 新增一般支出</button>
+        </div>
+        
+        <div class="action-rows">
+            <div class="action-row">
+                <label for="upload-tw" id="label-tw" class="btn-upload">📁 匯入台股</label>
+                <input type="file" id="upload-tw" accept=".csv">
+                
+                <label for="upload-us" id="label-us" class="btn-upload">📁 匯入美股</label>
+                <input type="file" id="upload-us" accept=".csv">
             </div>
-
-            <div class="card">
-                <div class="card-header" style="color: var(--color-warning);">🟡 退休後預估收支 (月)</div>
-                <label style="color: var(--color-positive); font-weight: bold; margin-top: 10px;">預估收入 (如勞保/勞退)</label>
-                <div id="post-income-list"></div>
-                <button class="btn-add" id="btn-add-post-inc">+ 新增收入</button>
-
-                <label style="color: var(--color-negative); font-weight: bold; margin-top: 15px;">預估支出</label>
-                <div class="list-row">
-                    <input type="text" value="房貸月付款 (自動帶入)" readonly style="flex: 2.5; background-color:#eee; color:#888;">
-                    <input type="text" id="sys-loan-post" value="0" readonly style="flex: 1; background-color:#eee; color:#888;">
-                    <button class="btn-remove" disabled style="opacity:0.3;">🔒</button>
-                </div>
-                <div class="list-row">
-                    <input type="text" value="預定投資扣款 (自動帶入)" readonly style="flex: 2.5; background-color:#eee; color: var(--color-primary); font-weight:bold;">
-                    <input type="text" id="sys-core-inv-post" value="0" readonly style="flex: 1; background-color:#eee; color: var(--color-primary); font-weight:bold;">
-                    <button class="btn-remove" disabled style="opacity:0.3;">🔒</button>
-                </div>
-                <div id="post-expense-list"></div>
-                <button class="btn-add" id="btn-add-post-exp">+ 新增一般支出</button>
-                <p class="sub-text" style="margin-top: 5px;">* 若未填寫，系統將自動沿用退休前的生活支出。</p>
+            <div class="action-row">
+                <button id="btn-inventory" class="btn-tool" onclick="openInventoryManager()" title="庫存校正中心">⚙️ 校正</button>
+                <button id="btn-clear" class="btn-tool" onclick="showConfirmModal()" title="清空所有資料">🗑️ 清空</button>
+                <button id="btn-privacy" class="btn-tool" onclick="togglePrivacy()" title="切換隱私模式">👁️ 隱私</button>
+                <div class="exchange-rate"><span style="color:#0056b3; margin-right:4px;">USD/TWD</span><strong id="display-rate">--.--</strong></div>
             </div>
-        </section>
+        </div>
+    </div>
 
-        <section id="tab-report" class="tab-content">
-            
-            <div id="dynamic-alert" class="card" style="border-color: var(--color-negative); background-color: #FFF3F3; display: none;">
-                <div style="color: var(--color-negative); font-size: 13px; line-height: 1.6;" id="alert-text">
-                    </div>
+    <div class="card">
+        <div class="top-stats-grid">
+            <div class="stat-item"><span class="stat-label">總現值 (TWD)</span><span class="stat-main num" id="val-total">--</span><span class="stat-sub text-muted num">成本 <span id="val-cost">--</span></span></div>
+            <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">累積總損益</span><span class="stat-main num" id="val-profit">--</span><span class="stat-sub num" id="val-profit-pct">--%</span></div>
+            <div class="stat-item">
+                <span class="stat-label" style="align-items: center; display: flex;">今日損益 (預估) 
+                    <span id="data-date" style="margin-left:6px; background:#e0e6ed; color:#2c3e50; padding:2px 4px; border-radius:4px; font-size:10px; font-weight:bold; display:none; letter-spacing:0.5px;"></span>
+                </span>
+                <span class="stat-main num" id="val-day-change">--</span><span class="stat-sub num" id="val-day-change-pct">--%</span>
             </div>
+            <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">YTD 績效 (今年以來)</span><span class="stat-main num" id="val-ytd">--</span><span class="stat-sub num" id="val-ytd-pct">--%</span></div>
+            <div class="stat-item"><span class="stat-label">整體年化報酬 / 波動率</span><span class="stat-main num" id="val-cagr">--%</span><span class="stat-sub text-muted num">標準差 <span id="val-stdev">--%</span></span></div>
+            <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">未來 12 個月預估股息<span class="info-icon" onclick="showInfoModal('現金流計算方式', '此數據是依據您目前的總持股數，乘上「過去12個月的真實配息額」所推算之總和。已自動將美股股息換算為新台幣。')">i</span></span><span class="stat-main text-red num" id="val-dividend">--</span><span class="stat-sub text-muted num">殖利率約 <span id="val-yield">--%</span></span></div>
+        </div>
+        <div class="chart-container-large" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-align: center; font-weight: bold;">歷史真實軌跡 vs 蒙地卡羅未來推算 (熱力圖)</div>
+            <canvas id="monteCarloChart"></canvas>
+        </div>
+    </div>
 
-            <div class="card" style="padding-bottom: 5px;">
-                <div class="card-header" style="border-bottom: none; margin-bottom: 0;">🏥 財務健康生涯熱力圖</div>
-                <div class="hm-legend">
-                    <span>點擊表頭可查看判定標準與公式</span>
-                </div>
-                <div class="hm-wrapper">
-                    <table class="hm-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 15%;">年齡</th>
-                                <th class="clickable-th" onclick="showMetricModal('i1')" style="width: 17%;">🛡️<br>備用</th>
-                                <th class="clickable-th" onclick="showMetricModal('i2')" style="width: 17%;">💰<br>儲蓄</th>
-                                <th class="clickable-th" onclick="showMetricModal('i3')" style="width: 17%;">⚖️<br>負債</th>
-                                <th class="clickable-th" onclick="showMetricModal('i4')" style="width: 17%;">🏖️<br>自由</th>
-                                <th class="clickable-th" onclick="showMetricModal('i5')" style="width: 17%;">💧<br>流動</th>
-                            </tr>
-                        </thead>
-                        <tbody id="heatmap-body">
-                            </tbody>
-                    </table>
-                </div>
-                <p class="sub-text" style="text-align: center; margin-top: 8px;">上下滑動查看未來變化，點擊色塊顯示詳細數值</p>
-            </div>
-
-            <div class="card">
-                <div class="card-header">🔮 資產壽命預測</div>
-                <div class="chart-container">
-                    <canvas id="assetChart"></canvas>
-                </div>
-                <h4 style="font-size: 13px; margin-bottom: 10px; color: var(--text-muted);">里程碑預估總身價 (流動資金+投資本金+房產淨值)</h4>
-                <div class="milestone-grid">
-                    <div class="milestone-box"><div class="summary-label">退休時</div><div style="font-weight: bold; color: var(--color-primary);" id="ms-retire">0</div></div>
-                    <div class="milestone-box"><div class="summary-label">70 歲</div><div style="font-weight: bold; color: var(--color-primary);" id="ms-70">0</div></div>
-                    <div class="milestone-box"><div class="summary-label">80 歲</div><div style="font-weight: bold; color: var(--color-primary);" id="ms-80">0</div></div>
-                    <div class="milestone-box"><div class="summary-label">90 歲</div><div style="font-weight: bold; color: var(--color-primary);" id="ms-90">0</div></div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">📊 收支結構現況分析</div>
-                <div class="form-row">
-                    <div class="form-col" style="border-right: 1px solid var(--border-light); padding-right: 10px;">
-                        <h4 style="font-size: 13px; margin-bottom: 8px; text-align: center;">退休前 (現況)</h4>
-                        <div style="background: #f0f0f0; border-radius: 4px; padding: 10px; font-size:12px; margin-bottom: 5px;">總收入: <span id="r-pre-inc" style="float:right; font-weight:bold;">0</span></div>
-                        <div style="background: #f0f0f0; border-radius: 4px; padding: 10px; font-size:12px;">總支出: <span id="r-pre-exp" style="float:right; font-weight:bold;">0</span></div>
-                    </div>
-                    <div class="form-col" style="padding-left: 10px;">
-                        <h4 style="font-size: 13px; margin-bottom: 8px; text-align: center;">退休後 (預估)</h4>
-                        <div style="background: #f0f0f0; border-radius: 4px; padding: 10px; font-size:12px; margin-bottom: 5px;">總收入: <span id="r-post-inc" style="float:right; font-weight:bold;">0</span></div>
-                        <div style="background: #f0f0f0; border-radius: 4px; padding: 10px; font-size:12px;">總支出: <span id="r-post-exp" style="float:right; font-weight:bold;">0</span></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card" style="border-color: rgba(0, 86, 179, 0.3);">
-                <div class="card-header" style="color: var(--color-primary);">📑 劇本橫向比較</div>
-                <p class="sub-text">左右滑動查看所有已儲存劇本的表現差異。</p>
-                <div class="comp-table-wrapper">
-                    <table class="comp-table" id="comp-table">
-                        </table>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <nav class="bottom-nav">
-        <div class="nav-btn active" data-target="tab-env"><span class="icon">⚙️</span><span>環境</span></div>
-        <div class="nav-btn" data-target="tab-assets"><span class="icon">💰</span><span>資產</span></div>
-        <div class="nav-btn" data-target="tab-flows"><span class="icon">🔄</span><span>收支</span></div>
-        <div class="nav-btn" data-target="tab-report"><span class="icon">📊</span><span>報告</span></div>
-    </nav>
-
-    <div id="tooltip-overlay" class="overlay-bg"><div class="tooltip-box" id="tooltip-content">提示文字</div></div>
+    <div class="card"><div class="card-header"><h2 class="card-title">資產配置 (總現值佔比)</h2></div><div style="display: flex; align-items: center;"><div style="flex: 1;"><div class="chart-container-small"><canvas id="allocationChart"></canvas></div></div><div style="flex: 1.2; padding-left: 10px; font-size: 12px;" class="scrollable-list" id="alloc-legend"><div style="color: #999; text-align: center; margin-top: 50px;">請先匯入資料</div></div></div></div>
     
-    <div id="eq-overlay" class="overlay-bg">
-        <div class="eq-box" id="eq-content">
-            <div class="eq-title">月現金流計算式 (目前現況)</div>
-            <div id="eq-details"></div>
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">月度現金流分析</h2>
+            <span class="card-subtitle">過去 12 個月 vs 未來推算</span>
+        </div>
+        <div class="chart-container-large">
+            <canvas id="cashflowChart"></canvas>
+        </div>
+        <div style="font-size: 11px; color: #999; text-align: center; margin-top: 12px; line-height: 1.4;">
+            * 預估現金流係根據各股過去 12 個月之真實配息紀錄進行等額平移推算。<br>實際發放金額與除息月份可能因企業政策而有所變動。
         </div>
     </div>
 
-    <div id="scen-overlay" class="overlay-bg" style="align-items: flex-end;"></div>
-    <div id="scen-sheet" class="bottom-sheet">
-        <h3 style="margin-bottom: 15px; font-size: 16px; color: var(--color-primary);">📂 劇本管理</h3>
-        <p class="sub-text" style="margin-bottom: 15px;">點擊名稱可切換情境。新增劇本將完全複製當前畫面的設定。</p>
-        <div id="scen-list"></div>
-        <button class="scen-add-btn" onclick="createNewScenario()">+ 新增劇本 (複製目前參數)</button>
-    </div>
-
-    <div id="cp-modal" class="cp-overlay">
-        <div class="cp-box">
-            <div class="cp-title" id="cp-title">標題</div>
-            <input type="text" id="cp-input" class="cp-input" placeholder="請輸入內容">
-            <div class="cp-btn-group">
-                <button class="cp-btn cp-btn-cancel" onclick="closeCustomPrompt()">取消</button>
-                <button class="cp-btn cp-btn-confirm" id="cp-btn-confirm">確認</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="metric-modal" class="cp-overlay">
-        <div class="cp-box" style="max-width: 320px; padding: 25px 20px;">
-            <div class="cp-title" id="metric-title" style="text-align: left; font-size:18px; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 10px;">標題</div>
-            <div id="metric-desc" style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 15px;">說明</div>
-            <div style="background: #f0f4f8; padding: 10px; border-radius: 8px; font-size: 12px; font-weight: bold; color: var(--color-primary); margin-bottom: 15px;" id="metric-formula">公式</div>
-            <div id="metric-thresholds" style="font-size: 13px; line-height: 2; margin-bottom: 20px;">
-                <div style="display:flex; align-items:center; gap:8px;"><span class="badge-auto" style="background:#20C997;color:white;">🟩 綠燈</span> <span id="m-g" style="flex:1;"></span></div>
-                <div style="display:flex; align-items:center; gap:8px;"><span class="badge-auto" style="background:#F5A623;color:white;">🟨 黃燈</span> <span id="m-y" style="flex:1;"></span></div>
-                <div style="display:flex; align-items:center; gap:8px;"><span class="badge-auto" style="background:#D9534F;color:white;">🟥 紅燈</span> <span id="m-r" style="flex:1;"></span></div>
-            </div>
-            <button class="cp-btn cp-btn-cancel" style="width: 100%;" onclick="closeMetricModal()">我知道了</button>
-        </div>
-    </div>
+    <div class="card"><div class="card-header"><h2 class="card-title">全球持股現值排行</h2><span class="card-subtitle">市值佔比高低排序</span></div><div class="chart-container-bar"><canvas id="performanceChart"></canvas></div></div>
+    
+    <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
     <script>
-        // ================= 核心架構：資料定義 =================
-        const LOCAL_STORAGE_KEY_V2 = 'life_financial_data_v2'; 
+        function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
+        function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
+
+        let globalPortfolio = { tw: [], us: [] };
+        let currentRate = 32.5; 
+        let charts = {}; 
+
+        let currentMarketView = 'ALL'; 
+        let globalCombinedList = []; 
+        let isPrivacyMode = false; 
+
+        // 儲存 API 回傳的最新報價時間戳記
+        let latestDataTime = 0; 
+
+        const fmtMoney = (n) => isPrivacyMode ? '****' : Math.round(n).toLocaleString();
+        const parseNum = (str) => { if (!str) return 0; const val = parseFloat(str.toString().replace(/,/g, '').replace('%', '')); return isNaN(val) ? 0 : val; };
+        const setLoading = (show) => document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+
+        let toastTimeout;
+        function showToast(msg) {
+            const toast = document.getElementById('toast-container');
+            toast.innerText = msg; toast.classList.add('show');
+            clearTimeout(toastTimeout); toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        function showInfoModal(title, desc) { 
+            document.getElementById('info-modal-title').innerText = title; 
+            document.getElementById('info-modal-desc').innerText = desc; 
+            document.getElementById('info-modal-overlay').style.display = 'flex'; 
+        }
+        function closeInfoModal() { document.getElementById('info-modal-overlay').style.display = 'none'; }
+
+        function showConfirmModal() { document.getElementById('confirm-modal-overlay').style.display = 'flex'; }
+        function closeConfirmModal() { document.getElementById('confirm-modal-overlay').style.display = 'none'; }
         
-        let appData = { currentId: 'default', scenarios: [] };
-        let state = { assets: [], debts: [], preIncomes: [], preExpenses: [], postIncomes: [], postExpenses: [] };
-        let assetChartInstance = null;
-        let currentEqHTML = ""; 
-
-        const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
-        const generateId = () => Math.random().toString(36).substr(2, 9);
-        const getNum = (id) => parseFloat(document.getElementById(id).value) || 0;
-        const fmt = (n) => Math.round(n).toLocaleString();
-
-        // ================= 指標說明定義字典 =================
-        const metricDictionary = {
-            'i1': {
-                title: '🛡️ 緊急預備金安全度',
-                desc: '衡量您的流動資金可以支撐幾個月的無收入生活。若突發失業或意外，這是您的第一道防線。',
-                formula: '當年流動資金 ÷ 當年平均月支出',
-                g: '大於 6 個月 (資金充裕)',
-                y: '3 ~ 6 個月 (安全邊緣)',
-                r: '小於 3 個月 (極度危險)'
-            },
-            'i2': {
-                title: '💰 儲蓄與提領率',
-                desc: '評估現金流健康度。退休前看「儲蓄率」，退休後看「本金提領率」。',
-                formula: '退休前：(總收入 - 總支出) ÷ 總收入\n退休後：當年提領本金 ÷ 當年總資產',
-                g: '退休前 > 20% ｜ 退休後 < 4%',
-                y: '退休前 0~20% ｜ 退休後 4~8%',
-                r: '退休前 透支 ｜ 退休後 > 8%'
-            },
-            'i3': {
-                title: '⚖️ 負債壓力指數',
-                desc: '每個月賺的錢，有多少比例一拿到就要還給銀行？用來衡量還款的窒息感。',
-                formula: '當年總還款 (本+息) ÷ 當年總收入',
-                g: '小於 20% (輕鬆無壓)',
-                y: '20% ~ 40% (可控負債)',
-                r: '大於 40% (高風險易斷頭)'
-            },
-            'i4': {
-                title: '🏖️ 財務自由達成率',
-                desc: '距離「不工作也能活下去」還有多遠？比起資產絕對值，覆蓋率更能反映真實自由度。',
-                formula: '當年總被動配息 ÷ 當年總支出',
-                g: '大於 100% (完全財務自由)',
-                y: '30% ~ 100% (資產正在發揮作用)',
-                r: '小於 30% (高度依賴勞力)'
-            },
-            'i5': {
-                title: '💧 資產流動性風險',
-                desc: '揪出「窮得只剩下房」的族群。如果身價千萬但全在不動產，生病時根本拿不出錢。',
-                formula: '當年流動與投資資金 ÷ 當年總淨資產',
-                g: '大於 30% (變現能力極佳)',
-                y: '10% ~ 30% (一般水準)',
-                r: '小於 10% (變現能力極差)'
-            }
-        };
-
-        // ================= 1. 初始化 =================
-        function loadDataAndInitialize() {
-            const v2Json = localStorage.getItem(LOCAL_STORAGE_KEY_V2);
-            if(v2Json) {
-                try {
-                    appData = JSON.parse(v2Json);
-                    if(!appData.scenarios || appData.scenarios.length === 0) throw new Error("無效的 V2 格式");
-                    
-                    appData.scenarios.forEach(sc => {
-                        if (!sc.data.coreInvest) {
-                            sc.data.coreInvest = { principal: "", annualAdd: "", preGrowth: "6.0", preYield: "2.0", stopAtRetire: true, postGrowth: "2.0", postYield: "5.0" };
-                        }
-                    });
-                } catch(e) { console.error(e); initDefaultApp(); }
-            } else {
-                initDefaultApp(); 
-            }
-            if(!appData.scenarios.find(s => s.id === appData.currentId)) {
-                appData.currentId = appData.scenarios[0].id;
-            }
-            applyScenarioToDOM(appData.currentId);
+        function executeClearAllData() {
+            closeConfirmModal();
+            localStorage.removeItem('portfolio_tw');
+            localStorage.removeItem('portfolio_us');
+            globalPortfolio = { tw: [], us: [] };
+            globalCombinedList = [];
+            document.getElementById('label-tw').innerText = '📁 匯入台股';
+            document.getElementById('label-us').innerText = '📁 匯入美股';
+            renderCurrentView(); 
+            showToast('已清空所有資料');
         }
 
-        function initDefaultApp() {
-            appData = {
-                currentId: 'default',
-                scenarios: [{
-                    id: 'default',
-                    name: '現狀維持 (預設)',
-                    data: {
-                        env: { inflation: "2.5", curAge: "30", retAge: "60", medical: "" },
-                        invest: { active: false },
-                        coreInvest: { principal: "500000", annualAdd: "120000", preGrowth: "6.0", preYield: "2.0", stopAtRetire: true, postGrowth: "2.0", postYield: "5.0" },
-                        loan: { value: "", principal: "", rate: "", years: "", growth: "3.0" },
-                        salary: { val: "", growth: "3.0" },
-                        state: {
-                            assets: [{ id: 'cash_default', name: '現金/活存', val: '', rate: '0.5', locked: true }],
-                            debts: [], preIncomes: [], preExpenses: [], postIncomes: [], postExpenses: []
-                        }
-                    },
-                    results: {}
-                }]
-            };
+        function togglePrivacy() {
+            isPrivacyMode = !isPrivacyMode;
+            document.getElementById('btn-privacy').innerHTML = isPrivacyMode ? '🙈 隱私' : '👁️ 隱私';
+            renderCurrentView(); 
+            showToast(isPrivacyMode ? "隱私模式已開啟 (隱藏金額)" : "隱私模式已關閉");
         }
 
-        // ================= 2. 劇本儲存邏輯 =================
-        function applyScenarioToDOM(id) {
-            appData.currentId = id;
-            const sc = appData.scenarios.find(s => s.id === id);
-            document.getElementById('scenario-bar').innerText = `📂 目前劇本：${sc.name} ▾`;
+        function openInventoryManager() {
+            const container = document.getElementById('inventory-list-container');
+            container.innerHTML = '';
             
-            const d = sc.data;
-            document.getElementById('env-inflation').value = d.env.inflation;
-            document.getElementById('env-curAge').value = d.env.curAge;
-            document.getElementById('env-retAge').value = d.env.retAge;
-            document.getElementById('env-medical').value = d.env.medical;
-
-            document.getElementById('invest-switch').checked = d.invest.active;
-            if (d.invest.active) { 
-                document.getElementById('invest-hint-on').style.display = 'block'; 
-                document.getElementById('invest-hint-off').style.display = 'none'; 
-            } else {
-                document.getElementById('invest-hint-on').style.display = 'none'; 
-                document.getElementById('invest-hint-off').style.display = 'block'; 
-            }
-
-            const ci = d.coreInvest || { principal: "", annualAdd: "", preGrowth: "6.0", preYield: "2.0", stopAtRetire: true, postGrowth: "2.0", postYield: "5.0" };
-            document.getElementById('core-principal').value = ci.principal;
-            document.getElementById('core-annual-add').value = ci.annualAdd;
-            document.getElementById('core-pre-growth').value = ci.preGrowth;
-            document.getElementById('core-pre-yield').value = ci.preYield;
-            document.getElementById('core-stop-retire').checked = ci.stopAtRetire;
-            document.getElementById('core-post-growth').value = ci.postGrowth;
-            document.getElementById('core-post-yield').value = ci.postYield;
-
-            document.getElementById('loan-value').value = d.loan.value;
-            document.getElementById('loan-principal').value = d.loan.principal;
-            document.getElementById('loan-rate').value = d.loan.rate;
-            document.getElementById('loan-years').value = d.loan.years;
-            document.getElementById('loan-growth').value = d.loan.growth;
-
-            document.getElementById('sys-salary-val').value = d.salary.val;
-            document.getElementById('sys-salary-growth').value = d.salary.growth;
-
-            state.assets = deepCopy(d.state.assets || []);
-            state.debts = deepCopy(d.state.debts || []);
-            state.preIncomes = deepCopy(d.state.preIncomes || []);
-            state.preExpenses = deepCopy(d.state.preExpenses || []);
-            state.postIncomes = deepCopy(d.state.postIncomes || []);
-            state.postExpenses = deepCopy(d.state.postExpenses || []);
-
-            reRenderAll();
-            calculate(); 
-        }
-
-        function saveCurrentScenario(resultsObj) {
-            const sc = appData.scenarios.find(s => s.id === appData.currentId);
-            if(!sc) return;
-            
-            sc.data = {
-                env: { inflation: document.getElementById('env-inflation').value, curAge: document.getElementById('env-curAge').value, retAge: document.getElementById('env-retAge').value, medical: document.getElementById('env-medical').value },
-                invest: { active: document.getElementById('invest-switch').checked },
-                coreInvest: {
-                    principal: document.getElementById('core-principal').value,
-                    annualAdd: document.getElementById('core-annual-add').value,
-                    preGrowth: document.getElementById('core-pre-growth').value,
-                    preYield: document.getElementById('core-pre-yield').value,
-                    stopAtRetire: document.getElementById('core-stop-retire').checked,
-                    postGrowth: document.getElementById('core-post-growth').value,
-                    postYield: document.getElementById('core-post-yield').value
-                },
-                loan: { value: document.getElementById('loan-value').value, principal: document.getElementById('loan-principal').value, rate: document.getElementById('loan-rate').value, years: document.getElementById('loan-years').value, growth: document.getElementById('loan-growth').value },
-                salary: { val: document.getElementById('sys-salary-val').value, growth: document.getElementById('sys-salary-growth').value },
-                state: deepCopy(state)
-            };
-            
-            if(resultsObj) sc.results = resultsObj;
-            localStorage.setItem(LOCAL_STORAGE_KEY_V2, JSON.stringify(appData));
-        }
-
-        // ================= 3. 各種彈出視窗 =================
-        let customPromptCallback = null;
-
-        function openCustomPrompt(title, defaultText, callback) {
-            document.getElementById('cp-title').innerText = title;
-            const inputEl = document.getElementById('cp-input');
-            inputEl.value = defaultText;
-            customPromptCallback = callback;
-            document.getElementById('cp-modal').style.display = 'flex';
-            setTimeout(() => inputEl.focus(), 100);
-        }
-
-        function closeCustomPrompt() { document.getElementById('cp-modal').style.display = 'none'; customPromptCallback = null; }
-
-        document.getElementById('cp-btn-confirm').addEventListener('click', () => {
-            const val = document.getElementById('cp-input').value;
-            if(customPromptCallback) customPromptCallback(val);
-            closeCustomPrompt();
-        });
-
-        document.getElementById('cp-modal').addEventListener('click', closeCustomPrompt);
-        document.querySelectorAll('.cp-box').forEach(el => el.addEventListener('click', e => e.stopPropagation()));
-
-        function showMetricModal(metricKey) {
-            const data = metricDictionary[metricKey];
-            if(!data) return;
-            document.getElementById('metric-title').innerText = data.title;
-            document.getElementById('metric-desc').innerText = data.desc;
-            document.getElementById('metric-formula').innerText = data.formula;
-            document.getElementById('m-g').innerText = data.g;
-            document.getElementById('m-y').innerText = data.y;
-            document.getElementById('m-r').innerText = data.r;
-            document.getElementById('metric-modal').style.display = 'flex';
-        }
-
-        function closeMetricModal() { document.getElementById('metric-modal').style.display = 'none'; }
-        document.getElementById('metric-modal').addEventListener('click', closeMetricModal);
-
-
-        // ================= 4. 劇本管理視窗 =================
-        const scenOverlay = document.getElementById('scen-overlay');
-        const scenSheet = document.getElementById('scen-sheet');
-
-        document.getElementById('scenario-bar').addEventListener('click', () => {
-            renderScenarioModal();
-            scenOverlay.style.display = 'flex';
-            setTimeout(() => scenSheet.classList.add('show'), 10);
-        });
-
-        scenOverlay.addEventListener('click', closeScenarioModal);
-        function closeScenarioModal() {
-            scenSheet.classList.remove('show');
-            setTimeout(() => scenOverlay.style.display = 'none', 300);
-        }
-
-        function renderScenarioModal() {
-            const list = document.getElementById('scen-list');
-            list.innerHTML = '';
-            appData.scenarios.forEach(sc => {
-                const isAct = sc.id === appData.currentId;
-                list.innerHTML += `
-                    <div class="scen-item">
-                        <div class="scen-name" onclick="${isAct ? '' : `applyScenarioToDOM('${sc.id}'); closeScenarioModal();`}" style="cursor:pointer;">
-                            ${sc.name} ${isAct ? '<span style="color:var(--color-positive); font-size:12px; margin-left:5px;">✅ 使用中</span>' : ''}
-                        </div>
-                        <div class="scen-actions">
-                            <button class="scen-btn" onclick="renameScenario('${sc.id}')">✏️</button>
-                            <button class="scen-btn" onclick="deleteScenario('${sc.id}')">🗑️</button>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        function createNewScenario() {
-            closeScenarioModal(); 
-            const currentScen = appData.scenarios.find(s => s.id === appData.currentId);
-            openCustomPrompt("請為新劇本命名", currentScen.name + " - 複製", (newName) => {
-                if(!newName || newName.trim() === "") return;
-                const newId = generateId();
-                const newScen = { id: newId, name: newName.trim(), data: deepCopy(currentScen.data), results: deepCopy(currentScen.results || {}) };
-                appData.scenarios.push(newScen);
-                applyScenarioToDOM(newId);
-            });
-        }
-
-        function renameScenario(id) {
-            closeScenarioModal();
-            const sc = appData.scenarios.find(s => s.id === id);
-            openCustomPrompt("重新命名劇本", sc.name, (newName) => {
-                if(newName && newName.trim() !== "") {
-                    sc.name = newName.trim();
-                    saveCurrentScenario(); 
-                    renderComparisonTable();
-                    if(id === appData.currentId) { document.getElementById('scenario-bar').innerText = `📂 目前劇本：${sc.name} ▾`; }
-                }
-            });
-        }
-
-        function deleteScenario(id) {
-            if(appData.scenarios.length <= 1) { alert("最後一個防線！至少需要保留一個劇本。"); return; }
-            if(confirm("確定要刪除這個劇本嗎？(此動作無法復原)")) {
-                appData.scenarios = appData.scenarios.filter(s => s.id !== id);
-                if(appData.currentId === id) { applyScenarioToDOM(appData.scenarios[0].id); } 
-                else { saveCurrentScenario(); renderScenarioModal(); renderComparisonTable(); }
-            }
-        }
-
-        // ================= 5. UI 介面連動 =================
-        const navBtns = document.querySelectorAll('.nav-btn');
-        const tabContents = document.querySelectorAll('.tab-content');
-        navBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                navBtns.forEach(b => b.classList.remove('active'));
-                tabContents.forEach(c => c.classList.remove('active'));
-                btn.classList.add('active');
-                document.getElementById(btn.getAttribute('data-target')).classList.add('active');
-                window.scrollTo(0, 0);
-            });
-        });
-
-        document.getElementById('invest-switch').addEventListener('change', (e) => {
-            if (e.target.checked) { 
-                document.getElementById('invest-hint-on').style.display = 'block'; 
-                document.getElementById('invest-hint-off').style.display = 'none'; 
-            } else {
-                document.getElementById('invest-hint-on').style.display = 'none'; 
-                document.getElementById('invest-hint-off').style.display = 'block'; 
-            }
-            calculate();
-        });
-
-        const tooltipIcons = document.querySelectorAll('.tooltip-icon');
-        const tooltipOverlay = document.getElementById('tooltip-overlay');
-        const tooltipContent = document.getElementById('tooltip-content');
-        tooltipIcons.forEach(icon => {
-            icon.addEventListener('click', (e) => {
-                tooltipContent.innerText = e.target.getAttribute('data-tip');
-                tooltipOverlay.style.display = 'flex';
-            });
-        });
-        tooltipOverlay.addEventListener('click', () => tooltipOverlay.style.display = 'none');
-        tooltipContent.addEventListener('click', (e) => e.stopPropagation());
-
-        function showHmTooltip(el) {
-            tooltipContent.innerText = el.getAttribute('data-tip');
-            tooltipOverlay.style.display = 'flex';
-        }
-
-        const eqOverlay = document.getElementById('eq-overlay');
-        document.getElementById('btn-cashflow-eq').addEventListener('click', () => {
-            document.getElementById('eq-details').innerHTML = currentEqHTML;
-            eqOverlay.style.display = 'flex';
-        });
-        eqOverlay.addEventListener('click', () => eqOverlay.style.display = 'none');
-        document.getElementById('eq-content').addEventListener('click', (e) => e.stopPropagation());
-
-        function renderList(containerId, dataArray, stateKey, hasRate) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = ''; 
-            dataArray.forEach((item, index) => {
-                const row = document.createElement('div');
-                row.className = 'list-row';
-
-                const nameInput = document.createElement('input');
-                nameInput.type = 'text';
-                nameInput.placeholder = '項目名稱';
-                nameInput.style.flex = hasRate ? '1.8' : '2.5';
-                nameInput.value = item.name;
-                if (item.locked) { nameInput.readOnly = true; nameInput.style.backgroundColor = '#eee'; nameInput.style.color = '#888'; }
-                nameInput.addEventListener('input', (e) => updateState(stateKey, index, 'name', e.target.value));
-                row.appendChild(nameInput);
-
-                const valInput = document.createElement('input');
-                valInput.type = 'number';
-                valInput.placeholder = '金額';
-                valInput.style.flex = '1';
-                valInput.value = item.val;
-                valInput.addEventListener('input', (e) => updateState(stateKey, index, 'val', e.target.value));
-                row.appendChild(valInput);
-
-                if (hasRate) {
-                    const rateInput = document.createElement('input');
-                    rateInput.type = 'number';
-                    rateInput.placeholder = '%';
-                    rateInput.style.flex = '0.8';
-                    rateInput.value = item.rate;
-                    rateInput.addEventListener('input', (e) => updateState(stateKey, index, 'rate', e.target.value));
-                    row.appendChild(rateInput);
-                }
-
-                const removeBtn = document.createElement('button');
-                removeBtn.className = 'btn-remove';
-                if (item.locked) { removeBtn.innerText = '🔒'; removeBtn.disabled = true; removeBtn.style.opacity = '0.3'; } 
-                else { removeBtn.innerText = '×'; removeBtn.onclick = () => removeItem(stateKey, index); }
-                row.appendChild(removeBtn);
-                container.appendChild(row);
-            });
-        }
-
-        function updateState(stateKey, index, field, value) { state[stateKey][index][field] = value; calculate(); }
-        function addItem(stateKey) { state[stateKey].push({ id: generateId(), name: '', val: '', rate: '' }); reRenderAll(); calculate(); }
-        function removeItem(stateKey, index) { state[stateKey].splice(index, 1); reRenderAll(); calculate(); }
-
-        function reRenderAll() {
-            renderList('asset-list', state.assets, 'assets', true);
-            renderList('debt-list', state.debts, 'debts', true);
-            renderList('pre-income-list', state.preIncomes, 'preIncomes', false);
-            renderList('pre-expense-list', state.preExpenses, 'preExpenses', false);
-            renderList('post-income-list', state.postIncomes, 'postIncomes', false);
-            renderList('post-expense-list', state.postExpenses, 'postExpenses', false);
-        }
-
-        document.getElementById('btn-add-asset').onclick = () => addItem('assets');
-        document.getElementById('btn-add-debt').onclick = () => addItem('debts');
-        document.getElementById('btn-add-pre-inc').onclick = () => addItem('preIncomes');
-        document.getElementById('btn-add-pre-exp').onclick = () => addItem('preExpenses');
-        document.getElementById('btn-add-post-inc').onclick = () => addItem('postIncomes');
-        document.getElementById('btn-add-post-exp').onclick = () => addItem('postExpenses');
-
-        const staticInputs = [
-            'env-inflation', 'env-curAge', 'env-retAge', 'env-medical', 
-            'core-principal', 'core-annual-add', 'core-pre-growth', 'core-pre-yield', 'core-stop-retire', 'core-post-growth', 'core-post-yield',
-            'loan-value', 'loan-principal', 'loan-rate', 'loan-years', 'loan-growth',
-            'sys-salary-val', 'sys-salary-growth'
-        ];
-        staticInputs.forEach(id => { document.getElementById(id).addEventListener('input', calculate); });
-        document.getElementById('core-stop-retire').addEventListener('change', calculate);
-
-        // ================= 6. 核心 FIRE 演算法 =================
-        function calculate() {
-            const inflation = getNum('env-inflation') / 100;
-            const curAge = parseInt(document.getElementById('env-curAge').value) || 30;
-            const retAge = parseInt(document.getElementById('env-retAge').value) || 60;
-            const medical = getNum('env-medical');
-            const surplusToInvest = document.getElementById('invest-switch').checked;
-
-            // 核心投資參數
-            let corePrincipal = getNum('core-principal');
-            const coreAnnualAdd = getNum('core-annual-add');
-            const corePreGrowth = getNum('core-pre-growth') / 100;
-            const corePreYield = getNum('core-pre-yield') / 100;
-            const stopAtRetire = document.getElementById('core-stop-retire').checked;
-            const corePostGrowth = getNum('core-post-growth') / 100;
-            const corePostYield = getNum('core-post-yield') / 100;
-
-            const baseMonthlyAdd = coreAnnualAdd / 12;
-            
-            // 同步 UI 鎖定欄位
-            document.getElementById('sys-core-inv-pre').value = Math.round(baseMonthlyAdd);
-            document.getElementById('sys-core-inv-post').value = stopAtRetire ? 0 : Math.round(baseMonthlyAdd);
-
-            let currentAssets = state.assets.map(a => ({ val: parseFloat(a.val)||0, rate: (parseFloat(a.rate)||0)/100 }));
-            let defaultCashRate = currentAssets.length > 0 ? currentAssets[0].rate : 0.005;
-            
-            let debtTotal = 0, debtWeightedRate = 0;
-            state.debts.forEach(d => {
-                const v = parseFloat(d.val)||0;
-                const r = parseFloat(d.rate)||0;
-                debtTotal += v;
-                debtWeightedRate += v * r;
-            });
-            const debtAvgRate = debtTotal > 0 ? (debtWeightedRate / debtTotal) / 100 : 0.03;
-            const monthlyInterest = debtTotal * (debtAvgRate / 12);
-
-            const baseSalary = getNum('sys-salary-val');
-            const salaryGrowth = getNum('sys-salary-growth') / 100;
-            const otherIncTotal = state.preIncomes.reduce((s, i) => s + (parseFloat(i.val)||0), 0);
-            
-            const expTotal = state.preExpenses.reduce((s, i) => s + (parseFloat(i.val)||0), 0);
-            const retIncTotal = state.postIncomes.reduce((s, i) => s + (parseFloat(i.val)||0), 0);
-            const hasRetInput = state.postExpenses.some(i => i.val !== '');
-            const retExpTotalRaw = state.postExpenses.reduce((s, i) => s + (parseFloat(i.val)||0), 0);
-            const simBaseRetExp = (retExpTotalRaw === 0 && !hasRetInput) ? expTotal : retExpTotalRaw;
-
-            const houseValue = getNum('loan-value');
-            const loanPrincipal = getNum('loan-principal');
-            const loanRateYear = getNum('loan-rate');
-            const loanYears = getNum('loan-years');
-            const houseGrowth = getNum('loan-growth') / 100;
-
-            let monthlyLoanPay = 0;
-            let loanPayoffAge = null;
-            if (loanPrincipal > 0 && loanYears > 0) {
-                if (loanRateYear > 0) {
-                    const r = loanRateYear / 100 / 12;
-                    const n = loanYears * 12;
-                    monthlyLoanPay = loanPrincipal * ((r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1));
-                } else {
-                    monthlyLoanPay = loanPrincipal / (loanYears * 12);
-                }
-                loanPayoffAge = curAge + loanYears;
-            }
-
-            document.getElementById('disp-loan-pay').innerText = "$" + fmt(monthlyLoanPay);
-            document.getElementById('sys-loan-pre').value = Math.round(monthlyLoanPay);
-            const postLoanPay = (loanPayoffAge && retAge < loanPayoffAge) ? monthlyLoanPay : 0;
-            document.getElementById('sys-loan-post').value = Math.round(postLoanPay);
-
-            // 現況快照計算
-            let monthlyOtherPassive = currentAssets.reduce((s, a) => s + (a.val * (a.rate/12)), 0);
-            let coreInitYield = corePrincipal * (corePreYield / 12);
-            let totalPassive = monthlyOtherPassive + coreInitYield;
-            
-            const totalPreIncome = baseSalary + otherIncTotal + totalPassive;
-            const totalPreExpense = expTotal + monthlyInterest + monthlyLoanPay + baseMonthlyAdd;
-            const cashFlow = totalPreIncome - totalPreExpense;
-            
-            // 【修正】防止現況淨資產出現負數
-            const liquidNetWorth = Math.max(0, currentAssets.reduce((s,a)=>s+a.val, 0) + corePrincipal - debtTotal);
-
-            currentEqHTML = `
-                <div class="eq-row"><span>總收入</span><span>$${fmt(totalPreIncome)}</span></div>
-                <div class="eq-row eq-sub"><span>• 工作薪資</span><span>$${fmt(baseSalary)}</span></div>
-                <div class="eq-row eq-sub"><span>• 其他主動收入</span><span>$${fmt(otherIncTotal)}</span></div>
-                <div class="eq-row eq-sub"><span>• 其他資產配息</span><span>$${fmt(monthlyOtherPassive)}</span></div>
-                <div class="eq-row eq-sub" style="color:#F5A623;"><span>• 核心投資配息</span><span>$${fmt(coreInitYield)}</span></div>
-                <div style="height:10px;"></div>
-                <div class="eq-row"><span>總支出</span><span>$${fmt(totalPreExpense)}</span></div>
-                <div class="eq-row eq-sub neg"><span>• 生活支出</span><span>$${fmt(expTotal)}</span></div>
-                <div class="eq-row eq-sub neg"><span>• 房貸月付款</span><span>$${fmt(monthlyLoanPay)}</span></div>
-                <div class="eq-row eq-sub neg"><span>• 負債月息</span><span>$${fmt(monthlyInterest)}</span></div>
-                <div class="eq-row eq-sub neg" style="color:var(--color-primary);"><span>• 預定投資扣款</span><span>$${fmt(baseMonthlyAdd)}</span></div>
-                <div style="border-top:1px dashed rgba(255,255,255,0.3); margin:10px 0;"></div>
-                <div class="eq-row" style="font-weight:bold; font-size:16px;"><span>淨現金流 (結餘)</span><span style="color: ${cashFlow >= 0 ? '#A8E6CF' : '#FFD3B6'}">${cashFlow > 0 ? '+' : ''}$${fmt(cashFlow)}</span></div>
-            `;
-
-            let simNewMoney = 0; 
-            let coreInvestBal = corePrincipal; 
-            
-            let depletionAge = null;
-            let crossOverAge = null; 
-            let permanentStop = false;
-            let stopAge = null;
-            
-            let vals = { retire: 0, a70: 0, a80: 0, a90: 0, a80Liquid: 0 }; 
-            let simHouseVal = houseValue;
-            let simLoanBal = loanPrincipal;
-            let chartData = [];
-            let heatmapData = [];
-
-            // 迴圈推演 (至 100 歲)
-            for (let age = curAge; age <= 100; age++) {
+            const renderList = (market, list) => {
+                if(!list || list.length === 0) return;
+                const marketName = market === 'tw' ? '🇹🇼 台股庫存' : '🇺🇸 美股庫存';
+                let html = `<div style="font-weight:bold; margin: 15px 0 8px; color: var(--primary-dark); font-size: 15px; border-bottom: 2px solid #eaeaea; padding-bottom: 4px;">${marketName}</div>`;
                 
-                // 【修正】已破產時，直接為所有後續年紀填入 $0，不再執行計算或顯示負數
-                if (depletionAge !== null) {
-                    if (age === retAge) vals.retire = 0;
-                    if (age === 70) vals.a70 = 0;
-                    if (age === 80) { vals.a80 = 0; vals.a80Liquid = 0; }
-                    if (age === 90) vals.a90 = 0;
-                    
-                    chartData.push({ age: age, liquid: 0, equity: 0 });
-                    heatmapData.push({
-                        age,
-                        i1_c: 'c-r', i1_t: `【${age}歲】資金已耗盡`,
-                        i2_c: 'c-r', i2_t: `【${age}歲】資金已耗盡`,
-                        i3_c: 'c-r', i3_t: `【${age}歲】資金已耗盡`,
-                        i4_c: 'c-r', i4_t: `【${age}歲】資金已耗盡`,
-                        i5_c: 'c-r', i5_t: `【${age}歲】資金已耗盡`
-                    });
-                    continue; 
+                list.forEach((item, index) => {
+                    html += `
+                        <div class="inv-item">
+                            <div class="inv-item-header">
+                                <span>${item.name} ${item.symbol && item.symbol !== 'SKIP' ? `<span style="color:#999; font-weight:normal; font-size:12px;">(${item.symbol})</span>` : ''}</span>
+                            </div>
+                            <div class="inv-input-group">
+                                <div class="inv-input-box">
+                                    <span class="inv-input-label">目前股數</span>
+                                    <input type="number" class="inv-input-field num" id="inv-shares-${market}-${index}" value="${item.shares}" step="any">
+                                </div>
+                                <div class="inv-input-box">
+                                    <span class="inv-input-label">總持有成本</span>
+                                    <input type="number" class="inv-input-field num" id="inv-cost-${market}-${index}" value="${item.cost}" step="any">
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML += html;
+            };
+
+            renderList('tw', globalPortfolio.tw);
+            renderList('us', globalPortfolio.us);
+
+            if ((!globalPortfolio.tw || globalPortfolio.tw.length === 0) && (!globalPortfolio.us || globalPortfolio.us.length === 0)) {
+                container.innerHTML = '<div style="text-align:center; padding: 30px 20px; color:#999; font-size: 14px;">目前無任何庫存資料。<br>請先匯入 CSV 檔。</div>';
+            }
+
+            document.getElementById('inventory-modal-overlay').style.display = 'flex';
+        }
+
+        function closeInventoryManager() {
+            document.getElementById('inventory-modal-overlay').style.display = 'none';
+        }
+
+        async function saveInventoryChanges() {
+            const updateList = (market, list) => {
+                if(!list) return;
+                list.forEach((item, index) => {
+                    const sharesInput = document.getElementById(`inv-shares-${market}-${index}`);
+                    const costInput = document.getElementById(`inv-cost-${market}-${index}`);
+                    if(sharesInput && costInput) {
+                        item.shares = parseFloat(sharesInput.value) || 0;
+                        item.cost = parseFloat(costInput.value) || 0;
+                    }
+                });
+            };
+
+            updateList('tw', globalPortfolio.tw);
+            updateList('us', globalPortfolio.us);
+
+            localStorage.setItem('portfolio_tw', JSON.stringify(globalPortfolio.tw));
+            localStorage.setItem('portfolio_us', JSON.stringify(globalPortfolio.us));
+
+            closeInventoryManager();
+            setLoading(true);
+            try {
+                await updateFinanceData();
+                showToast("✅ 庫存已校正並重新計算");
+            } catch (err) {
+                showInfoModal('更新失敗', '重新計算時發生錯誤，請稍後再試。');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function switchMarket(market) {
+            currentMarketView = market;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`tab-${market}`).classList.add('active');
+            renderCurrentView();
+            let marketName = market === 'ALL' ? '全球總覽' : (market === 'TW' ? '台股' : '美股');
+            showToast(`已切換至 ${marketName}`);
+        }
+
+        function renderCurrentView() {
+            if (globalCombinedList.length === 0) {
+                renderDashboard([]); 
+                return;
+            }
+            let filteredList = globalCombinedList;
+            if (currentMarketView !== 'ALL') {
+                filteredList = globalCombinedList.filter(item => item.market === currentMarketView);
+            }
+            renderDashboard(filteredList);
+        }
+
+        document.getElementById('upload-tw').addEventListener('change', (e) => handleFileUpload(e, 'tw'));
+        document.getElementById('upload-us').addEventListener('change', (e) => handleFileUpload(e, 'us'));
+
+        function askForSymbol(stockName) {
+            return new Promise((resolve) => {
+                setLoading(false); 
+                const overlay = document.getElementById('custom-prompt-overlay');
+                const nameEl = document.getElementById('prompt-stock-name');
+                const inputEl = document.getElementById('prompt-input-val');
+                const errorEl = document.getElementById('prompt-error-msg');
+                const stepInput = document.getElementById('prompt-step-input');
+                const stepLoading = document.getElementById('prompt-step-loading');
+                const stepConfirm = document.getElementById('prompt-step-confirm');
+
+                nameEl.innerText = stockName; inputEl.value = ''; inputEl.classList.remove('error'); errorEl.style.display = 'none';
+                stepInput.style.display = 'block'; stepLoading.style.display = 'none'; stepConfirm.style.display = 'none';
+                overlay.style.display = 'flex';
+
+                let currentTestSymbol = '';
+                const cleanup = () => { overlay.style.display = 'none'; setLoading(true); };
+                const showError = (msg) => { inputEl.classList.add('error'); errorEl.innerText = msg; errorEl.style.display = 'block'; stepLoading.style.display = 'none'; stepInput.style.display = 'block'; };
+
+                inputEl.oninput = () => { inputEl.classList.remove('error'); errorEl.style.display = 'none'; };
+                document.getElementById('btn-prompt-skip').onclick = () => { cleanup(); resolve('SKIP'); };
+
+                document.getElementById('btn-prompt-check').onclick = async () => {
+                    const val = inputEl.value.trim().toUpperCase();
+                    if (!val) { showError('❌ 請輸入代號！'); return; }
+                    currentTestSymbol = val; stepInput.style.display = 'none'; stepLoading.style.display = 'block';
+
+                    try {
+                        const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: [val] }) });
+                        const json = await res.json();
+                        
+                        if (json.status === 'success' && json.data[val] && !json.data[val].error) {
+                            const data = json.data[val];
+                            document.getElementById('prompt-yahoo-name').innerText = data.yahooName || '無名稱資料';
+                            document.getElementById('prompt-yahoo-price').innerText = data.price;
+                            stepLoading.style.display = 'none'; stepConfirm.style.display = 'block'; 
+                        } else { showError('❌ 找不到此代號或被拒絕，請檢查格式。'); }
+                    } catch (e) { showError('⚠️ 連線異常，請稍後再試。'); }
+                };
+
+                document.getElementById('btn-prompt-retry').onclick = () => { stepConfirm.style.display = 'none'; stepInput.style.display = 'block'; inputEl.focus(); };
+                document.getElementById('btn-prompt-save').onclick = () => { cleanup(); resolve(currentTestSymbol); };
+            });
+        }
+
+        async function handleFileUpload(event, market) {
+            const file = event.target.files[0];
+            if (!file) return;
+            setLoading(true);
+
+            Papa.parse(file, {
+                header: true, skipEmptyLines: true,
+                complete: async function(results) {
+                    try {
+                        const rawData = results.data;
+                        const invalidKeywords = ['合計', '總計', '說明', '證券', '帳戶', '警語', '免責', '總預估', '現值', '損益', '小計'];
+                        const validData = rawData.filter(row => {
+                            const name = row['股票名稱'] || row['股名'] || '';
+                            const parsedShares = parseNum(row['股數'] || row['目前庫存'] || row['餘股數'] || '0');
+                            
+                            if (parsedShares <= 0) return false;
+                            if (invalidKeywords.some(kw => name.includes(kw))) return false;
+                            if (!name.trim()) return false;
+                            return true;
+                        });
+
+                        let normalized = market === 'tw' 
+                            ? validData.map(row => ({ 
+                                market: 'TW', 
+                                name: row['股票名稱'] || row['股名'], 
+                                symbol: null, 
+                                shares: parseNum(row['股數'] || row['餘股數']), 
+                                cost: parseNum(row['付出成本'] || row['成本']) 
+                            }))
+                            : validData.map(row => ({ 
+                                market: 'US', 
+                                name: row['股票名稱'] || row['股名'], 
+                                symbol: row['代號'] || row['股票'], 
+                                shares: parseNum(row['目前庫存'] || row['股數'] || row['餘股數']), 
+                                cost: parseNum(row['庫存成本'] || row['成本'] || row['付出成本']) 
+                            }));
+
+                        globalPortfolio[market] = normalized;
+                        localStorage.setItem(`portfolio_${market}`, JSON.stringify(normalized));
+
+                        document.getElementById(`label-${market}`).innerText = `✅ 匯入${market === 'tw' ? '台股' : '美股'} (${normalized.length})`;
+                        showToast(`成功讀取並記憶 ${market === 'tw' ? '台股' : '美股'} CSV`);
+
+                        if (market === 'tw') { await processDictionary(normalized); }
+                        await updateFinanceData();
+
+                    } catch (err) { showInfoModal('處理失敗', err.message); } 
+                    finally { setLoading(false); }
                 }
+            });
+        }
 
-                let factor = Math.pow(1 + inflation, age - curAge);
-                const hasLoan = loanPayoffAge ? (age < loanPayoffAge) : false;
-                let currentSalary = baseSalary * Math.pow(1 + salaryGrowth, age - curAge);
+        async function processDictionary(twList) {
+            const names = twList.map(item => item.name);
+            const res = await fetch('/api/dictionary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ names }) });
+            const dictMap = await res.json();
 
-                let isPre = age < retAge;
-                let c_growth = isPre ? corePreGrowth : corePostGrowth;
-                let c_yield = isPre ? corePreYield : corePostYield;
-                let c_targetAdd = (isPre || !stopAtRetire) ? baseMonthlyAdd : 0;
-
-                let yearIn = 0, yearOut = 0, yearDebtPay = 0, yearPassive = 0, yearWithdrawal = 0;
-
-                for (let m = 0; m < 12; m++) {
-                    simHouseVal += simHouseVal * (houseGrowth / 12);
-                    if (hasLoan && simLoanBal > 0) {
-                        let loanInt = simLoanBal * (loanRateYear / 100 / 12);
-                        let loanPrin = monthlyLoanPay - loanInt;
-                        simLoanBal -= loanPrin;
-                        if(simLoanBal < 0) simLoanBal = 0;
+            for (let item of twList) {
+                if (dictMap[item.name]) { item.symbol = dictMap[item.name]; } 
+                else {
+                    const input = await askForSymbol(item.name);
+                    item.symbol = input;
+                    if (input !== 'SKIP') {
+                        await fetch('/api/dictionary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ update: { name: item.name, symbol: input } }) });
                     }
+                }
+            }
+            localStorage.setItem('portfolio_tw', JSON.stringify(twList));
+        }
 
-                    let debtInt = debtTotal * (debtAvgRate / 12);
-                    let currentLoanPay = hasLoan ? monthlyLoanPay : 0;
-                    let monthIn = 0, monthOut = 0;
+        async function updateFinanceData() {
+            const allSymbols = [...globalPortfolio.tw.map(i => i.symbol), ...globalPortfolio.us.map(i => i.symbol)].filter(s => s && s !== 'SKIP' && s.trim() !== '');
+            if (allSymbols.length === 0) { 
+                renderCurrentView(); 
+                return; 
+            }
 
-                    if (isPre) {
-                        monthIn = currentSalary + (otherIncTotal * factor);
-                        monthOut = (expTotal * factor) + debtInt + currentLoanPay;
-                    } else {
-                        monthIn = retIncTotal; 
-                        monthOut = (simBaseRetExp * factor) + (medical * factor) + debtInt + currentLoanPay;
-                    }
+            const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: allSymbols }) });
+            const json = await res.json();
+            if (json.status !== 'success') throw new Error(json.details || 'API 錯誤');
 
-                    let monthOtherPassive = currentAssets.reduce((s, a) => s + (a.val * (a.rate / 12)), 0);
-                    let monthCoreYield = coreInvestBal * (c_yield / 12);
-                    let totalMonthYield = monthOtherPassive + monthCoreYield;
+            currentRate = json.exchangeRate || 32.5;
+            document.getElementById('display-rate').innerText = currentRate.toFixed(2);
 
-                    yearIn += monthIn; 
-                    yearOut += monthOut; 
-                    yearDebtPay += (debtInt + currentLoanPay); 
-                    yearPassive += totalMonthYield;
+            const stockMap = json.data;
+            latestDataTime = 0; // 重置時間戳記
 
-                    // 智慧停扣判定
-                    let netBeforeInvest = monthIn + totalMonthYield - monthOut;
-                    if (!permanentStop && netBeforeInvest < c_targetAdd) {
-                        permanentStop = true;
-                        stopAge = age;
-                    }
-
-                    let actualAdd = permanentStop ? 0 : c_targetAdd;
-                    let netCash = netBeforeInvest - actualAdd;
+            const mergeData = (list) => {
+                return list.filter(item => item.symbol && item.symbol !== 'SKIP').map(item => {
+                    const m = stockMap[item.symbol];
+                    if (!m) return { ...item, marketValueTWD: 0, costTWD: 0, cagr: 0 }; 
                     
-                    coreInvestBal += actualAdd; 
+                    // 抓取 API 回傳的最新交易時間
+                    if (m.regularMarketTime && m.regularMarketTime > latestDataTime) {
+                        latestDataTime = m.regularMarketTime;
+                    }
 
-                    if (netCash >= 0) {
-                        if (surplusToInvest) coreInvestBal += netCash; 
-                        else simNewMoney += netCash; 
-                    } else {
-                        let deficit = Math.abs(netCash);
-                        yearWithdrawal += deficit;
+                    const exRate = item.market === 'US' ? currentRate : 1;
+                    const marketValTWD = m.price * item.shares * exRate;
+                    const costTWD = item.cost * exRate; 
+                    return {
+                        ...item, currentPrice: m.price, marketValueTWD: marketValTWD, costTWD: costTWD,
+                        profitTWD: marketValTWD - costTWD, roi: costTWD > 0 ? (marketValTWD - costTWD) / costTWD : 0,
+                        dayChangeTWD: m.change * item.shares * exRate, ytd: m.ytd || 0, cagr: m.cagr || 0, stdev: m.stdev || 0,
+                        dividendTWD: (m.dividendYield * (m.price * item.shares)) * exRate, yield: m.dividendYield,
+                        historicalDividends: m.historicalDividends || [] 
+                    };
+                }).filter(i => i.marketValueTWD > 0); 
+            };
 
-                        if (simNewMoney >= deficit) { simNewMoney -= deficit; deficit = 0; }
-                        else { deficit -= simNewMoney; simNewMoney = 0; }
+            globalCombinedList = [...mergeData(globalPortfolio.tw), ...mergeData(globalPortfolio.us)];
+            
+            // 更新 UI 上的資料基準日期
+            const dateEl = document.getElementById('data-date');
+            if (globalCombinedList.length > 0) {
+                let d = latestDataTime > 0 ? new Date(latestDataTime * 1000) : new Date();
+                let mm = (d.getMonth() + 1).toString().padStart(2, '0');
+                let dd = d.getDate().toString().padStart(2, '0');
+                dateEl.innerText = `📅 ${mm}/${dd}`;
+                dateEl.style.display = 'inline-block';
+            }
 
-                        if (deficit > 0) {
-                            for (let i = 0; i < currentAssets.length; i++) {
-                                if (currentAssets[i].val >= deficit) { currentAssets[i].val -= deficit; deficit = 0; break; }
-                                else { deficit -= currentAssets[i].val; currentAssets[i].val = 0; }
+            if (globalCombinedList.length > 0) renderCurrentView();
+        }
+
+        function renderDashboard(list) {
+            if (list.length === 0) {
+                document.getElementById('data-date').style.display = 'none';
+                document.getElementById('val-total').innerText = fmtMoney(0); 
+                document.getElementById('val-cost').innerText = fmtMoney(0);
+                document.getElementById('val-profit').innerText = fmtMoney(0); document.getElementById('val-profit').className = 'stat-main num text-muted';
+                document.getElementById('val-profit-pct').innerText = '0.00%'; document.getElementById('val-profit-pct').className = 'stat-sub num text-muted';
+                document.getElementById('val-day-change').innerText = fmtMoney(0); document.getElementById('val-day-change').className = 'stat-main num text-muted';
+                document.getElementById('val-day-change-pct').innerText = '0.00%'; document.getElementById('val-day-change-pct').className = 'stat-sub num text-muted';
+                document.getElementById('val-ytd').innerText = fmtMoney(0); document.getElementById('val-ytd').className = 'stat-main num text-muted';
+                document.getElementById('val-ytd-pct').innerText = '0.00%'; document.getElementById('val-ytd-pct').className = 'stat-sub num text-muted';
+                document.getElementById('val-cagr').innerText = '0.0%'; document.getElementById('val-cagr').className = 'stat-main num text-muted';
+                document.getElementById('val-stdev').innerText = '--%'; document.getElementById('val-dividend').innerText = fmtMoney(0); document.getElementById('val-yield').innerText = '0.00%';
+
+                if (charts.alloc) charts.alloc.destroy();
+                if (charts.perf) charts.perf.destroy();
+                if (charts.mc) charts.mc.destroy();
+                if (charts.cf) charts.cf.destroy();
+                
+                document.getElementById('alloc-legend').innerHTML = '<div style="color: #999; text-align: center; margin-top: 50px;">此市場暫無資料</div>';
+                document.getElementById('risk-list').innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">此市場暫無資料</div>';
+                return;
+            }
+
+            const totalVal = list.reduce((a, b) => a + (b.marketValueTWD || 0), 0);
+            const totalCost = list.reduce((a, b) => a + (b.costTWD || 0), 0);
+            const totalProfit = totalVal - totalCost;
+            const dayChange = list.reduce((a, b) => a + (b.dayChangeTWD || 0), 0);
+            
+            document.getElementById('val-total').innerText = fmtMoney(totalVal);
+            document.getElementById('val-cost').innerText = fmtMoney(totalCost);
+            
+            const profitEl = document.getElementById('val-profit');
+            profitEl.innerText = (totalProfit > 0 ? '+' : '') + fmtMoney(totalProfit);
+            profitEl.className = `stat-main num ${totalProfit >= 0 ? 'text-red' : 'text-green'}`;
+            
+            const profitPctEl = document.getElementById('val-profit-pct');
+            profitPctEl.innerText = (totalCost > 0 ? ((totalProfit/totalCost)*100).toFixed(2) : 0) + '%';
+            profitPctEl.className = `stat-sub num ${totalProfit >= 0 ? 'text-red' : 'text-green'}`;
+
+            const dayEl = document.getElementById('val-day-change');
+            const dayPctEl = document.getElementById('val-day-change-pct');
+            const dayPct = totalVal > 0 ? (dayChange / totalVal) : 0;
+            if (Math.abs(dayPct) > 0.25) { 
+                dayEl.innerText = '盤後/異常'; dayEl.className = 'stat-main num text-muted';
+                dayPctEl.innerText = '--%'; dayPctEl.className = 'stat-sub num text-muted';
+            } else {
+                dayEl.innerText = (dayChange > 0 ? '+' : '') + fmtMoney(dayChange);
+                dayEl.className = `stat-main num ${dayChange >= 0 ? 'text-red' : 'text-green'}`;
+                dayPctEl.innerText = (dayPct > 0 ? '+' : '') + (dayPct * 100).toFixed(2) + '%';
+                dayPctEl.className = `stat-sub num ${dayChange >= 0 ? 'text-red' : 'text-green'}`;
+            }
+
+            let weightedYTD = 0;
+            if (totalVal > 0) { list.forEach(i => { if (i.ytd) weightedYTD += i.ytd * (i.marketValueTWD / totalVal); }); }
+            const ytdAmount = totalVal - (totalVal / (1 + weightedYTD));
+            document.getElementById('val-ytd').innerText = (ytdAmount > 0 ? '+' : '') + fmtMoney(ytdAmount);
+            document.getElementById('val-ytd').className = `stat-main num ${ytdAmount >= 0 ? 'text-red' : 'text-green'}`;
+            document.getElementById('val-ytd-pct').innerText = (weightedYTD > 0 ? '+' : '') + (weightedYTD * 100).toFixed(2) + '%';
+            document.getElementById('val-ytd-pct').className = `stat-sub num ${ytdAmount >= 0 ? 'text-red' : 'text-green'}`;
+
+            let weightedCAGR = 0; let weightedStdev = 0;
+            if (totalVal > 0) { 
+                list.forEach(i => { 
+                    if (i.cagr) weightedCAGR += i.cagr * (i.marketValueTWD / totalVal); 
+                    if (i.stdev) weightedStdev += i.stdev * (i.marketValueTWD / totalVal);
+                }); 
+            }
+            document.getElementById('val-cagr').innerText = (weightedCAGR * 100).toFixed(1) + '%';
+            document.getElementById('val-cagr').className = weightedCAGR >= 0 ? 'stat-main num text-red' : 'stat-main num text-green';
+            document.getElementById('val-stdev').innerText = (weightedStdev * 100).toFixed(1) + '%';
+
+            updateCharts(list, totalVal, weightedCAGR, weightedStdev);
+            updateRiskList(list);
+        }
+
+        function updateRiskList(list) {
+            const container = document.getElementById('risk-list');
+            container.innerHTML = '';
+            const validList = list.filter(i => i.cagr !== undefined).sort((a,b) => b.cagr - a.cagr);
+            validList.forEach(item => {
+                const colorClass = item.cagr >= 0 ? 'text-red' : 'text-green';
+                const marketBadge = `<span class="badge-market">${item.market}</span>`;
+                container.innerHTML += `<div class="list-row"><div class="col-left"><div class="item-name" title="${item.name}">${marketBadge} ${item.name}</div><div class="item-sub">YTD: ${(item.ytd*100).toFixed(1)}% | 波動: ${(item.stdev*100).toFixed(1)}%</div></div><div class="col-right"><div class="item-name ${colorClass} num">${(item.cagr*100).toFixed(1)}%</div><div class="item-sub">CAGR</div></div></div>`;
+            });
+        }
+
+        function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
+            const sortedByVal = [...list].sort((a,b) => b.marketValueTWD - a.marketValueTWD);
+            const top5 = sortedByVal.slice(0, 5);
+            const othersVal = sortedByVal.slice(5).reduce((a,b) => a + b.marketValueTWD, 0);
+            const labels = top5.map(i => i.name);
+            const data = top5.map(i => i.marketValueTWD);
+            const colors = ['#d93025', '#e2584f', '#ea8079', '#f2a8a4', '#f9cfce', '#dadce0', '#b0bec5', '#90a4ae', '#78909c', '#607d8b'];
+            if (othersVal > 0) { labels.push('其他'); data.push(othersVal); }
+
+            const legendDiv = document.getElementById('alloc-legend');
+            legendDiv.innerHTML = '';
+            labels.forEach((lb, idx) => {
+                const pct = ((data[idx] / totalVal) * 100).toFixed(1);
+                legendDiv.innerHTML += `<div style="margin-bottom:6px;"><span style="color:${colors[idx%colors.length]};">■</span> ${lb} (${pct}%)</div>`;
+            });
+
+            if (charts.alloc) charts.alloc.destroy();
+            charts.alloc = new Chart(document.getElementById('allocationChart'), { 
+                type: 'doughnut', 
+                data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] }, 
+                options: { 
+                    responsive: true, maintainAspectRatio: false, cutout: '75%', 
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const val = isPrivacyMode ? '****' : '$' + Math.round(context.raw).toLocaleString();
+                                    const pct = ((context.raw / totalVal) * 100).toFixed(1);
+                                    return `${context.label}: ${val} (${pct}%)`;
+                                }
                             }
                         }
-                        
-                        if (deficit > 0) {
-                            if (coreInvestBal >= deficit) { coreInvestBal -= deficit; deficit = 0; }
-                            else { deficit -= coreInvestBal; coreInvestBal = 0; }
-                        }
-
-                        // 【修正】觸發破產，跳出月份迴圈，避免繼續推演產生負數
-                        if (deficit > 0) {
-                            depletionAge = age;
-                            break; 
-                        }
-                    }
-
-                    currentAssets.forEach(a => { if (a.val > 0) a.val += a.val * (a.rate / 12); });
-                    coreInvestBal += coreInvestBal * (c_growth / 12);
-                    if (simNewMoney > 0) simNewMoney += simNewMoney * (defaultCashRate / 12); 
-                }
-
-                // 【修正】如果在上述月份中觸發了破產，則將該年的最終資產嚴格歸零鎖定
-                let endLiquid = 0, endEquity = 0, endTotalNW = 0;
-
-                if (depletionAge !== null) {
-                    endLiquid = 0;
-                    endEquity = 0;
-                    endTotalNW = 0;
-                } else {
-                    if (crossOverAge === null && cashFlow > 0 && (yearOut > yearIn + yearPassive)) { crossOverAge = age; }
-                    endLiquid = Math.max(0, currentAssets.reduce((s,a)=>s+a.val, 0) + simNewMoney + coreInvestBal - debtTotal);
-                    endEquity = Math.max(0, simHouseVal - simLoanBal);
-                    endTotalNW = endLiquid + endEquity;
-                }
-
-                if (age === retAge) vals.retire = endTotalNW;
-                if (age === 70) vals.a70 = endTotalNW;
-                if (age === 80) { vals.a80 = endTotalNW; vals.a80Liquid = endLiquid; }
-                if (age === 90) vals.a90 = endTotalNW;
-
-                chartData.push({ age: age, liquid: endLiquid, equity: endEquity });
-
-                // 如果在這一年剛好破產，熱力圖填入已耗盡
-                if (depletionAge !== null) {
-                    heatmapData.push({
-                        age,
-                        i1_c: 'c-r', i1_t: `【${age}歲】資金已耗盡`,
-                        i2_c: 'c-r', i2_t: `【${age}歲】資金已耗盡`,
-                        i3_c: 'c-r', i3_t: `【${age}歲】資金已耗盡`,
-                        i4_c: 'c-r', i4_t: `【${age}歲】資金已耗盡`,
-                        i5_c: 'c-r', i5_t: `【${age}歲】資金已耗盡`
-                    });
-                    continue;
-                }
-
-                // 正常熱力圖計算
-                let avgMonthOut = yearOut / 12;
-                let emRatio = avgMonthOut > 0 ? (endLiquid / avgMonthOut) : 999;
-                let i1_c = emRatio > 6 ? 'c-g' : (emRatio >= 3 ? 'c-y' : 'c-r');
-                let i1_t = `【${age}歲】緊急預備金：${emRatio>99 ? '>99' : Math.max(0, emRatio).toFixed(1)} 個月`;
-
-                let i2_c, i2_t;
-                if (age < retAge) {
-                    let totalYIn = yearIn + yearPassive;
-                    let saveRate = totalYIn > 0 ? ((totalYIn - yearOut) / totalYIn) * 100 : -100;
-                    i2_c = saveRate > 20 ? 'c-g' : (saveRate >= 0 ? 'c-y' : 'c-r');
-                    i2_t = `【${age}歲】儲蓄率：${saveRate.toFixed(1)}%`;
-                } else {
-                    let wRate = endTotalNW > 0 ? (yearWithdrawal / endTotalNW) * 100 : 100;
-                    if (yearWithdrawal === 0) wRate = 0;
-                    if (endTotalNW <= 0) wRate = 100;
-                    i2_c = wRate < 4 ? 'c-g' : (wRate <= 8 ? 'c-y' : 'c-r');
-                    i2_t = `【${age}歲】提領率：${wRate.toFixed(1)}%`;
-                }
-
-                let debtRate = yearIn > 0 ? (yearDebtPay / yearIn) * 100 : (yearDebtPay > 0 ? 100 : 0);
-                let i3_c = debtRate < 20 ? 'c-g' : (debtRate <= 40 ? 'c-y' : 'c-r');
-                let i3_t = `【${age}歲】負債壓力：${debtRate.toFixed(1)}%`;
-
-                let fiRate = yearOut > 0 ? (yearPassive / yearOut) * 100 : 100;
-                let i4_c = fiRate >= 100 ? 'c-g' : (fiRate >= 30 ? 'c-y' : 'c-r');
-                let i4_t = `【${age}歲】自由度：${fiRate.toFixed(1)}%`;
-
-                let liqRate = endTotalNW > 0 ? (endLiquid / endTotalNW) * 100 : 0;
-                if(endLiquid <= 0) liqRate = 0;
-                let i5_c = liqRate > 30 ? 'c-g' : (liqRate >= 10 ? 'c-y' : 'c-r');
-                let i5_t = `【${age}歲】流動資產佔比：${liqRate.toFixed(1)}%`;
-
-                heatmapData.push({ age, i1_c, i1_t, i2_c, i2_t, i3_c, i3_t, i4_c, i4_t, i5_c, i5_t });
-            }
-
-            // 更新頂部 UI
-            document.getElementById('disp-liquid').innerText = fmt(liquidNetWorth);
-            const cfEl = document.getElementById('disp-cashflow');
-            cfEl.innerText = (cashFlow > 0 ? '+' : '') + fmt(cashFlow);
-            cfEl.className = 'summary-val ' + (cashFlow >= 0 ? 'positive' : 'negative');
-            const depEl = document.getElementById('disp-depletion');
-            if (depletionAge) {
-                depEl.innerText = depletionAge + ' 歲';
-                depEl.className = 'summary-val negative';
-            } else {
-                depEl.innerText = '♾️ 永續';
-                depEl.className = 'summary-val positive';
-            }
-
-            document.getElementById('r-pre-inc').innerText = "$" + fmt(totalPreIncome);
-            document.getElementById('r-pre-exp').innerText = "$" + fmt(totalPreExpense);
-            
-            const totalPostIncome = retIncTotal + totalPassive; 
-            const totalPostExpense = simBaseRetExp + medical + monthlyInterest + (stopAtRetire ? 0 : baseMonthlyAdd);
-            document.getElementById('r-post-inc').innerText = "$" + fmt(totalPostIncome);
-            document.getElementById('r-post-exp').innerText = "$" + fmt(totalPostExpense);
-
-            document.getElementById('ms-retire').innerText = "$" + fmt(vals.retire);
-            document.getElementById('ms-70').innerText = "$" + fmt(vals.a70);
-            document.getElementById('ms-80').innerText = "$" + fmt(vals.a80);
-            document.getElementById('ms-90').innerText = "$" + fmt(vals.a90);
-
-            // 動態警語
-            const alertBox = document.getElementById('dynamic-alert');
-            let alertMsg = "";
-            if (permanentStop && stopAge !== null && stopAge < retAge) {
-                alertMsg += `⚠️ <b>智慧停扣啟動：</b> 由於通膨吞噬或支出過高，系統偵測您在 <b>${stopAge} 歲</b> 時已無力負擔預定投資計畫。系統已觸發【永久停扣】以保全現金。<br><br>`;
-            }
-            if (cashFlow > 0 && depletionAge !== null && crossOverAge) {
-                alertMsg += `⚠️ <b>通膨危機洞察：</b> 物價將逐漸吞噬目前的結餘，預計在 <b>${crossOverAge} 歲</b> 時發生「收支死亡交叉」(支出大於收入)，並在 <b>${depletionAge} 歲</b> 面臨資金耗盡。`;
-            }
-
-            if (alertMsg !== "") {
-                document.getElementById('alert-text').innerHTML = alertMsg;
-                alertBox.style.display = 'block';
-            } else {
-                alertBox.style.display = 'none';
-            }
-
-            renderHeatmap(heatmapData);
-
-            const resultsObj = { cashFlow, depletionAge, retireNW: vals.retire, a80NW: vals.a80, a80Liquid: vals.a80Liquid };
-            saveCurrentScenario(resultsObj); 
-            updateChart(chartData);
-            renderComparisonTable();
-        }
-
-        // ================= 7. 熱力圖與比較表渲染 =================
-        function renderHeatmap(data) {
-            const tbody = document.getElementById('heatmap-body');
-            let html = '';
-            data.forEach(d => {
-                html += `
-                <tr>
-                    <td class="hm-age">${d.age}</td>
-                    <td><span class="hm-cell ${d.i1_c}" onclick="showHmTooltip(this)" data-tip="${d.i1_t}"></span></td>
-                    <td><span class="hm-cell ${d.i2_c}" onclick="showHmTooltip(this)" data-tip="${d.i2_t}"></span></td>
-                    <td><span class="hm-cell ${d.i3_c}" onclick="showHmTooltip(this)" data-tip="${d.i3_t}"></span></td>
-                    <td><span class="hm-cell ${d.i4_c}" onclick="showHmTooltip(this)" data-tip="${d.i4_t}"></span></td>
-                    <td><span class="hm-cell ${d.i5_c}" onclick="showHmTooltip(this)" data-tip="${d.i5_t}"></span></td>
-                </tr>`;
+                    } 
+                } 
             });
-            tbody.innerHTML = html;
-        }
 
-        function renderComparisonTable() {
-            const tbody = document.getElementById('comp-table');
-            let html = `
-                <tr>
-                    <th>劇本名稱</th>
-                    <th>月現金流</th>
-                    <th>耗盡年紀</th>
-                    <th>退休時總身價</th>
-                    <th>80歲流動資金</th>
-                    <th>80歲總身價</th>
-                </tr>
-            `;
-            appData.scenarios.forEach(sc => {
-                const r = sc.results || {};
-                const cf = r.cashFlow || 0;
-                const cfStr = (cf > 0 ? '+' : '') + fmt(cf);
-                const dep = r.depletionAge ? r.depletionAge + ' 歲' : '♾️ 永續';
-                const ret = r.retireNW !== undefined ? '$' + fmt(r.retireNW) : '-';
-                const a80Liq = r.a80Liquid !== undefined ? '$' + fmt(r.a80Liquid) : '-';
-                const a80 = r.a80NW !== undefined ? '$' + fmt(r.a80NW) : '-';
-                
-                const isActive = sc.id === appData.currentId;
-                const rowStyle = isActive ? 'background-color: rgba(0, 86, 179, 0.05); font-weight: bold;' : '';
-                
-                html += `
-                    <tr style="${rowStyle}">
-                        <td style="text-align:left;">${sc.name} ${isActive ? '<span style="font-size:10px;">(目前)</span>' : ''}</td>
-                        <td style="color: ${cf>=0 ? 'var(--color-positive)' : 'var(--color-negative)'}">${cfStr}</td>
-                        <td style="color: ${r.depletionAge ? 'var(--color-negative)' : 'var(--color-positive)'}">${dep}</td>
-                        <td>${ret}</td>
-                        <td style="color: inherit">${a80Liq}</td>
-                        <td style="color: inherit">${a80}</td>
-                    </tr>
-                `;
-            });
-            tbody.innerHTML = html;
-        }
-
-        function updateChart(chartData) {
-            const ctx = document.getElementById('assetChart').getContext('2d');
-            if (assetChartInstance) assetChartInstance.destroy();
-
-            const labels = chartData.map(d => d.age);
-            const liquidData = chartData.map(d => d.liquid);
-            const equityData = chartData.map(d => d.equity);
-
-            assetChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
+            if (charts.perf) charts.perf.destroy();
+            charts.perf = new Chart(document.getElementById('performanceChart'), { 
+                type: 'bar', 
+                data: { 
+                    labels: sortedByVal.map(i => i.name), 
                     datasets: [
-                        { label: '流動資金與投資', data: liquidData, backgroundColor: 'rgba(32, 201, 151, 0.8)', stack: 'Stack 0' },
-                        { label: '房產淨值', data: equityData, backgroundColor: 'rgba(245, 166, 35, 0.8)', stack: 'Stack 0' }
-                    ]
-                },
+                        { label: '成本', data: sortedByVal.map(i => i.costTWD), backgroundColor: '#e0e0e0', barPercentage: 0.7, categoryPercentage: 0.6 }, 
+                        { label: '現值', data: sortedByVal.map(i => i.marketValueTWD), backgroundColor: sortedByVal.map(i => i.marketValueTWD >= i.costTWD ? '#d93025' : '#188038'), barPercentage: 0.7, categoryPercentage: 0.6 }
+                    ] 
+                }, 
+                options: { 
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false, 
+                    scales: { x: { display: false }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }, 
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) { return context.dataset.label + ': ' + (isPrivacyMode ? '****' : '$' + Math.round(context.raw).toLocaleString()); }
+                            }
+                        }
+                    } 
+                } 
+            });
+
+            if (charts.mc) charts.mc.destroy();
+            let startVal, hist1YVal;
+            const years = [-1, 0, 1, 3, 5, 10]; 
+            const p50=[], p90=[], p75=[], p25=[], p10=[], hist=[];
+            
+            if (isPrivacyMode) {
+                startVal = 0; 
+                hist1YVal = ((1 / (1 + portfolioCAGR)) - 1) * 100;
+                years.forEach(y => {
+                    if (y < 0) { 
+                        hist.push({x: y, y: hist1YVal}); 
+                    } else if (y === 0) { 
+                        hist.push({x: y, y: startVal}); p50.push({x: y, y: startVal}); p90.push({x: y, y: startVal}); p75.push({x: y, y: startVal}); p25.push({x: y, y: startVal}); p10.push({x: y, y: startVal}); 
+                    } else {
+                        const multiplier = Math.pow(1 + portfolioCAGR, y);
+                        const diffusion = portfolioStdev * Math.sqrt(y);
+                        p50.push({x: y, y: (multiplier - 1) * 100});
+                        p90.push({x: y, y: (multiplier * (1 + 1.28 * diffusion) - 1) * 100});
+                        p75.push({x: y, y: (multiplier * (1 + 0.67 * diffusion) - 1) * 100});
+                        p25.push({x: y, y: (multiplier * (1 - 0.67 * diffusion) - 1) * 100});
+                        p10.push({x: y, y: (multiplier * (1 - 1.28 * diffusion) - 1) * 100});
+                    }
+                });
+            } else {
+                startVal = totalVal / 10000; 
+                hist1YVal = startVal / (1 + portfolioCAGR); 
+                years.forEach(y => {
+                    if (y < 0) { 
+                        hist.push({x: y, y: hist1YVal}); 
+                    } else if (y === 0) { 
+                        hist.push({x: y, y: startVal}); p50.push({x: y, y: startVal}); p90.push({x: y, y: startVal}); p75.push({x: y, y: startVal}); p25.push({x: y, y: startVal}); p10.push({x: y, y: startVal}); 
+                    } else {
+                        const median = startVal * Math.pow(1 + portfolioCAGR, y);
+                        const diffusion = portfolioStdev * Math.sqrt(y);
+                        p50.push({x: y, y: median}); p90.push({x: y, y: median * (1 + 1.28 * diffusion)}); p75.push({x: y, y: median * (1 + 0.67 * diffusion)}); p25.push({x: y, y: median * (1 - 0.67 * diffusion)}); p10.push({x: y, y: median * (1 - 1.28 * diffusion)}); 
+                    }
+                });
+            }
+
+            charts.mc = new Chart(document.getElementById('monteCarloChart'), { 
+                type: 'line', 
+                data: { 
+                    datasets: [
+                        { label: '極樂觀 P90', data: p90, borderColor: 'transparent', fill: 1, backgroundColor: 'rgba(217, 48, 37, 0.08)', pointRadius: 0, tension: 0.4 },
+                        { label: '極悲觀 P10', data: p10, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 },
+                        { label: '樂觀 P75', data: p75, borderColor: 'transparent', fill: 3, backgroundColor: 'rgba(217, 48, 37, 0.2)', pointRadius: 0, tension: 0.4 },
+                        { label: '悲觀 P25', data: p25, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 },
+                        { label: '未來中位數', data: p50, borderColor: '#d93025', borderWidth: 2, borderDash: [5,4], fill: false, pointRadius: 0, tension: 0.4 },
+                        { label: '過去1年走勢', data: hist, borderColor: '#1a1a1a', borderWidth: 2.5, fill: false, pointRadius: 3, pointBackgroundColor: '#1a1a1a', tension: 0.1 }
+                    ] 
+                }, 
+                options: { 
+                    responsive: true, maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { 
+                            callbacks: {
+                                title: function(context) {
+                                    const xVal = context[0].parsed.x;
+                                    const map = { '-1': '過去 1 年', '0': '今天', '1': '未來第 1 年', '3': '未來第 3 年', '5': '未來第 5 年', '10': '未來第 10 年' };
+                                    return map[xVal] || `未來第 ${xVal} 年`;
+                                },
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    if (context.parsed.y !== null) {
+                                        label += isPrivacyMode 
+                                            ? (context.parsed.y > 0 ? '+' : '') + Math.round(context.parsed.y) + '%' 
+                                            : Math.round(context.parsed.y) + 'w';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }, 
+                    scales: { 
+                        x: { 
+                            type: 'linear',
+                            grid: { display: false },
+                            min: -1,
+                            max: 10,
+                            ticks: {
+                                stepSize: 1,
+                                callback: function(value) {
+                                    const map = { '-1': '-1年', '0': '今天', '1': '+1年', '3': '+3年', '5': '+5年', '10': '+10年' };
+                                    return map[value] || ''; 
+                                }
+                            }
+                        }, 
+                        y: { 
+                            position: 'right', 
+                            border: { display: false },
+                            ticks: { callback: v => isPrivacyMode ? Math.round(v) + '%' : Math.round(v)+'w' } 
+                        } 
+                    } 
+                } 
+            });
+
+            const now = new Date();
+            const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+            
+            const labelsCF = [];
+            const monthKeys = [];
+            
+            for (let i = 0; i < 24; i++) {
+                const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
+                const yy = d.getFullYear().toString().slice(-2);
+                const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+                labelsCF.push(i < 12 ? `${yy}/${mm}` : `${yy}/${mm} (預估)`);
+                monthKeys.push(`${d.getFullYear()}-${mm}`);
+            }
+
+            const datasetsCF = [];
+            const cfColors = ['217,48,37', '24,128,56', '253,188,4', '26,115,232', '242,139,130', '129,201,149', '253,226,147', '138,180,248', '197,34,31', '13,101,45', '242,153,0', '24,90,188'];
+            let totalExpectedDividend = 0;
+
+            list.forEach((stock, sIdx) => {
+                const exRate = stock.market === 'US' ? currentRate : 1;
+                const dataArr = new Array(24).fill(0);
+                const bgColors = [];
+                
+                const rgb = cfColors[sIdx % cfColors.length];
+                const solidColor = `rgba(${rgb}, 0.9)`;
+                const transparentColor = `rgba(${rgb}, 0.35)`; 
+                
+                for(let i=0; i<24; i++) bgColors.push(i < 12 ? solidColor : transparentColor);
+
+                if (stock.historicalDividends && stock.historicalDividends.length > 0) {
+                    stock.historicalDividends.forEach(div => {
+                        const dDate = new Date(div.date * 1000);
+                        const dYear = dDate.getFullYear();
+                        const dMonth = (dDate.getMonth() + 1).toString().padStart(2, '0');
+                        const key = `${dYear}-${dMonth}`;
+                        
+                        const totalDivTWD = div.amount * stock.shares * exRate;
+                        
+                        const pastIdx = monthKeys.indexOf(key);
+                        if (pastIdx >= 0 && pastIdx < 12) dataArr[pastIdx] += totalDivTWD;
+                        
+                        const futureKey = `${dYear + 1}-${dMonth}`;
+                        const futureIdx = monthKeys.indexOf(futureKey);
+                        if (futureIdx >= 12 && futureIdx < 24) {
+                            dataArr[futureIdx] += totalDivTWD;
+                            totalExpectedDividend += totalDivTWD;
+                        }
+                    });
+                }
+                
+                if (dataArr.some(v => v > 0)) {
+                    datasetsCF.push({ label: stock.name, data: dataArr, backgroundColor: bgColors, borderWidth: 0 });
+                }
+            });
+
+            document.getElementById('val-dividend').innerText = fmtMoney(totalExpectedDividend);
+            document.getElementById('val-yield').innerText = (totalVal > 0 ? (totalExpectedDividend/totalVal*100).toFixed(2) : 0) + '%';
+
+            if (charts.cf) charts.cf.destroy();
+            charts.cf = new Chart(document.getElementById('cashflowChart'), {
+                type: 'bar',
+                data: { labels: labelsCF, datasets: datasetsCF },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: { stacked: true, grid: { display: false } },
-                        y: { stacked: true, min: 0, ticks: { callback: function(value) { if (value >= 10000) return (value / 10000) + '萬'; return value; } } }
-                    },
+                    responsive: true, maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-                        tooltip: { mode: 'index', intersect: false, callbacks: { label: function(context) { let label = context.dataset.label || ''; if (label) { label += ': '; } if (context.parsed.y !== null) { label += '$' + Math.round(context.parsed.y).toLocaleString(); } return label; } } }
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            filter: function(tooltipItem) { return tooltipItem.raw > 0; },
+                            itemSort: (a, b) => b.raw - a.raw,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    if (context.parsed.y !== null) label += isPrivacyMode ? '****' : '$' + Math.round(context.parsed.y).toLocaleString();
+                                    return label;
+                                },
+                                footer: function(tooltipItems) {
+                                    let total = 0;
+                                    tooltipItems.forEach(item => total += item.parsed.y);
+                                    return '\n當月總計: ' + (isPrivacyMode ? '****' : '$' + Math.round(total).toLocaleString());
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12 } },
+                        y: { stacked: true, position: 'right', border: { display: false }, ticks: { callback: v => isPrivacyMode ? '***' : Math.round(v/1000)+'k' } }
                     }
                 }
             });
         }
 
-        // ================= 啟動程式 =================
-        loadDataAndInitialize();
+        document.addEventListener('DOMContentLoaded', async () => {
+            const savedTW = localStorage.getItem('portfolio_tw');
+            const savedUS = localStorage.getItem('portfolio_us');
+            let hasData = false;
+
+            if (savedTW) {
+                try {
+                    globalPortfolio.tw = JSON.parse(savedTW);
+                    document.getElementById('label-tw').innerText = `✅ 匯入台股 (記憶)`;
+                    hasData = true;
+                } catch(e) { console.error("解析本地台股資料失敗", e); }
+            }
+            if (savedUS) {
+                try {
+                    globalPortfolio.us = JSON.parse(savedUS);
+                    document.getElementById('label-us').innerText = `✅ 匯入美股 (記憶)`;
+                    hasData = true;
+                } catch(e) { console.error("解析本地美股資料失敗", e); }
+            }
+
+            if (hasData) {
+                setLoading(true);
+                try {
+                    await updateFinanceData();
+                } catch (err) {
+                    showInfoModal('更新失敗', '無法取得最新報價，請稍後再試。');
+                } finally {
+                    setLoading(false);
+                }
+            } else {
+                renderCurrentView(); 
+            }
+        });
     </script>
 </body>
 </html>
