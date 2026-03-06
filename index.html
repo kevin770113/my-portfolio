@@ -13,13 +13,22 @@
             --red-profit: #d93025; --green-loss: #188038; --primary-dark: #2c3e50;
         }
         
+        /* 【動畫升級】加長淡入時間，並新增淡出動畫 */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+        
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; 
             background-color: var(--bg-color); margin: 0; padding: 8px; color: var(--text-main); 
-            animation: fadeIn 0.4s ease-out;
+            animation: fadeIn 0.8s ease-in-out;
             overflow-x: hidden; overscroll-behavior-x: none;
         }
+        
+        /* 準備跳轉時觸發的類別 */
+        body.fade-out {
+            animation: fadeOut 0.5s ease-in-out forwards;
+        }
+        
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         .num { font-variant-numeric: tabular-nums; font-family: "SF Pro Display", -apple-system, sans-serif; }
         .card { background-color: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -62,17 +71,18 @@
         .drawer-overlay.show { opacity: 1; visibility: visible; }
         .drawer-menu { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1A252F; box-shadow: 4px 0 16px rgba(0,0,0,0.3); z-index: 3001; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; }
         .drawer-overlay.show .drawer-menu { transform: translateX(280px); }
-        .drawer-header { padding: 40px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .drawer-avatar { width: 60px; height: 60px; background: #CF9236; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; }
-        .drawer-title { color: white; font-size: 18px; font-weight: bold; margin-bottom: 4px; }
-        .drawer-subtitle { color: #95A5A6; font-size: 12px; }
+        
+        /* 【UI 升級】高級感純文字排版側邊欄 */
+        .drawer-header { padding: 40px 24px 24px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .drawer-title { color: #CF9236; font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: 2px; }
+        .drawer-subtitle { color: #95A5A6; font-size: 13px; font-weight: 500; letter-spacing: 1px; }
+        
         .drawer-nav { padding: 20px 0; flex: 1; }
         .drawer-item { display: flex; align-items: center; padding: 16px 24px; color: #BDC3C7; font-size: 16px; font-weight: 500; text-decoration: none; transition: 0.2s; cursor: pointer; }
         .drawer-item:active { background: rgba(255,255,255,0.05); }
         .drawer-item.active { background: rgba(255,255,255,0.1); border-left: 4px solid #CF9236; color: white; }
         .drawer-icon { margin-right: 16px; font-size: 20px; width: 24px; text-align: center; }
 
-        /* 【全新】雙層控制面板排版 */
         .control-panel { position: sticky; top: 0; z-index: 100; background-color: var(--bg-color); padding-bottom: 12px; display: flex; flex-direction: column; }
         .top-bar { display: flex; justify-content: space-between; align-items: center; }
         .btn-menu { background: none; border: none; font-size: 24px; color: var(--primary-dark); cursor: pointer; padding: 4px 8px; border-radius: 6px; }
@@ -124,16 +134,18 @@
     <div id="drawer-overlay" class="drawer-overlay" onclick="closeDrawer()">
         <div class="drawer-menu" onclick="event.stopPropagation();">
             <div class="drawer-header">
-                <div class="drawer-avatar">莊</div>
                 <div class="drawer-title">財富管理中心</div>
                 <div class="drawer-subtitle">資產增值與守備儀表板</div>
             </div>
             <div class="drawer-nav">
-                <a href="index.html" class="drawer-item active">
+                <a href="javascript:void(0)" onclick="navigateTo('index.html')" class="drawer-item active">
                     <span class="drawer-icon">📈</span> 投資儀表板
                 </a>
-                <a href="accounting.html" class="drawer-item">
+                <a href="javascript:void(0)" onclick="navigateTo('accounting.html')" class="drawer-item">
                     <span class="drawer-icon">🏦</span> 財務記帳本
+                </a>
+                <a href="javascript:void(0)" onclick="navigateTo('life.html')" class="drawer-item">
+                    <span class="drawer-icon">📊</span> 財務自由模擬
                 </a>
             </div>
         </div>
@@ -292,8 +304,26 @@
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
     <script>
+        // 【動畫與導航升級】處理絲滑轉場跳頁
         function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
         function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
+        
+        function navigateTo(url) {
+            // 如果已經在當前頁面，就不做動畫直接關閉選單
+            if (window.location.href.includes(url) || (url === 'index.html' && window.location.pathname.endsWith('/'))) {
+                closeDrawer();
+                return;
+            }
+            closeDrawer();
+            // 等待選單收合動畫 (約 300ms)，然後啟動畫面淡出
+            setTimeout(() => {
+                document.body.classList.add('fade-out');
+                // 等待畫面淡出完畢 (約 500ms)，再真正執行跳轉
+                setTimeout(() => {
+                    window.location.href = url;
+                }, 400); 
+            }, 250); 
+        }
 
         let globalPortfolio = { tw: [], us: [] };
         let currentRate = 32.5; 
@@ -303,7 +333,6 @@
         let globalCombinedList = []; 
         let isPrivacyMode = false; 
 
-        // 儲存 API 回傳的最新報價時間戳記
         let latestDataTime = 0; 
 
         const fmtMoney = (n) => isPrivacyMode ? '****' : Math.round(n).toLocaleString();
@@ -576,14 +605,13 @@
             document.getElementById('display-rate').innerText = currentRate.toFixed(2);
 
             const stockMap = json.data;
-            latestDataTime = 0; // 重置時間戳記
+            latestDataTime = 0; 
 
             const mergeData = (list) => {
                 return list.filter(item => item.symbol && item.symbol !== 'SKIP').map(item => {
                     const m = stockMap[item.symbol];
                     if (!m) return { ...item, marketValueTWD: 0, costTWD: 0, cagr: 0 }; 
                     
-                    // 抓取 API 回傳的最新交易時間
                     if (m.regularMarketTime && m.regularMarketTime > latestDataTime) {
                         latestDataTime = m.regularMarketTime;
                     }
@@ -603,7 +631,6 @@
 
             globalCombinedList = [...mergeData(globalPortfolio.tw), ...mergeData(globalPortfolio.us)];
             
-            // 更新 UI 上的資料基準日期
             const dateEl = document.getElementById('data-date');
             if (globalCombinedList.length > 0) {
                 let d = latestDataTime > 0 ? new Date(latestDataTime * 1000) : new Date();
@@ -637,6 +664,11 @@
                 
                 document.getElementById('alloc-legend').innerHTML = '<div style="color: #999; text-align: center; margin-top: 50px;">此市場暫無資料</div>';
                 document.getElementById('risk-list').innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">此市場暫無資料</div>';
+                
+                // 【新增】沒有資料時也要將包裹清空歸零
+                localStorage.setItem('sync_invest_data', JSON.stringify({
+                    totalValue: 0, cagr: 0, dividendYield: 0, timestamp: new Date().getTime()
+                }));
                 return;
             }
 
@@ -919,6 +951,15 @@
 
             document.getElementById('val-dividend').innerText = fmtMoney(totalExpectedDividend);
             document.getElementById('val-yield').innerText = (totalVal > 0 ? (totalExpectedDividend/totalVal*100).toFixed(2) : 0) + '%';
+
+            // 【核心新增】將最新運算結果打包存入 LocalStorage 供第三頁讀取
+            const syncInvestData = {
+                totalValue: totalVal,
+                cagr: portfolioCAGR,
+                dividendYield: totalVal > 0 ? (totalExpectedDividend / totalVal) : 0,
+                timestamp: new Date().getTime()
+            };
+            localStorage.setItem('sync_invest_data', JSON.stringify(syncInvestData));
 
             if (charts.cf) charts.cf.destroy();
             charts.cf = new Chart(document.getElementById('cashflowChart'), {

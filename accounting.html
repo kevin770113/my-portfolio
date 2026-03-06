@@ -9,7 +9,7 @@
     
     <style>
         :root {
-            /* 【視覺統一】將底色改為與投資板一致的 #f0f2f5 */
+            /* 【視覺統一】底色對齊投資板 */
             --primary-bg: #f0f2f5;
             --card-bg: #FFFFFF;
             --text-main: #2C3E50;
@@ -24,13 +24,16 @@
             --btn-border: #CBD5E1;
         }
 
-        /* 【整合優化】加入淡入動畫 */
+        /* 【動畫升級】加長淡入時間，並新增淡出動畫 */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
 
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent;}
         
-        /* 物理級防護：徹底鎖死外層的 X 軸與回彈特效，並套用動畫 */
-        body { background-color: var(--primary-bg); color: var(--text-main); height: 100vh; overflow: hidden; overscroll-behavior-x: none; animation: fadeIn 0.4s ease-out; }
+        body { background-color: var(--primary-bg); color: var(--text-main); height: 100vh; overflow: hidden; overscroll-behavior-x: none; animation: fadeIn 0.8s ease-in-out; }
+        
+        /* 準備跳轉時觸發的類別 */
+        body.fade-out { animation: fadeOut 0.5s ease-in-out forwards; }
 
         .page { display: none; height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior-x: none; padding-bottom: 120px; }
         .page.active { display: block; }
@@ -43,15 +46,17 @@
 
         .container { padding: 16px; }
 
-        /* ================= 【全新】側邊抽屜選單 ================= */
+        /* ================= 側邊抽屜選單 ================= */
         .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 3000; opacity: 0; visibility: hidden; transition: 0.3s ease; }
         .drawer-overlay.show { opacity: 1; visibility: visible; }
         .drawer-menu { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1A252F; box-shadow: 4px 0 16px rgba(0,0,0,0.3); z-index: 3001; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; }
         .drawer-overlay.show .drawer-menu { transform: translateX(280px); }
-        .drawer-header-menu { padding: 40px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left; }
-        .drawer-avatar { width: 60px; height: 60px; background: #CF9236; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin-bottom: 12px; }
-        .drawer-title { color: white; font-size: 18px; font-weight: bold; margin-bottom: 4px; }
-        .drawer-subtitle { color: #95A5A6; font-size: 12px; }
+        
+        /* 【UI 升級】高級感純文字排版側邊欄 */
+        .drawer-header { padding: 40px 24px 24px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: left; }
+        .drawer-title { color: #CF9236; font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: 2px; }
+        .drawer-subtitle { color: #95A5A6; font-size: 13px; font-weight: 500; letter-spacing: 1px; }
+        
         .drawer-nav { padding: 20px 0; flex: 1; }
         .drawer-item { display: flex; align-items: center; padding: 16px 24px; color: #BDC3C7; font-size: 16px; font-weight: 500; text-decoration: none; transition: 0.2s; cursor: pointer; }
         .drawer-item:active { background: rgba(255,255,255,0.05); }
@@ -62,7 +67,6 @@
         .btn-menu:active { opacity: 0.7; }
 
         /* ================= 共用卡片 ================= */
-        /* 【視覺統一】將陰影對齊投資板 */
         .chart-card { background: var(--card-bg); border-radius: 12px; padding: 20px 12px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
         .card-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; border-left: 4px solid #1A252F; padding-left: 8px; margin-left: 4px; color: var(--text-main); }
         .card-desc { font-size: 12px; color: var(--text-sub); margin-left: 12px; margin-bottom: 16px; line-height: 1.4; }
@@ -118,7 +122,7 @@
         .btn-other { border-left: 3px solid #95A5A6; }
 
         /* ================= 頁面三：批次結算 ================= */
-        .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
         .summary-card { background: var(--card-bg); padding: 16px 12px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
         .summary-title { font-size: 12px; color: var(--text-sub); margin-bottom: 6px; }
         .summary-value { font-size: 18px; font-weight: 700; }
@@ -159,17 +163,19 @@
 
     <div id="drawer-overlay" class="drawer-overlay" onclick="closeDrawer()">
         <div class="drawer-menu" onclick="event.stopPropagation();">
-            <div class="drawer-header-menu">
-                <div class="drawer-avatar">莊</div>
+            <div class="drawer-header">
                 <div class="drawer-title">財富管理中心</div>
                 <div class="drawer-subtitle">資產增值與守備儀表板</div>
             </div>
             <div class="drawer-nav">
-                <a href="index.html" class="drawer-item">
+                <a href="javascript:void(0)" onclick="navigateTo('index.html')" class="drawer-item">
                     <span class="drawer-icon">📈</span> 投資儀表板
                 </a>
-                <a href="accounting.html" class="drawer-item active">
+                <a href="javascript:void(0)" onclick="navigateTo('accounting.html')" class="drawer-item active">
                     <span class="drawer-icon">🏦</span> 財務記帳本
+                </a>
+                <a href="javascript:void(0)" onclick="navigateTo('life.html')" class="drawer-item">
+                    <span class="drawer-icon">📊</span> 財務自由模擬
                 </a>
             </div>
         </div>
@@ -322,7 +328,7 @@
             <div id="income-buttons" style="display: none;">
                 <div class="cat-section-title">選擇【收入】項目</div>
                 <div class="btn-grid">
-                    <button class="category-btn btn-income" onclick="categorize('薪資')">薪資</button>
+                    <button class="category-btn btn-income" onclick="categorize('薪資')">薪薪</button>
                     <button class="category-btn btn-income" onclick="categorize('獎金')">獎金</button>
                     <button class="category-btn btn-income" onclick="categorize('股息')">股息</button>
                     <button class="category-btn btn-income" onclick="categorize('其他收入')">其他收入</button>
@@ -346,7 +352,7 @@
         </div>
         <div class="container">
             
-            <div class="summary-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="summary-grid">
                 <div class="summary-card">
                     <div class="summary-title">本次總收入</div>
                     <div class="summary-value summary-val-in" id="b-kpi-in">$ 0</div>
@@ -382,9 +388,23 @@
     </div>
 
     <script>
-        // 側邊選單控制
+        // 【動畫與導航升級】處理絲滑轉場跳頁
         function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
         function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
+        
+        function navigateTo(url) {
+            if (window.location.href.includes(url) || (url === 'accounting.html' && window.location.pathname.endsWith('accounting.html'))) {
+                closeDrawer();
+                return;
+            }
+            closeDrawer();
+            setTimeout(() => {
+                document.body.classList.add('fade-out');
+                setTimeout(() => {
+                    window.location.href = url;
+                }, 400); 
+            }, 250); 
+        }
 
         let pendingTransactions = []; 
         let parsedTransactions = [];  
@@ -727,6 +747,11 @@
                 eChartsInstances.balanceNet.clear(); 
                 eChartsInstances.heatmap.clear(); 
                 eChartsInstances.compare.clear();
+                
+                // 【核心新增】空資料時清空打包包裹
+                localStorage.setItem('sync_account_data', JSON.stringify({
+                    latestBalance: 0, avgSalary: 0, avgExpense: 0, avgInvest: 0, timestamp: new Date().getTime()
+                }));
                 return;
             }
 
@@ -739,14 +764,30 @@
 
             let recent1YearDb = db.slice(-12);
             let avgLen = recent1YearDb.length || 1;
-            document.getElementById('kpi-avg-in').innerText = Math.round(recent1YearDb.reduce((s, i) => s + (i.income || 0), 0) / avgLen).toLocaleString();
-            document.getElementById('kpi-avg-out').innerText = Math.round(recent1YearDb.reduce((s, i) => s + (i.expense || 0), 0) / avgLen).toLocaleString();
-            document.getElementById('kpi-avg-inv').innerText = Math.round(recent1YearDb.reduce((s, i) => s + (i.invest || 0), 0) / avgLen).toLocaleString();
+            
+            let calcAvgIn = Math.round(recent1YearDb.reduce((s, i) => s + (i.income || 0), 0) / avgLen);
+            let calcAvgOut = Math.round(recent1YearDb.reduce((s, i) => s + (i.expense || 0), 0) / avgLen);
+            let calcAvgInv = Math.round(recent1YearDb.reduce((s, i) => s + (i.invest || 0), 0) / avgLen);
+            
+            document.getElementById('kpi-avg-in').innerText = calcAvgIn.toLocaleString();
+            document.getElementById('kpi-avg-out').innerText = calcAvgOut.toLocaleString();
+            document.getElementById('kpi-avg-inv').innerText = calcAvgInv.toLocaleString();
 
             let totalLenDb = db.length || 1;
             document.getElementById('kpi-total-avg-in').innerText = Math.round(db.reduce((s, i) => s + (i.income || 0), 0) / totalLenDb).toLocaleString();
             document.getElementById('kpi-total-avg-out').innerText = Math.round(db.reduce((s, i) => s + (i.expense || 0), 0) / totalLenDb).toLocaleString();
             document.getElementById('kpi-total-avg-inv').innerText = Math.round(db.reduce((s, i) => s + (i.invest || 0), 0) / totalLenDb).toLocaleString();
+
+            // 【核心新增】將最新記帳均值打包存入 LocalStorage 供第三頁讀取
+            let avgSalary = recent1YearDb.reduce((s, i) => s + ((i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0), 0) / avgLen;
+            const syncAccountData = {
+                latestBalance: latest.balance || 0,
+                avgSalary: Math.round(avgSalary),
+                avgExpense: calcAvgOut,
+                avgInvest: calcAvgInv,
+                timestamp: new Date().getTime()
+            };
+            localStorage.setItem('sync_account_data', JSON.stringify(syncAccountData));
 
             const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             let trendMonths = db.map(i => {
@@ -756,7 +797,6 @@
                 return `${y} ${monthNames[m]}`; 
             }); 
             
-            // 資料處理與防呆
             let trendIn = db.map(i => Math.round((i.income || 0)/1000) || 0);
             let trendOut = db.map(i => Math.round((i.expense || 0)/1000) || 0);
             let trendInv = db.map(i => Math.round((i.invest || 0)/1000) || 0);
@@ -771,9 +811,6 @@
                 for(let i = 0; i < 5; i++) showIndices.push(Math.round(i * (totalLen - 1) / 4));
             }
 
-            // ==========================================
-            // 【第一張圖表】三大核心指標
-            // ==========================================
             eChartsInstances.trend.setOption({
                 tooltip: { trigger: 'axis' }, 
                 legend: { data: ['收入', '消費', '投資'], bottom: 0, textStyle: {fontSize: 11} },
@@ -795,9 +832,6 @@
                 ]
             }, true);
 
-            // ==========================================
-            // 【第二張圖表】銀行餘額 vs 當月淨結餘
-            // ==========================================
             eChartsInstances.balanceNet.setOption({
                 tooltip: { trigger: 'axis' },
                 legend: { data: ['銀行餘額', '當月淨結餘'], bottom: 0, textStyle: {fontSize: 11} },
@@ -834,9 +868,6 @@
                 ]
             }, true);
 
-            // ==========================================
-            // 熱力圖
-            // ==========================================
             let hmCategories = ['薪資', '獎金', '股息', '其他收入', '投資賣出', '投資買入', '外幣轉匯', '信用卡', '現金提出', '固定支出', '電信費', '其他支出']; 
             let hmIncomeData = [], hmInvestData = [], hmExpenseData = [];
             
@@ -891,9 +922,6 @@
                 ]
             }, true);
 
-            // ==========================================
-            // 比較圖保持不變
-            // ==========================================
             let compareCats = ['其他支出', '投資買入', '電信費', '固定支出', '現金提出', '信用卡'];
             let latestDetail = latest.detail || {};
             let avgDetail = {};
