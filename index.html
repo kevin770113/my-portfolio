@@ -13,7 +13,6 @@
             --red-profit: #d93025; --green-loss: #188038; --primary-dark: #2c3e50;
         }
         
-        /* 【動畫升級】加長淡入時間，並新增淡出動畫 */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
         
@@ -24,10 +23,7 @@
             overflow-x: hidden; overscroll-behavior-x: none;
         }
         
-        /* 準備跳轉時觸發的類別 */
-        body.fade-out {
-            animation: fadeOut 0.5s ease-in-out forwards;
-        }
+        body.fade-out { animation: fadeOut 0.5s ease-in-out forwards; }
         
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         .num { font-variant-numeric: tabular-nums; font-family: "SF Pro Display", -apple-system, sans-serif; }
@@ -72,7 +68,6 @@
         .drawer-menu { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1A252F; box-shadow: 4px 0 16px rgba(0,0,0,0.3); z-index: 3001; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; }
         .drawer-overlay.show .drawer-menu { transform: translateX(280px); }
         
-        /* 【UI 升級】高級感純文字排版側邊欄 */
         .drawer-header { padding: 40px 24px 24px; border-bottom: 1px solid rgba(255,255,255,0.08); }
         .drawer-title { color: #CF9236; font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: 2px; }
         .drawer-subtitle { color: #95A5A6; font-size: 13px; font-weight: 500; letter-spacing: 1px; }
@@ -304,21 +299,17 @@
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
     <script>
-        // 【動畫與導航升級】處理絲滑轉場跳頁
         function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
         function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
         
         function navigateTo(url) {
-            // 如果已經在當前頁面，就不做動畫直接關閉選單
             if (window.location.href.includes(url) || (url === 'index.html' && window.location.pathname.endsWith('/'))) {
                 closeDrawer();
                 return;
             }
             closeDrawer();
-            // 等待選單收合動畫 (約 300ms)，然後啟動畫面淡出
             setTimeout(() => {
                 document.body.classList.add('fade-out');
-                // 等待畫面淡出完畢 (約 500ms)，再真正執行跳轉
                 setTimeout(() => {
                     window.location.href = url;
                 }, 400); 
@@ -364,6 +355,10 @@
             globalCombinedList = [];
             document.getElementById('label-tw').innerText = '📁 匯入台股';
             document.getElementById('label-us').innerText = '📁 匯入美股';
+            
+            // 清空打包資料
+            exportGlobalSyncData();
+            
             renderCurrentView(); 
             showToast('已清空所有資料');
         }
@@ -590,9 +585,64 @@
             localStorage.setItem('portfolio_tw', JSON.stringify(twList));
         }
 
+        // 【核心修正】將打包資料的函式獨立出來，確保抓取「全球總資產」而非單一頁籤
+        function exportGlobalSyncData() {
+            if (globalCombinedList.length === 0) {
+                localStorage.setItem('sync_invest_data', JSON.stringify({
+                    totalValue: 0, cagr: 0, dividendYield: 0, timestamp: new Date().getTime()
+                }));
+                return;
+            }
+
+            let totalVal = 0;
+            let weightedCAGR = 0;
+            let totalExpectedDividend = 0;
+
+            globalCombinedList.forEach(item => {
+                totalVal += (item.marketValueTWD || 0);
+            });
+
+            if (totalVal > 0) {
+                globalCombinedList.forEach(item => {
+                    if (item.cagr) {
+                        weightedCAGR += item.cagr * ((item.marketValueTWD || 0) / totalVal);
+                    }
+                    
+                    const exRate = item.market === 'US' ? currentRate : 1;
+                    if (item.historicalDividends && item.historicalDividends.length > 0) {
+                        const now = new Date();
+                        const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+                        const monthKeys = [];
+                        for (let i = 0; i < 24; i++) {
+                            const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
+                            monthKeys.push(`${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`);
+                        }
+                        
+                        item.historicalDividends.forEach(div => {
+                            const dDate = new Date(div.date * 1000);
+                            const futureKey = `${dDate.getFullYear() + 1}-${(dDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                            const futureIdx = monthKeys.indexOf(futureKey);
+                            if (futureIdx >= 12 && futureIdx < 24) {
+                                totalExpectedDividend += div.amount * item.shares * exRate;
+                            }
+                        });
+                    }
+                });
+            }
+
+            const syncInvestData = {
+                totalValue: totalVal,
+                cagr: weightedCAGR,
+                dividendYield: totalVal > 0 ? (totalExpectedDividend / totalVal) : 0,
+                timestamp: new Date().getTime()
+            };
+            localStorage.setItem('sync_invest_data', JSON.stringify(syncInvestData));
+        }
+
         async function updateFinanceData() {
             const allSymbols = [...globalPortfolio.tw.map(i => i.symbol), ...globalPortfolio.us.map(i => i.symbol)].filter(s => s && s !== 'SKIP' && s.trim() !== '');
             if (allSymbols.length === 0) { 
+                exportGlobalSyncData();
                 renderCurrentView(); 
                 return; 
             }
@@ -640,6 +690,9 @@
                 dateEl.style.display = 'inline-block';
             }
 
+            // 在更新完全球數據後，立即執行全域打包
+            exportGlobalSyncData();
+
             if (globalCombinedList.length > 0) renderCurrentView();
         }
 
@@ -664,11 +717,6 @@
                 
                 document.getElementById('alloc-legend').innerHTML = '<div style="color: #999; text-align: center; margin-top: 50px;">此市場暫無資料</div>';
                 document.getElementById('risk-list').innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">此市場暫無資料</div>';
-                
-                // 【新增】沒有資料時也要將包裹清空歸零
-                localStorage.setItem('sync_invest_data', JSON.stringify({
-                    totalValue: 0, cagr: 0, dividendYield: 0, timestamp: new Date().getTime()
-                }));
                 return;
             }
 
@@ -951,15 +999,6 @@
 
             document.getElementById('val-dividend').innerText = fmtMoney(totalExpectedDividend);
             document.getElementById('val-yield').innerText = (totalVal > 0 ? (totalExpectedDividend/totalVal*100).toFixed(2) : 0) + '%';
-
-            // 【核心新增】將最新運算結果打包存入 LocalStorage 供第三頁讀取
-            const syncInvestData = {
-                totalValue: totalVal,
-                cagr: portfolioCAGR,
-                dividendYield: totalVal > 0 ? (totalExpectedDividend / totalVal) : 0,
-                timestamp: new Date().getTime()
-            };
-            localStorage.setItem('sync_invest_data', JSON.stringify(syncInvestData));
 
             if (charts.cf) charts.cf.destroy();
             charts.cf = new Chart(document.getElementById('cashflowChart'), {

@@ -8,7 +8,7 @@
     <style>
         /* ================= 系統色票與全域變數 ================= */
         :root {
-            --bg-body: #F0F2F5; /* 【UI微調】對齊前兩頁的背景底色 */
+            --bg-body: #F0F2F5; 
             --bg-card: #FFFFFF;
             --text-main: #212529;
             --text-muted: #6C757D;
@@ -501,7 +501,6 @@
     </div>
 
     <script>
-        // 【動畫與導航升級】處理絲滑轉場跳頁
         function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
         function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
         
@@ -526,7 +525,6 @@
             clearTimeout(toastTimeout); toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500);
         }
 
-        // ================= 核心架構：資料定義 =================
         const LOCAL_STORAGE_KEY_V2 = 'life_financial_data_v2'; 
         
         let appData = { currentId: 'default', scenarios: [] };
@@ -547,7 +545,6 @@
             'i5': { title: '💧 資產流動性風險', desc: '揪出「窮得只剩下房」的族群。如果身價千萬但全在不動產，生病時根本拿不出錢。', formula: '當年流動與投資資金 ÷ 當年總淨資產', g: '大於 30% (變現能力極佳)', y: '10% ~ 30% (一般水準)', r: '小於 10% (變現能力極差)' }
         };
 
-        // ================= 1. 初始化 =================
         function loadDataAndInitialize() {
             const v2Json = localStorage.getItem(LOCAL_STORAGE_KEY_V2);
             if(v2Json) {
@@ -594,7 +591,6 @@
             };
         }
 
-        // ================= 2. 劇本與同步機制 =================
         function applyScenarioToDOM(id) {
             appData.currentId = id;
             const sc = appData.scenarios.find(s => s.id === id);
@@ -640,8 +636,8 @@
             state.postIncomes = deepCopy(d.state.postIncomes || []);
             state.postExpenses = deepCopy(d.state.postExpenses || []);
 
-            // 【核心新增】恢復靜態欄位的高亮狀態
-            const syncableStaticFields = ['core-principal', 'core-pre-growth', 'core-pre-yield', 'core-annual-add', 'sys-salary-val'];
+            // 【加入新參數 sys-salary-growth 的高亮恢復】
+            const syncableStaticFields = ['core-principal', 'core-pre-growth', 'core-pre-yield', 'core-annual-add', 'sys-salary-val', 'sys-salary-growth'];
             syncableStaticFields.forEach(fieldId => {
                 const el = document.getElementById(fieldId);
                 if(d.syncedFields && d.syncedFields[fieldId]) {
@@ -674,14 +670,13 @@
                 loan: { value: document.getElementById('loan-value').value, principal: document.getElementById('loan-principal').value, rate: document.getElementById('loan-rate').value, years: document.getElementById('loan-years').value, growth: document.getElementById('loan-growth').value },
                 salary: { val: document.getElementById('sys-salary-val').value, growth: document.getElementById('sys-salary-growth').value },
                 state: deepCopy(state),
-                syncedFields: sc.data.syncedFields || {} // 保留高亮標籤記憶
+                syncedFields: sc.data.syncedFields || {} 
             };
             
             if(resultsObj) sc.results = resultsObj;
             localStorage.setItem(LOCAL_STORAGE_KEY_V2, JSON.stringify(appData));
         }
 
-        // 【核心新增】一鍵從保險箱抽取投資與記帳資料
         function syncFromOtherPages() {
             let invData = JSON.parse(localStorage.getItem('sync_invest_data') || 'null');
             let accData = JSON.parse(localStorage.getItem('sync_account_data') || 'null');
@@ -694,7 +689,6 @@
             let sc = appData.scenarios.find(s => s.id === appData.currentId);
             if(!sc.data.syncedFields) sc.data.syncedFields = {};
 
-            // 1. 抽取投資板快照
             if(invData && invData.totalValue > 0) {
                 document.getElementById('core-principal').value = Math.round(invData.totalValue);
                 document.getElementById('core-pre-growth').value = (invData.cagr * 100).toFixed(1);
@@ -706,7 +700,6 @@
                 });
             }
 
-            // 2. 抽取記帳板快照
             if(accData) {
                 let cashAsset = state.assets.find(a => a.name === '現金/活存' || a.id === 'cash_default');
                 if(!cashAsset) {
@@ -721,6 +714,13 @@
                     document.getElementById('sys-salary-val').value = Math.round(accData.avgSalary);
                     document.getElementById('sys-salary-val').classList.add('synced-field');
                     sc.data.syncedFields['sys-salary-val'] = true;
+                }
+
+                // 【核心新增】接收時光機薪資成長率
+                if(accData.salaryGrowth !== undefined) {
+                    document.getElementById('sys-salary-growth').value = accData.salaryGrowth;
+                    document.getElementById('sys-salary-growth').classList.add('synced-field');
+                    sc.data.syncedFields['sys-salary-growth'] = true;
                 }
 
                 if(accData.avgExpense > 0) {
@@ -746,7 +746,6 @@
             showToast('✅ 已成功載入最新真實數據');
         }
 
-        // ================= 3. 各種彈出視窗 =================
         let customPromptCallback = null;
 
         function openCustomPrompt(title, defaultText, callback) {
@@ -785,7 +784,6 @@
         document.getElementById('metric-modal').addEventListener('click', closeMetricModal);
 
 
-        // ================= 4. 劇本管理視窗 =================
         const scenOverlay = document.getElementById('scen-overlay');
         const scenSheet = document.getElementById('scen-sheet');
 
@@ -854,7 +852,6 @@
             }
         }
 
-        // ================= 5. UI 介面連動與覆寫解除機制 =================
         const navBtns = document.querySelectorAll('.nav-btn');
         const tabContents = document.querySelectorAll('.tab-content');
         navBtns.forEach(btn => {
@@ -878,8 +875,8 @@
             calculate();
         });
 
-        // 【核心新增】靜態欄位一碰就解除高亮
-        const syncableStaticFields = ['core-principal', 'core-pre-growth', 'core-pre-yield', 'core-annual-add', 'sys-salary-val'];
+        // 靜態欄位一碰就解除高亮 (包含 sys-salary-growth)
+        const syncableStaticFields = ['core-principal', 'core-pre-growth', 'core-pre-yield', 'core-annual-add', 'sys-salary-val', 'sys-salary-growth'];
         syncableStaticFields.forEach(id => {
             document.getElementById(id).addEventListener('input', function() {
                 this.classList.remove('synced-field');
@@ -961,7 +958,6 @@
 
         function updateState(stateKey, index, field, value) { 
             state[stateKey][index][field] = value; 
-            // 【核心新增】若使用者手動修改，瞬間解除 isSynced 狀態並重繪
             if(state[stateKey][index].isSynced) {
                 state[stateKey][index].isSynced = false;
                 reRenderAll();
@@ -996,7 +992,6 @@
         staticInputs.forEach(id => { document.getElementById(id).addEventListener('input', calculate); });
         document.getElementById('core-stop-retire').addEventListener('change', calculate);
 
-        // ================= 6. 核心 FIRE 演算法 =================
         function calculate() {
             const inflation = getNum('env-inflation') / 100;
             const curAge = parseInt(document.getElementById('env-curAge').value) || 30;
@@ -1326,7 +1321,6 @@
             renderComparisonTable();
         }
 
-        // ================= 7. 熱力圖與比較表渲染 =================
         function renderHeatmap(data) {
             const tbody = document.getElementById('heatmap-body');
             let html = '';

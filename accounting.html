@@ -9,7 +9,6 @@
     
     <style>
         :root {
-            /* 【視覺統一】底色對齊投資板 */
             --primary-bg: #f0f2f5;
             --card-bg: #FFFFFF;
             --text-main: #2C3E50;
@@ -24,7 +23,6 @@
             --btn-border: #CBD5E1;
         }
 
-        /* 【動畫升級】加長淡入時間，並新增淡出動畫 */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
 
@@ -32,7 +30,6 @@
         
         body { background-color: var(--primary-bg); color: var(--text-main); height: 100vh; overflow: hidden; overscroll-behavior-x: none; animation: fadeIn 0.8s ease-in-out; }
         
-        /* 準備跳轉時觸發的類別 */
         body.fade-out { animation: fadeOut 0.5s ease-in-out forwards; }
 
         .page { display: none; height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior-x: none; padding-bottom: 120px; }
@@ -46,13 +43,11 @@
 
         .container { padding: 16px; }
 
-        /* ================= 側邊抽屜選單 ================= */
         .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 3000; opacity: 0; visibility: hidden; transition: 0.3s ease; }
         .drawer-overlay.show { opacity: 1; visibility: visible; }
         .drawer-menu { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1A252F; box-shadow: 4px 0 16px rgba(0,0,0,0.3); z-index: 3001; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; }
         .drawer-overlay.show .drawer-menu { transform: translateX(280px); }
         
-        /* 【UI 升級】高級感純文字排版側邊欄 */
         .drawer-header { padding: 40px 24px 24px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: left; }
         .drawer-title { color: #CF9236; font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: 2px; }
         .drawer-subtitle { color: #95A5A6; font-size: 13px; font-weight: 500; letter-spacing: 1px; }
@@ -66,12 +61,10 @@
         .btn-menu { background: none; border: none; font-size: 24px; color: #FFFFFF; cursor: pointer; padding: 0 10px; margin-left: -10px; }
         .btn-menu:active { opacity: 0.7; }
 
-        /* ================= 共用卡片 ================= */
         .chart-card { background: var(--card-bg); border-radius: 12px; padding: 20px 12px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
         .card-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; border-left: 4px solid #1A252F; padding-left: 8px; margin-left: 4px; color: var(--text-main); }
         .card-desc { font-size: 12px; color: var(--text-sub); margin-left: 12px; margin-bottom: 16px; line-height: 1.4; }
 
-        /* ================= 頁面一：歷史總覽 ================= */
         .kpi-wrapper { background: linear-gradient(135deg, #1A252F 0%, #2C3E50 100%); border-radius: 16px; padding: 20px; margin-bottom: 24px; box-shadow: 0 10px 24px rgba(26, 37, 47, 0.2); color: white; }
         .kpi-hero { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; }
         .kpi-hero-title { font-size: 12px; color: #BDC3C7; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 16px; display: flex; justify-content: space-between; }
@@ -101,7 +94,6 @@
         .btn-clear { background-color: transparent; border: 1px solid #E0E6ED; color: #7F8C8D; padding: 12px; width: 100%; border-radius: 8px; font-size: 14px; cursor: pointer; margin-top: 10px; }
         .btn-clear:active { background-color: #F4F6F9; }
 
-        /* ================= 頁面二：分類作業 ================= */
         .transaction-card { background-color: var(--card-bg); border-radius: 12px; padding: 24px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px; border: 1px solid var(--border-color); }
         .tx-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
         .tx-date { font-size: 14px; color: var(--text-sub); }
@@ -121,7 +113,6 @@
         .btn-invest { border-left: 3px solid var(--invest-color); }
         .btn-other { border-left: 3px solid #95A5A6; }
 
-        /* ================= 頁面三：批次結算 ================= */
         .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
         .summary-card { background: var(--card-bg); padding: 16px 12px; border-radius: 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
         .summary-title { font-size: 12px; color: var(--text-sub); margin-bottom: 6px; }
@@ -144,7 +135,6 @@
         .btn-export { background-color: #1A252F; color: white; border: none; padding: 16px 24px; border-radius: 12px; font-size: 16px; font-weight: 500; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 10px; cursor: pointer; }
         .btn-export:active { background-color: #2C3E50; }
 
-        /* ================= 自訂彈出視窗 ================= */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; visibility: hidden; transition: 0.3s ease; }
         .modal-overlay.active { opacity: 1; visibility: visible; }
         .modal-content { background: #FFFFFF; width: 85%; max-width: 320px; border-radius: 24px; padding: 32px 24px 24px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.2); transform: scale(0.9); transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
@@ -241,7 +231,7 @@
                 </div>
                 <div class="kpi-sub-grid">
                     <div class="kpi-sub-card">
-                        <div class="kpi-sub-title">近 1 年月平均</div>
+                        <div class="kpi-sub-title">近 1 年月均 (年化)</div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">收</span><span class="kpi-sub-val val-in" id="kpi-avg-in">0</span></div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">消</span><span class="kpi-sub-val val-out" id="kpi-avg-out">0</span></div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">投</span><span class="kpi-sub-val val-inv" id="kpi-avg-inv">0</span></div>
@@ -328,7 +318,7 @@
             <div id="income-buttons" style="display: none;">
                 <div class="cat-section-title">選擇【收入】項目</div>
                 <div class="btn-grid">
-                    <button class="category-btn btn-income" onclick="categorize('薪資')">薪薪</button>
+                    <button class="category-btn btn-income" onclick="categorize('薪資')">薪資</button>
                     <button class="category-btn btn-income" onclick="categorize('獎金')">獎金</button>
                     <button class="category-btn btn-income" onclick="categorize('股息')">股息</button>
                     <button class="category-btn btn-income" onclick="categorize('其他收入')">其他收入</button>
@@ -388,7 +378,6 @@
     </div>
 
     <script>
-        // 【動畫與導航升級】處理絲滑轉場跳頁
         function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
         function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
         
@@ -748,9 +737,9 @@
                 eChartsInstances.heatmap.clear(); 
                 eChartsInstances.compare.clear();
                 
-                // 【核心新增】空資料時清空打包包裹
+                // 空資料時清空打包包裹
                 localStorage.setItem('sync_account_data', JSON.stringify({
-                    latestBalance: 0, avgSalary: 0, avgExpense: 0, avgInvest: 0, timestamp: new Date().getTime()
+                    latestBalance: 0, avgSalary: 0, avgExpense: 0, avgInvest: 0, salaryGrowth: 3.0, timestamp: new Date().getTime()
                 }));
                 return;
             }
@@ -762,32 +751,80 @@
             document.getElementById('kpi-expense').innerText = `$ ${(latest.expense || 0).toLocaleString()}`;
             document.getElementById('kpi-invest').innerText = `$ ${(latest.invest || 0).toLocaleString()}`;
 
-            let recent1YearDb = db.slice(-12);
-            let avgLen = recent1YearDb.length || 1;
-            
-            let calcAvgIn = Math.round(recent1YearDb.reduce((s, i) => s + (i.income || 0), 0) / avgLen);
-            let calcAvgOut = Math.round(recent1YearDb.reduce((s, i) => s + (i.expense || 0), 0) / avgLen);
-            let calcAvgInv = Math.round(recent1YearDb.reduce((s, i) => s + (i.invest || 0), 0) / avgLen);
-            
+            // ==========================================
+            // 【核心修正】硬性年化切片與時光機演算法
+            // ==========================================
+            let latestInt = 0;
+            let recent1YearDb = [];
+            let previous1YearDb = [];
+
+            if (latest.month) {
+                let p = latest.month.split('-');
+                latestInt = parseInt(p[0]) * 12 + parseInt(p[1]);
+                
+                // 抓取近 12 個月內的資料
+                recent1YearDb = db.filter(i => {
+                    if(!i.month) return false;
+                    let m = i.month.split('-');
+                    let mInt = parseInt(m[0]) * 12 + parseInt(m[1]);
+                    return mInt > latestInt - 12;
+                });
+                
+                // 抓取近 13~24 個月的資料 (用於時光機對比)
+                previous1YearDb = db.filter(i => {
+                    if(!i.month) return false;
+                    let m = i.month.split('-');
+                    let mInt = parseInt(m[0]) * 12 + parseInt(m[1]);
+                    return mInt <= latestInt - 12 && mInt > latestInt - 24;
+                });
+            } else {
+                recent1YearDb = db.slice(-12);
+            }
+
+            // 【硬性年化切片】總和強制除以 12 轉為真實月均值
+            let sumIn = recent1YearDb.reduce((s, i) => s + (i.income || 0), 0);
+            let sumOut = recent1YearDb.reduce((s, i) => s + (i.expense || 0), 0);
+            let sumInv = recent1YearDb.reduce((s, i) => s + (i.invest || 0), 0);
+            let sumSalaryThisYear = recent1YearDb.reduce((s, i) => s + ((i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0), 0);
+
+            let calcAvgIn = Math.round(sumIn / 12);
+            let calcAvgOut = Math.round(sumOut / 12);
+            let calcAvgInv = Math.round(sumInv / 12);
+            let avgSalary = Math.round(sumSalaryThisYear / 12);
+
             document.getElementById('kpi-avg-in').innerText = calcAvgIn.toLocaleString();
             document.getElementById('kpi-avg-out').innerText = calcAvgOut.toLocaleString();
             document.getElementById('kpi-avg-inv').innerText = calcAvgInv.toLocaleString();
 
-            let totalLenDb = db.length || 1;
-            document.getElementById('kpi-total-avg-in').innerText = Math.round(db.reduce((s, i) => s + (i.income || 0), 0) / totalLenDb).toLocaleString();
-            document.getElementById('kpi-total-avg-out').innerText = Math.round(db.reduce((s, i) => s + (i.expense || 0), 0) / totalLenDb).toLocaleString();
-            document.getElementById('kpi-total-avg-inv').innerText = Math.round(db.reduce((s, i) => s + (i.invest || 0), 0) / totalLenDb).toLocaleString();
+            // 歷史總平均 (如果只有 1 筆，預防性視為年度總帳除以 12)
+            let totalMonthsSpan = db.length === 1 ? 12 : db.length;
+            document.getElementById('kpi-total-avg-in').innerText = Math.round(db.reduce((s, i) => s + (i.income || 0), 0) / totalMonthsSpan).toLocaleString();
+            document.getElementById('kpi-total-avg-out').innerText = Math.round(db.reduce((s, i) => s + (i.expense || 0), 0) / totalMonthsSpan).toLocaleString();
+            document.getElementById('kpi-total-avg-inv').innerText = Math.round(db.reduce((s, i) => s + (i.invest || 0), 0) / totalMonthsSpan).toLocaleString();
 
-            // 【核心新增】將最新記帳均值打包存入 LocalStorage 供第三頁讀取
-            let avgSalary = recent1YearDb.reduce((s, i) => s + ((i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0), 0) / avgLen;
+            // 【時光機演算法】計算真實薪資年成長率
+            let calculatedSalaryGrowth = 3.0; // 預設 3.0%
+            if (previous1YearDb.length > 0) {
+                let sumSalaryLastYear = previous1YearDb.reduce((s, i) => s + ((i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0), 0);
+                if (sumSalaryLastYear > 0) {
+                    calculatedSalaryGrowth = ((sumSalaryThisYear / sumSalaryLastYear) - 1) * 100;
+                    // 防呆邊界保護
+                    if (calculatedSalaryGrowth > 100) calculatedSalaryGrowth = 100;
+                    if (calculatedSalaryGrowth < -100) calculatedSalaryGrowth = -100;
+                }
+            }
+
+            // 將最新記帳均值與成長率打包存入 LocalStorage 供第三頁讀取
             const syncAccountData = {
                 latestBalance: latest.balance || 0,
-                avgSalary: Math.round(avgSalary),
+                avgSalary: avgSalary,
                 avgExpense: calcAvgOut,
                 avgInvest: calcAvgInv,
+                salaryGrowth: parseFloat(calculatedSalaryGrowth.toFixed(1)),
                 timestamp: new Date().getTime()
             };
             localStorage.setItem('sync_account_data', JSON.stringify(syncAccountData));
+            // ==========================================
 
             const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             let trendMonths = db.map(i => {
@@ -925,7 +962,8 @@
             let compareCats = ['其他支出', '投資買入', '電信費', '固定支出', '現金提出', '信用卡'];
             let latestDetail = latest.detail || {};
             let avgDetail = {};
-            compareCats.forEach(cat => { avgDetail[cat] = recent1YearDb.reduce((s, i) => s + ((i.detail || {})[cat] || 0), 0) / avgLen; });
+            // 【UI連動修正】比較圖的近 1 年平均也同步強制除以 12
+            compareCats.forEach(cat => { avgDetail[cat] = recent1YearDb.reduce((s, i) => s + ((i.detail || {})[cat] || 0), 0) / 12; });
 
             eChartsInstances.compare.setOption({
                 tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, legend: { data: ['最新月花費', '近1年平均'], bottom: 0 },
