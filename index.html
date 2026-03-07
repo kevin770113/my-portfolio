@@ -294,7 +294,7 @@
         </div>
     </div>
 
-    <div class="card"><div class="card-header"><h2 class="card-title">全球持股現值排行</h2><span class="card-subtitle">市值佔比高低排序</span></div><div class="chart-container-bar"><canvas id="performanceChart"></canvas></div></div>
+    <div class="card"><div class="card-header"><h2 class="card-title">全球持股現值排行</h2><span class="card-subtitle">集中度與市值排序</span></div><div class="chart-container-bar"><canvas id="performanceChart"></canvas></div></div>
     
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
@@ -356,7 +356,6 @@
             document.getElementById('label-tw').innerText = '📁 匯入台股';
             document.getElementById('label-us').innerText = '📁 匯入美股';
             
-            // 清空打包資料
             exportGlobalSyncData();
             
             renderCurrentView(); 
@@ -585,7 +584,6 @@
             localStorage.setItem('portfolio_tw', JSON.stringify(twList));
         }
 
-        // 【核心修正】將打包資料的函式獨立出來，確保抓取「全球總資產」而非單一頁籤
         function exportGlobalSyncData() {
             if (globalCombinedList.length === 0) {
                 localStorage.setItem('sync_invest_data', JSON.stringify({
@@ -690,7 +688,6 @@
                 dateEl.style.display = 'inline-block';
             }
 
-            // 在更新完全球數據後，立即執行全域打包
             exportGlobalSyncData();
 
             if (globalCombinedList.length > 0) renderCurrentView();
@@ -820,11 +817,15 @@
                 } 
             });
 
+            // 【核心優化】排行圖表加入百分比佔比標示
             if (charts.perf) charts.perf.destroy();
             charts.perf = new Chart(document.getElementById('performanceChart'), { 
                 type: 'bar', 
                 data: { 
-                    labels: sortedByVal.map(i => i.name), 
+                    labels: sortedByVal.map(i => {
+                        const pct = totalVal > 0 ? ((i.marketValueTWD / totalVal) * 100).toFixed(1) : 0;
+                        return `${i.name} (${pct}%)`;
+                    }), 
                     datasets: [
                         { label: '成本', data: sortedByVal.map(i => i.costTWD), backgroundColor: '#e0e0e0', barPercentage: 0.7, categoryPercentage: 0.6 }, 
                         { label: '現值', data: sortedByVal.map(i => i.marketValueTWD), backgroundColor: sortedByVal.map(i => i.marketValueTWD >= i.costTWD ? '#d93025' : '#188038'), barPercentage: 0.7, categoryPercentage: 0.6 }
@@ -837,7 +838,10 @@
                         legend: { display: false },
                         tooltip: {
                             callbacks: {
-                                label: function(context) { return context.dataset.label + ': ' + (isPrivacyMode ? '****' : '$' + Math.round(context.raw).toLocaleString()); }
+                                label: function(context) { 
+                                    const valStr = isPrivacyMode ? '****' : '$' + Math.round(context.raw).toLocaleString();
+                                    return `${context.dataset.label}: ${valStr}`; 
+                                }
                             }
                         }
                     } 

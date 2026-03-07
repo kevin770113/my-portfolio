@@ -81,7 +81,7 @@
         .val-inv { color: #9ABCE0; } 
 
         .kpi-sub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .kpi-sub-card { background: rgba(0, 0, 0, 0.15); border-radius: 10px; padding: 12px 16px; }
+        .kpi-sub-card { background: rgba(0, 0, 0, 0.15); border-radius: 10px; padding: 12px 16px; position: relative; }
         .kpi-sub-title { font-size: 11px; color: #95A5A6; margin-bottom: 8px; font-weight: 500;}
         .kpi-sub-item { display: flex; justify-content: space-between; margin-bottom: 4px; align-items: baseline;}
         .kpi-sub-item:last-child { margin-bottom: 0; }
@@ -146,6 +146,17 @@
         .modal-btn.cancel { background: #95A5A6; }
         .modal-actions { display: flex; gap: 10px; }
 
+        /* 【全新】異常值校正專屬 UI */
+        .exc-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #eee; transition: 0.2s; }
+        .exc-item:last-child { border-bottom: none; }
+        .exc-item.excluded { opacity: 0.4; text-decoration: line-through; }
+        .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background-color: #2C3E50; }
+        input:checked + .slider:before { transform: translateX(16px); }
+
         .chart-container { width: 100%; min-height: 280px; touch-action: pan-y; }
     </style>
 </head>
@@ -194,6 +205,21 @@
         </div>
     </div>
 
+    <div id="exclusion-modal-overlay" class="modal-overlay">
+        <div class="modal-content" style="width: 90%; max-width: 400px; padding: 20px; text-align: left; max-height: 85vh; display: flex; flex-direction: column;">
+            <div style="font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 8px; color: var(--text-main);">🪄 極端月份校正</div>
+            <div style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px; line-height: 1.4;">
+                將極端大額支出或獎金「排除」，可避免平均值失真。<br>(此動作僅影響平均計算，絕不刪除您的歷史明細)
+            </div>
+            <div style="flex: 1; overflow-y: auto; padding-right: 5px;" id="exclusion-list-container">
+                </div>
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button style="flex:1; padding:12px; border-radius:8px; border:none; background:#E2E8F0; font-weight:bold; cursor:pointer; color:#7F8C8D;" onclick="closeExclusionModal()">取消</button>
+                <button style="flex:1; padding:12px; border-radius:8px; border:none; background:#2C3E50; font-weight:bold; cursor:pointer; color:white;" onclick="saveExclusions()">💾 儲存並重算</button>
+            </div>
+        </div>
+    </div>
+
     <input type="file" id="fileInput" accept=".csv" multiple style="display: none;">
 
     <div id="page-historical" class="page active">
@@ -231,13 +257,16 @@
                 </div>
                 <div class="kpi-sub-grid">
                     <div class="kpi-sub-card">
-                        <div class="kpi-sub-title">近 1 年月均 (年化)</div>
+                        <div class="kpi-sub-title" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>近 1 年月均 (年化)</span>
+                            <span onclick="openExclusionModal()" style="cursor:pointer; color:#A8E6CF; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px; transition: 0.2s;">🪄 校正</span>
+                        </div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">收</span><span class="kpi-sub-val val-in" id="kpi-avg-in">0</span></div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">消</span><span class="kpi-sub-val val-out" id="kpi-avg-out">0</span></div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">投</span><span class="kpi-sub-val val-inv" id="kpi-avg-inv">0</span></div>
                     </div>
                     <div class="kpi-sub-card">
-                        <div class="kpi-sub-title">歷史總平均</div>
+                        <div class="kpi-sub-title">歷史總平均 (原始)</div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">收</span><span class="kpi-sub-val val-in" id="kpi-total-avg-in">0</span></div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">消</span><span class="kpi-sub-val val-out" id="kpi-total-avg-out">0</span></div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">投</span><span class="kpi-sub-val val-inv" id="kpi-total-avg-inv">0</span></div>
@@ -265,7 +294,7 @@
 
             <div class="chart-card">
                 <div class="card-title">最新月花費 vs 近1年平均</div>
-                <div class="card-desc">立即診斷最新月份的各項支出，是否有嚴重超出您平常水準的情況。</div>
+                <div class="card-desc">立即診斷最新月份的各項支出，是否有嚴重超出您平常(校正後)水準的情況。</div>
                 <div id="compareChart" class="chart-container" style="height: 280px;"></div>
             </div>
 
@@ -406,6 +435,9 @@
 
         let eChartsInstances = {};    
 
+        // 【極端值校正狀態】
+        let currentExclusions = { expense: [], salary: [], invest: [] };
+
         const CAT_INCOME = ['薪資', '獎金', '股息', '其他收入', '投資賣出'];
         const CAT_INVEST = ['投資買入', '外幣轉匯'];
         const CAT_EXPENSE = ['信用卡', '現金提出', '固定支出', '電信費', '投資管理費', '其他支出'];
@@ -413,6 +445,9 @@
         function initDatabase() {
             let db = localStorage.getItem('financeDB');
             if (!db) { localStorage.setItem('financeDB', JSON.stringify([])); }
+            
+            let exc = localStorage.getItem('financeExclusions');
+            if (exc) { currentExclusions = JSON.parse(exc); }
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -434,6 +469,106 @@
 
             renderDashboard();
         });
+
+        // ==========================================
+        // 【全新】極端值校正中心邏輯
+        // ==========================================
+        function openExclusionModal() {
+            let db = JSON.parse(localStorage.getItem('financeDB')) || [];
+            if (db.length === 0) return;
+
+            let latestInt = 0;
+            let recent1YearDb = [];
+            let latest = db[db.length - 1];
+            if (latest.month) {
+                let p = latest.month.split('-');
+                latestInt = parseInt(p[0]) * 12 + parseInt(p[1]);
+                recent1YearDb = db.filter(i => {
+                    if(!i.month) return false;
+                    let m = i.month.split('-');
+                    let mInt = parseInt(m[0]) * 12 + parseInt(m[1]);
+                    return mInt > latestInt - 12;
+                });
+            } else {
+                recent1YearDb = db.slice(-12);
+            }
+
+            const container = document.getElementById('exclusion-list-container');
+            container.innerHTML = '';
+
+            const renderExclusionCategory = (title, arr, keyFn, typeKey) => {
+                let validArr = arr.filter(i => keyFn(i) > 0);
+                if(validArr.length === 0) return '';
+                
+                let sorted = [...validArr].sort((a,b) => keyFn(b) - keyFn(a));
+                let top3 = sorted.slice(0, 3);
+                let bottom3 = sorted.slice(-3).reverse(); 
+                
+                let displayItems = [];
+                top3.forEach(i => displayItems.push({ item: i, label: '🔴 最高' }));
+                bottom3.forEach(i => {
+                    if(!displayItems.find(d => d.item.month === i.month)) {
+                        displayItems.push({ item: i, label: '🟢 最低' });
+                    }
+                });
+                
+                let html = `<div style="font-weight: bold; color: var(--text-main); margin: 15px 0 8px; border-bottom: 2px solid #eee; padding-bottom: 4px; font-size: 14px;">${title}</div>`;
+                
+                displayItems.forEach(d => {
+                    let val = keyFn(d.item);
+                    let isExcluded = currentExclusions[typeKey] && currentExclusions[typeKey].includes(d.item.month);
+                    let rowClass = isExcluded ? "exc-item excluded" : "exc-item";
+                    let checked = isExcluded ? "" : "checked";
+                    html += `
+                        <div class="${rowClass}" id="exc-row-${typeKey}-${d.item.month}">
+                            <div style="flex: 1; font-size: 13px;">
+                                <span style="font-size:10px; background:#f0f2f5; padding:2px 4px; border-radius:3px; margin-right:5px; color:#555;">${d.label}</span>
+                                ${d.item.month}
+                            </div>
+                            <div style="font-weight: bold; width: 80px; text-align: right; font-size: 13px;">$${val.toLocaleString()}</div>
+                            <div style="margin-left: 15px;">
+                                <label class="switch" style="transform: scale(0.8); margin: 0; margin-bottom: -4px;">
+                                    <input type="checkbox" ${checked} onchange="toggleExclusion('${typeKey}', '${d.item.month}', this.checked)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                });
+                return html;
+            };
+
+            container.innerHTML += renderExclusionCategory('🛍️ 消費支出 (影響生活費)', recent1YearDb, i => i.expense || 0, 'expense');
+            container.innerHTML += renderExclusionCategory('💼 薪資收入 (影響加薪率)', recent1YearDb, i => (i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0, 'salary');
+            container.innerHTML += renderExclusionCategory('📈 投資買入 (影響預定投資)', recent1YearDb, i => i.invest || 0, 'invest');
+
+            document.getElementById('exclusion-modal-overlay').style.display = 'flex';
+        }
+
+        function toggleExclusion(typeKey, month, isIncluded) {
+            if (!currentExclusions[typeKey]) currentExclusions[typeKey] = [];
+            if (isIncluded) {
+                currentExclusions[typeKey] = currentExclusions[typeKey].filter(m => m !== month);
+                document.getElementById(`exc-row-${typeKey}-${month}`).classList.remove('excluded');
+            } else {
+                if (!currentExclusions[typeKey].includes(month)) currentExclusions[typeKey].push(month);
+                document.getElementById(`exc-row-${typeKey}-${month}`).classList.add('excluded');
+            }
+        }
+
+        function closeExclusionModal() {
+            document.getElementById('exclusion-modal-overlay').style.display = 'none';
+            initDatabase(); // 恢復未儲存的變更
+        }
+
+        function saveExclusions() {
+            localStorage.setItem('financeExclusions', JSON.stringify(currentExclusions));
+            document.getElementById('exclusion-modal-overlay').style.display = 'none';
+            renderDashboard();
+            showAlert('儲存成功', '極端值設定已更新，平均數字已重新計算。', 'success');
+        }
+        // ==========================================
+
 
         function showPage(pageId) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -475,6 +610,8 @@
             showAlert("警告", "確定要清空所有歷史資料嗎？此動作無法復原。", 'confirm', function(isConfirmed) {
                 if(isConfirmed) {
                     localStorage.setItem('financeDB', JSON.stringify([]));
+                    localStorage.removeItem('financeExclusions');
+                    initDatabase();
                     renderDashboard();
                     showAlert("已清除", "所有歷史資料已成功清空。", 'success');
                 }
@@ -737,7 +874,6 @@
                 eChartsInstances.heatmap.clear(); 
                 eChartsInstances.compare.clear();
                 
-                // 空資料時清空打包包裹
                 localStorage.setItem('sync_account_data', JSON.stringify({
                     latestBalance: 0, avgSalary: 0, avgExpense: 0, avgInvest: 0, salaryGrowth: 3.0, timestamp: new Date().getTime()
                 }));
@@ -752,7 +888,7 @@
             document.getElementById('kpi-invest').innerText = `$ ${(latest.invest || 0).toLocaleString()}`;
 
             // ==========================================
-            // 【核心修正】硬性年化切片與時光機演算法
+            // 【核心修正】極端值排除與年化演算法
             // ==========================================
             let latestInt = 0;
             let recent1YearDb = [];
@@ -762,7 +898,6 @@
                 let p = latest.month.split('-');
                 latestInt = parseInt(p[0]) * 12 + parseInt(p[1]);
                 
-                // 抓取近 12 個月內的資料
                 recent1YearDb = db.filter(i => {
                     if(!i.month) return false;
                     let m = i.month.split('-');
@@ -770,7 +905,6 @@
                     return mInt > latestInt - 12;
                 });
                 
-                // 抓取近 13~24 個月的資料 (用於時光機對比)
                 previous1YearDb = db.filter(i => {
                     if(!i.month) return false;
                     let m = i.month.split('-');
@@ -781,40 +915,50 @@
                 recent1YearDb = db.slice(-12);
             }
 
-            // 【硬性年化切片】總和強制除以 12 轉為真實月均值
-            let sumIn = recent1YearDb.reduce((s, i) => s + (i.income || 0), 0);
-            let sumOut = recent1YearDb.reduce((s, i) => s + (i.expense || 0), 0);
-            let sumInv = recent1YearDb.reduce((s, i) => s + (i.invest || 0), 0);
-            let sumSalaryThisYear = recent1YearDb.reduce((s, i) => s + ((i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0), 0);
+            let getValidSum = (dataArr, valFn, typeKey) => {
+                let sum = 0; 
+                let excludedCount = 0;
+                dataArr.forEach(i => {
+                    if (currentExclusions[typeKey] && currentExclusions[typeKey].includes(i.month)) {
+                        excludedCount++;
+                    } else {
+                        sum += valFn(i);
+                    }
+                });
+                return { sum, count: Math.max(1, 12 - excludedCount) };
+            };
 
-            let calcAvgIn = Math.round(sumIn / 12);
-            let calcAvgOut = Math.round(sumOut / 12);
-            let calcAvgInv = Math.round(sumInv / 12);
-            let avgSalary = Math.round(sumSalaryThisYear / 12);
+            let expData = getValidSum(recent1YearDb, i => i.expense || 0, 'expense');
+            let invData = getValidSum(recent1YearDb, i => i.invest || 0, 'invest');
+            let inData = getValidSum(recent1YearDb, i => i.income || 0, 'salary'); // 總收入也隨薪資排除波動
+            let salDataThis = getValidSum(recent1YearDb, i => (i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0, 'salary');
+            let salDataLast = getValidSum(previous1YearDb, i => (i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0, 'salary');
+
+            let calcAvgIn = Math.round(inData.sum / inData.count);
+            let calcAvgOut = Math.round(expData.sum / expData.count);
+            let calcAvgInv = Math.round(invData.sum / invData.count);
+            let avgSalary = Math.round(salDataThis.sum / salDataThis.count);
 
             document.getElementById('kpi-avg-in').innerText = calcAvgIn.toLocaleString();
             document.getElementById('kpi-avg-out').innerText = calcAvgOut.toLocaleString();
             document.getElementById('kpi-avg-inv').innerText = calcAvgInv.toLocaleString();
 
-            // 歷史總平均 (如果只有 1 筆，預防性視為年度總帳除以 12)
             let totalMonthsSpan = db.length === 1 ? 12 : db.length;
             document.getElementById('kpi-total-avg-in').innerText = Math.round(db.reduce((s, i) => s + (i.income || 0), 0) / totalMonthsSpan).toLocaleString();
             document.getElementById('kpi-total-avg-out').innerText = Math.round(db.reduce((s, i) => s + (i.expense || 0), 0) / totalMonthsSpan).toLocaleString();
             document.getElementById('kpi-total-avg-inv').innerText = Math.round(db.reduce((s, i) => s + (i.invest || 0), 0) / totalMonthsSpan).toLocaleString();
 
-            // 【時光機演算法】計算真實薪資年成長率
-            let calculatedSalaryGrowth = 3.0; // 預設 3.0%
-            if (previous1YearDb.length > 0) {
-                let sumSalaryLastYear = previous1YearDb.reduce((s, i) => s + ((i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0), 0);
-                if (sumSalaryLastYear > 0) {
-                    calculatedSalaryGrowth = ((sumSalaryThisYear / sumSalaryLastYear) - 1) * 100;
-                    // 防呆邊界保護
-                    if (calculatedSalaryGrowth > 100) calculatedSalaryGrowth = 100;
-                    if (calculatedSalaryGrowth < -100) calculatedSalaryGrowth = -100;
-                }
+            // 時光機薪資成長率 (將歷史也換算成 12 個月基礎去互比)
+            let annualizedThisYear = avgSalary * 12;
+            let annualizedLastYear = Math.round(salDataLast.sum / salDataLast.count) * 12;
+            let calculatedSalaryGrowth = 3.0;
+            
+            if (previous1YearDb.length > 0 && annualizedLastYear > 0) {
+                calculatedSalaryGrowth = ((annualizedThisYear / annualizedLastYear) - 1) * 100;
+                if (calculatedSalaryGrowth > 100) calculatedSalaryGrowth = 100;
+                if (calculatedSalaryGrowth < -100) calculatedSalaryGrowth = -100;
             }
 
-            // 將最新記帳均值與成長率打包存入 LocalStorage 供第三頁讀取
             const syncAccountData = {
                 latestBalance: latest.balance || 0,
                 avgSalary: avgSalary,
@@ -824,7 +968,6 @@
                 timestamp: new Date().getTime()
             };
             localStorage.setItem('sync_account_data', JSON.stringify(syncAccountData));
-            // ==========================================
 
             const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             let trendMonths = db.map(i => {
@@ -959,11 +1102,24 @@
                 ]
             }, true);
 
+            // 【連動修正】比較長條圖的平均也支援極端值排除
             let compareCats = ['其他支出', '投資買入', '電信費', '固定支出', '現金提出', '信用卡'];
             let latestDetail = latest.detail || {};
             let avgDetail = {};
-            // 【UI連動修正】比較圖的近 1 年平均也同步強制除以 12
-            compareCats.forEach(cat => { avgDetail[cat] = recent1YearDb.reduce((s, i) => s + ((i.detail || {})[cat] || 0), 0) / 12; });
+            
+            compareCats.forEach(cat => { 
+                let sum = 0;
+                let isInv = cat === '投資買入';
+                let count = isInv ? invData.count : expData.count;
+                let typeKey = isInv ? 'invest' : 'expense';
+                
+                recent1YearDb.forEach(i => {
+                    if (!(currentExclusions[typeKey] && currentExclusions[typeKey].includes(i.month))) {
+                        sum += ((i.detail || {})[cat] || 0);
+                    }
+                });
+                avgDetail[cat] = sum / count; 
+            });
 
             eChartsInstances.compare.setOption({
                 tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, legend: { data: ['最新月花費', '近1年平均'], bottom: 0 },
