@@ -65,7 +65,7 @@
         .card-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; border-left: 4px solid #1A252F; padding-left: 8px; margin-left: 4px; color: var(--text-main); }
         .card-desc { font-size: 12px; color: var(--text-sub); margin-left: 12px; margin-bottom: 16px; line-height: 1.4; }
 
-        .kpi-wrapper { background: linear-gradient(135deg, #1A252F 0%, #2C3E50 100%); border-radius: 16px; padding: 20px; margin-bottom: 24px; box-shadow: 0 10px 24px rgba(26, 37, 47, 0.2); color: white; }
+        .kpi-wrapper { background: linear-gradient(135deg, #1A252F 0%, #2C3E50 100%); border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 10px 24px rgba(26, 37, 47, 0.2); color: white; }
         .kpi-hero { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; }
         .kpi-hero-title { font-size: 12px; color: #BDC3C7; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 16px; display: flex; justify-content: space-between; }
         .kpi-hero-balance { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px dashed rgba(255,255,255,0.15); }
@@ -87,6 +87,10 @@
         .kpi-sub-item:last-child { margin-bottom: 0; }
         .kpi-sub-label { font-size: 12px; color: rgba(255,255,255,0.6); }
         .kpi-sub-val { font-size: 15px; font-weight: 600; font-family: 'Helvetica Neue', sans-serif; }
+
+        /* 【全新】高質感獨立設定按鈕 */
+        .btn-config-full { display: block; width: 100%; background-color: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 14px 20px; border-radius: 12px; font-size: 14px; font-weight: 600; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px; cursor: pointer; transition: all 0.2s ease; letter-spacing: 0.5px; }
+        .btn-config-full:active { background-color: #F8F9FA; transform: scale(0.98); box-shadow: 0 1px 1px rgba(0,0,0,0.05); }
 
         .fab-btn { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background-color: #CF9236; color: white; border: none; padding: 16px 32px; border-radius: 30px; font-size: 16px; font-weight: 600; box-shadow: 0 6px 16px rgba(207, 146, 54, 0.4); cursor: pointer; z-index: 100; display: flex; align-items: center; gap: 8px; transition: 0.2s; white-space: nowrap; }
         .fab-btn:active { transform: translateX(-50%) scale(0.95); }
@@ -146,7 +150,6 @@
         .modal-btn.cancel { background: #95A5A6; }
         .modal-actions { display: flex; gap: 10px; }
 
-        /* 【全新】異常值校正專屬 UI */
         .exc-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #eee; transition: 0.2s; }
         .exc-item:last-child { border-bottom: none; }
         .exc-item.excluded { opacity: 0.4; text-decoration: line-through; }
@@ -206,8 +209,8 @@
     </div>
 
     <div id="exclusion-modal-overlay" class="modal-overlay">
-        <div class="modal-content" style="width: 90%; max-width: 400px; padding: 20px; text-align: left; max-height: 85vh; display: flex; flex-direction: column;">
-            <div style="font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 8px; color: var(--text-main);">🪄 極端月份校正</div>
+        <div class="modal-content" style="width: 90%; max-width: 400px; padding: 24px 20px; text-align: left; max-height: 85vh; display: flex; flex-direction: column;">
+            <div style="font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 8px; color: var(--text-main);">極端月份校正</div>
             <div style="font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 15px; line-height: 1.4;">
                 將極端大額支出或獎金「排除」，可避免平均值失真。<br>(此動作僅影響平均計算，絕不刪除您的歷史明細)
             </div>
@@ -215,7 +218,7 @@
                 </div>
             <div style="display: flex; gap: 10px; margin-top: 15px;">
                 <button style="flex:1; padding:12px; border-radius:8px; border:none; background:#E2E8F0; font-weight:bold; cursor:pointer; color:#7F8C8D;" onclick="closeExclusionModal()">取消</button>
-                <button style="flex:1; padding:12px; border-radius:8px; border:none; background:#2C3E50; font-weight:bold; cursor:pointer; color:white;" onclick="saveExclusions()">💾 儲存並重算</button>
+                <button style="flex:1; padding:12px; border-radius:8px; border:none; background:#2C3E50; font-weight:bold; cursor:pointer; color:white;" onclick="saveExclusions()">儲存並重算</button>
             </div>
         </div>
     </div>
@@ -257,10 +260,7 @@
                 </div>
                 <div class="kpi-sub-grid">
                     <div class="kpi-sub-card">
-                        <div class="kpi-sub-title" style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>近 1 年月均 (年化)</span>
-                            <span onclick="openExclusionModal()" style="cursor:pointer; color:#A8E6CF; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px; transition: 0.2s;">🪄 校正</span>
-                        </div>
+                        <div class="kpi-sub-title">近 1 年月均 (年化)</div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">收</span><span class="kpi-sub-val val-in" id="kpi-avg-in">0</span></div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">消</span><span class="kpi-sub-val val-out" id="kpi-avg-out">0</span></div>
                         <div class="kpi-sub-item"><span class="kpi-sub-label">投</span><span class="kpi-sub-val val-inv" id="kpi-avg-inv">0</span></div>
@@ -273,6 +273,10 @@
                     </div>
                 </div>
             </div>
+
+            <button class="btn-config-full" onclick="openExclusionModal()">
+                歷史極端月份校正
+            </button>
 
             <div class="chart-card">
                 <div class="card-title">三大核心指標歷史趨勢</div>
@@ -435,7 +439,6 @@
 
         let eChartsInstances = {};    
 
-        // 【極端值校正狀態】
         let currentExclusions = { expense: [], salary: [], invest: [] };
 
         const CAT_INCOME = ['薪資', '獎金', '股息', '其他收入', '投資賣出'];
@@ -471,7 +474,7 @@
         });
 
         // ==========================================
-        // 【全新】極端值校正中心邏輯
+        // 極端值校正中心邏輯
         // ==========================================
         function openExclusionModal() {
             let db = JSON.parse(localStorage.getItem('financeDB')) || [];
@@ -542,7 +545,8 @@
             container.innerHTML += renderExclusionCategory('💼 薪資收入 (影響加薪率)', recent1YearDb, i => (i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0, 'salary');
             container.innerHTML += renderExclusionCategory('📈 投資買入 (影響預定投資)', recent1YearDb, i => i.invest || 0, 'invest');
 
-            document.getElementById('exclusion-modal-overlay').style.display = 'flex';
+            // 【修復 Bug】改用 classList.add 來觸發 CSS 淡入動畫
+            document.getElementById('exclusion-modal-overlay').classList.add('active');
         }
 
         function toggleExclusion(typeKey, month, isIncluded) {
@@ -557,13 +561,15 @@
         }
 
         function closeExclusionModal() {
-            document.getElementById('exclusion-modal-overlay').style.display = 'none';
-            initDatabase(); // 恢復未儲存的變更
+            // 【修復 Bug】改用 classList.remove
+            document.getElementById('exclusion-modal-overlay').classList.remove('active');
+            initDatabase(); 
         }
 
         function saveExclusions() {
             localStorage.setItem('financeExclusions', JSON.stringify(currentExclusions));
-            document.getElementById('exclusion-modal-overlay').style.display = 'none';
+            // 【修復 Bug】改用 classList.remove
+            document.getElementById('exclusion-modal-overlay').classList.remove('active');
             renderDashboard();
             showAlert('儲存成功', '極端值設定已更新，平均數字已重新計算。', 'success');
         }
@@ -887,9 +893,6 @@
             document.getElementById('kpi-expense').innerText = `$ ${(latest.expense || 0).toLocaleString()}`;
             document.getElementById('kpi-invest').innerText = `$ ${(latest.invest || 0).toLocaleString()}`;
 
-            // ==========================================
-            // 【核心修正】極端值排除與年化演算法
-            // ==========================================
             let latestInt = 0;
             let recent1YearDb = [];
             let previous1YearDb = [];
@@ -930,7 +933,7 @@
 
             let expData = getValidSum(recent1YearDb, i => i.expense || 0, 'expense');
             let invData = getValidSum(recent1YearDb, i => i.invest || 0, 'invest');
-            let inData = getValidSum(recent1YearDb, i => i.income || 0, 'salary'); // 總收入也隨薪資排除波動
+            let inData = getValidSum(recent1YearDb, i => i.income || 0, 'salary');
             let salDataThis = getValidSum(recent1YearDb, i => (i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0, 'salary');
             let salDataLast = getValidSum(previous1YearDb, i => (i.detail && i.detail['薪資']) ? i.detail['薪資'] : 0, 'salary');
 
@@ -948,7 +951,6 @@
             document.getElementById('kpi-total-avg-out').innerText = Math.round(db.reduce((s, i) => s + (i.expense || 0), 0) / totalMonthsSpan).toLocaleString();
             document.getElementById('kpi-total-avg-inv').innerText = Math.round(db.reduce((s, i) => s + (i.invest || 0), 0) / totalMonthsSpan).toLocaleString();
 
-            // 時光機薪資成長率 (將歷史也換算成 12 個月基礎去互比)
             let annualizedThisYear = avgSalary * 12;
             let annualizedLastYear = Math.round(salDataLast.sum / salDataLast.count) * 12;
             let calculatedSalaryGrowth = 3.0;
@@ -1102,7 +1104,6 @@
                 ]
             }, true);
 
-            // 【連動修正】比較長條圖的平均也支援極端值排除
             let compareCats = ['其他支出', '投資買入', '電信費', '固定支出', '現金提出', '信用卡'];
             let latestDetail = latest.detail || {};
             let avgDetail = {};
