@@ -32,12 +32,15 @@
         #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 999; justify-content: center; align-items: center; flex-direction: column; }
         .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #toast-container { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 24px; border-radius: 24px; font-size: 13px; font-weight: 500; z-index: 5000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        #toast-container { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 24px; border-radius: 24px; font-size: 13px; font-weight: 500; z-index: 7000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         #toast-container.show { opacity: 1; }
 
-        /* ================= 共用彈窗 (重構為動態 Class 控制) ================= */
+        /* ================= 共用彈窗 ================= */
         .modal-overlay { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(4px); opacity: 0; visibility: hidden; transition: 0.3s ease; }
         .modal-overlay.active { opacity: 1; visibility: visible; }
+        /* 【修復點】系統級最高層級 */
+        .system-top { z-index: 6000 !important; }
+        
         .custom-prompt-box { background: var(--card-bg); border-radius: 16px; padding: 24px; width: 85%; max-width: 380px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); transform: scale(0.9); transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); text-align: center; max-height: 85vh; display: flex; flex-direction: column; }
         .modal-overlay.active .custom-prompt-box { transform: scale(1); }
         
@@ -103,7 +106,6 @@
         .btn-upload { background-color: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; white-space: nowrap; flex: 1; text-align: center; padding: 12px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: 0.2s; }
         input[type="file"] { display: none; }
         
-        /* 【UI優化】按鈕空間重分配 */
         .btn-tool { background-color: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; white-space: nowrap; flex: 1; display: flex; justify-content: center; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding: 10px 4px; transition: 0.2s; }
         .btn-tool.icon-only { flex: 0 0 38px; padding: 10px 0; font-size: 16px; }
         .btn-tool.highlight { background-color: #2C3E50; color: white; border-color: #1A252F; }
@@ -174,7 +176,7 @@
     <div id="toast-container"></div>
     <div id="loading-overlay"><div class="spinner"></div><div style="font-weight: 600; color: #555;">正在分析金融數據...</div></div>
 
-    <div id="confirm-modal-overlay" class="modal-overlay">
+    <div id="confirm-modal-overlay" class="modal-overlay system-top">
         <div class="custom-prompt-box" style="height: auto;">
             <div class="prompt-icon" style="background:#FFF4E5; color:#CF9236;">?</div>
             <div class="prompt-title" id="confirm-modal-title">警告</div>
@@ -186,7 +188,7 @@
         </div>
     </div>
 
-    <div id="scen-prompt-modal" class="modal-overlay">
+    <div id="scen-prompt-modal" class="modal-overlay system-top">
         <div class="custom-prompt-box" style="height: auto;">
             <div class="prompt-title" id="scen-prompt-title">請輸入內容</div>
             <input type="text" id="scen-prompt-input" class="prompt-input" placeholder="請輸入名稱">
@@ -197,7 +199,7 @@
         </div>
     </div>
 
-    <div id="info-modal-overlay" class="modal-overlay">
+    <div id="info-modal-overlay" class="modal-overlay system-top">
         <div class="custom-prompt-box" style="height: auto;">
             <div class="prompt-icon" style="background:#E8F5E9; color:#4E8765;">✓</div>
             <div class="prompt-title" id="info-modal-title">提示</div>
@@ -363,11 +365,8 @@
     </div>
 
     <div class="card"><div class="card-header"><h2 class="card-title">資產配置 (總現值佔比)</h2></div><div style="display: flex; align-items: center;"><div style="flex: 1;"><div class="chart-container-small"><canvas id="allocationChart"></canvas></div></div><div style="flex: 1.2; padding-left: 10px; font-size: 12px;" class="scrollable-list" id="alloc-legend"><div style="color: #999; text-align: center; margin-top: 50px;">請先匯入資料</div></div></div></div>
-    
     <div class="card"><div class="card-header"><h2 class="card-title">月度現金流分析</h2><span class="card-subtitle">過去 12 個月 vs 未來推算</span></div><div class="chart-container-large"><canvas id="cashflowChart"></canvas></div><div style="font-size: 11px; color: #999; text-align: center; margin-top: 12px; line-height: 1.4;">* 預估係根據各股過去 12 個月真實配息平移。</div></div>
-
     <div class="card"><div class="card-header"><h2 class="card-title">全球持股現值排行</h2><span class="card-subtitle">集中度與市值排序</span></div><div class="chart-container-bar"><canvas id="performanceChart"></canvas></div></div>
-    
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
     <script>
@@ -404,16 +403,13 @@
         let currentMCDim = 'P50';
         let isReportRendered = false; 
 
-        // 沙盒新增用
         let currentPromptPrice = 0;
         let currentPromptIsUS = false;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // 接回 CSV 監聽器
             document.getElementById('upload-tw').addEventListener('change', (e) => handleFileUpload(e, 'tw'));
             document.getElementById('upload-us').addEventListener('change', (e) => handleFileUpload(e, 'us'));
 
-            // 導入 ResizeObserver 消滅 Delay，確保圖表完美展開
             const reportOverlay = document.getElementById('report-overlay');
             const observer = new ResizeObserver(entries => {
                 for (let entry of entries) {
@@ -425,17 +421,14 @@
             });
             observer.observe(reportOverlay);
 
-            // 綁定智慧輸入框 (自動推算股數與成本)
             document.getElementById('sb-cost').addEventListener('input', function() {
                 if(!currentPromptPrice) return;
-                let exRate = currentPromptIsUS ? currentRate : 1;
-                let cost = parseFloat(this.value) || 0;
+                let exRate = currentPromptIsUS ? currentRate : 1; let cost = parseFloat(this.value) || 0;
                 document.getElementById('sb-shares').value = (cost / (currentPromptPrice * exRate)).toFixed(4);
             });
             document.getElementById('sb-shares').addEventListener('input', function() {
                 if(!currentPromptPrice) return;
-                let exRate = currentPromptIsUS ? currentRate : 1;
-                let shares = parseFloat(this.value) || 0;
+                let exRate = currentPromptIsUS ? currentRate : 1; let shares = parseFloat(this.value) || 0;
                 document.getElementById('sb-cost').value = Math.round(shares * currentPromptPrice * exRate);
             });
 
@@ -454,27 +447,17 @@
         // ================= 高質感自訂通用彈窗 =================
         let confirmCallback = null;
         function openConfirmModal(title, desc, btnText, callback) {
-            document.getElementById('confirm-modal-title').innerText = title;
-            document.getElementById('confirm-modal-desc').innerHTML = desc;
-            document.getElementById('btn-confirm-danger').innerText = btnText;
-            confirmCallback = callback;
-            document.getElementById('confirm-modal-overlay').classList.add('active');
+            document.getElementById('confirm-modal-title').innerText = title; document.getElementById('confirm-modal-desc').innerHTML = desc; document.getElementById('btn-confirm-danger').innerText = btnText; confirmCallback = callback; document.getElementById('confirm-modal-overlay').classList.add('active');
         }
         function closeConfirmModal() { document.getElementById('confirm-modal-overlay').classList.remove('active'); }
         document.getElementById('btn-confirm-danger').onclick = () => { closeConfirmModal(); if(confirmCallback) confirmCallback(); };
 
         let promptCallback = null;
         function openScenPrompt(title, defaultText, callback) {
-            document.getElementById('scen-prompt-title').innerText = title;
-            document.getElementById('scen-prompt-input').value = defaultText || '';
-            promptCallback = callback;
-            document.getElementById('scen-prompt-modal').classList.add('active');
-            setTimeout(() => document.getElementById('scen-prompt-input').focus(), 100);
+            document.getElementById('scen-prompt-title').innerText = title; document.getElementById('scen-prompt-input').value = defaultText || ''; promptCallback = callback; document.getElementById('scen-prompt-modal').classList.add('active'); setTimeout(() => document.getElementById('scen-prompt-input').focus(), 100);
         }
         function closeScenPrompt() { document.getElementById('scen-prompt-modal').classList.remove('active'); }
-        document.getElementById('scen-prompt-confirm').onclick = () => {
-            closeScenPrompt(); if(promptCallback) promptCallback(document.getElementById('scen-prompt-input').value);
-        };
+        document.getElementById('scen-prompt-confirm').onclick = () => { closeScenPrompt(); if(promptCallback) promptCallback(document.getElementById('scen-prompt-input').value); };
 
         // ================= 劇本管理 =================
         function openScenModal() {
@@ -484,27 +467,19 @@
                 let isAct = activeScenarioId === sc.id;
                 html += `<div class="scen-item" style="${isAct ? 'background:rgba(245,166,35,0.05); font-weight:bold;' : ''}"><div class="scen-name" onclick="switchScenario('${sc.id}')">🧪 ${sc.name} ${isAct ? '✅' : ''}</div><div class="scen-actions"><button class="scen-btn" onclick="renameScenario('${sc.id}')">✏️</button><button class="scen-btn" onclick="deleteScenario('${sc.id}')">🗑️</button></div></div>`;
             });
-            document.getElementById('scen-list').innerHTML = html;
-            document.getElementById('scen-overlay').classList.add('active');
-            setTimeout(() => document.getElementById('scen-sheet').classList.add('show'), 10);
+            document.getElementById('scen-list').innerHTML = html; document.getElementById('scen-overlay').classList.add('active'); setTimeout(() => document.getElementById('scen-sheet').classList.add('show'), 10);
         }
         function closeScenModal() { document.getElementById('scen-sheet').classList.remove('show'); setTimeout(() => document.getElementById('scen-overlay').classList.remove('active'), 300); }
         
         function createNewScenario() {
             closeScenModal();
             openScenPrompt("請輸入新試算劇本名稱：", "我的實驗組合", (name) => {
-                if(name && name.trim()){
-                    const newId = generateId();
-                    sandboxScenarios.push({ id: newId, name: name.trim(), portfolio: { tw: JSON.parse(JSON.stringify(realPortfolio.tw)), us: JSON.parse(JSON.stringify(realPortfolio.us)) } });
-                    saveScenarios(); switchScenario(newId); showToast("已建立新劇本！現在可任意調整持股。");
-                }
+                if(name && name.trim()){ const newId = generateId(); sandboxScenarios.push({ id: newId, name: name.trim(), portfolio: { tw: JSON.parse(JSON.stringify(realPortfolio.tw)), us: JSON.parse(JSON.stringify(realPortfolio.us)) } }); saveScenarios(); switchScenario(newId); showToast("已建立新劇本！現在可任意調整持股。"); }
             });
         }
         function renameScenario(id) {
             closeScenModal(); let sc = sandboxScenarios.find(s => s.id === id);
-            openScenPrompt("重新命名劇本：", sc.name, (name) => {
-                if(name && name.trim()){ sc.name = name.trim(); saveScenarios(); }
-            });
+            openScenPrompt("重新命名劇本：", sc.name, (name) => { if(name && name.trim()){ sc.name = name.trim(); saveScenarios(); } });
         }
         function deleteScenario(id) {
             openConfirmModal("刪除劇本", "確定要刪除這個試算劇本嗎？", "確定刪除", () => {
@@ -513,19 +488,14 @@
             });
         }
         async function switchScenario(id) {
-            activeScenarioId = id; updateScenarioUI(); closeScenModal();
-            setLoading(true); await updateFinanceData(); setLoading(false);
+            activeScenarioId = id; updateScenarioUI(); closeScenModal(); setLoading(true); await updateFinanceData(); setLoading(false);
             if(id !== 'real') showToast("進入試算模式 (圖表已切換)");
         }
         function saveScenarios() { localStorage.setItem('invest_scenarios_v1', JSON.stringify(sandboxScenarios)); }
         function updateScenarioUI() {
             const bar = document.getElementById('scenario-bar'); const rowUpload = document.getElementById('row-upload'); const btnInv = document.getElementById('btn-inventory');
-            if(activeScenarioId === 'real') {
-                bar.innerHTML = "📂 目前模式：真實持股 (鎖定) ▾"; bar.className = "scenario-bar"; rowUpload.style.display = "flex"; btnInv.innerHTML = "⚙️ 庫存校正";
-            } else {
-                let sc = sandboxScenarios.find(s => s.id === activeScenarioId);
-                bar.innerHTML = `🧪 試算中：${sc.name} ▾`; bar.className = "scenario-bar sandbox"; rowUpload.style.display = "none"; btnInv.innerHTML = "✏️ 調整持股";
-            }
+            if(activeScenarioId === 'real') { bar.innerHTML = "📂 目前模式：真實持股 (鎖定) ▾"; bar.className = "scenario-bar"; rowUpload.style.display = "flex"; btnInv.innerHTML = "⚙️ 庫存校正"; } 
+            else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); bar.innerHTML = `🧪 試算中：${sc.name} ▾`; bar.className = "scenario-bar sandbox"; rowUpload.style.display = "none"; btnInv.innerHTML = "✏️ 調整持股"; }
         }
 
         // ================= 核心資料處理 =================
@@ -538,14 +508,12 @@
             let allSymbols = Array.from(symbolsToFetch);
             if (allSymbols.length > 0) {
                 try {
-                    const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: allSymbols }) });
-                    const json = await res.json();
+                    const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: allSymbols }) }); const json = await res.json();
                     if (json.status === 'success') { stockMapCache = Object.assign(stockMapCache, json.data); if(json.exchangeRate) currentRate = json.exchangeRate; }
                 } catch(e) {}
             }
             
-            document.getElementById('display-rate').innerText = currentRate.toFixed(2);
-            latestDataTime = 0;
+            document.getElementById('display-rate').innerText = currentRate.toFixed(2); latestDataTime = 0;
 
             const mapToCombined = (portfolio) => {
                 let list = [...portfolio.tw, ...portfolio.us];
@@ -555,24 +523,18 @@
                     const exRate = item.market === 'US' ? currentRate : 1; const marketValTWD = m.price * item.shares * exRate; const costTWD = item.cost * exRate; 
                     return {
                         ...item, currentPrice: m.price, marketValueTWD: marketValTWD, costTWD: costTWD, profitTWD: marketValTWD - costTWD, roi: costTWD > 0 ? (marketValTWD - costTWD) / costTWD : 0,
-                        dayChangeTWD: m.change * item.shares * exRate, ytd: m.ytd || 0, cagr: m.cagr, stdev: m.stdev,
-                        dividendTWD: (m.dividendYield * (m.price * item.shares)) * exRate, yield: m.dividendYield, historicalDividends: m.historicalDividends || [] 
+                        dayChangeTWD: m.change * item.shares * exRate, ytd: m.ytd || 0, cagr: m.cagr, stdev: m.stdev, dividendTWD: (m.dividendYield * (m.price * item.shares)) * exRate, yield: m.dividendYield, historicalDividends: m.historicalDividends || [] 
                     };
                 }).filter(i => i.marketValueTWD > 0);
             };
 
             let realCombined = mapToCombined(realPortfolio);
             compareData.realGlobal = calcPortfolioMetrics(realCombined); compareData.realTW = calcPortfolioMetrics(realCombined.filter(i => i.market === 'TW')); compareData.realUS = calcPortfolioMetrics(realCombined.filter(i => i.market === 'US'));
-            
-            // 準備所有試算劇本的資料，供比較報告使用
-            compareData.sandboxList = sandboxScenarios.map(sc => {
-                return { id: sc.id, name: sc.name, metrics: calcPortfolioMetrics(mapToCombined(sc.portfolio)) };
-            });
+            compareData.sandboxList = sandboxScenarios.map(sc => { return { id: sc.id, name: sc.name, metrics: calcPortfolioMetrics(mapToCombined(sc.portfolio)) }; });
             
             exportGlobalSyncData(realCombined);
 
-            if(activeScenarioId === 'real') { globalCombinedList = realCombined; } 
-            else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); globalCombinedList = mapToCombined(sc.portfolio); }
+            if(activeScenarioId === 'real') { globalCombinedList = realCombined; } else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); globalCombinedList = mapToCombined(sc.portfolio); }
 
             const dateEl = document.getElementById('data-date');
             if (globalCombinedList.length > 0) { let d = latestDataTime > 0 ? new Date(latestDataTime * 1000) : new Date(); let mm = (d.getMonth() + 1).toString().padStart(2, '0'); let dd = d.getDate().toString().padStart(2, '0'); dateEl.innerText = `📅 ${mm}/${dd}`; dateEl.style.display = 'inline-block'; } else { dateEl.style.display = 'none'; }
@@ -580,10 +542,8 @@
         }
 
         function calcPortfolioMetrics(list) {
-            let totalVal = list.reduce((s, i) => s + (i.marketValueTWD || 0), 0);
-            if (totalVal === 0) return { totalVal: 0, cagr: 0, stdev: 0 };
-            let cagr = list.reduce((s, i) => s + ((i.cagr || 0) * (i.marketValueTWD || 0)), 0) / totalVal;
-            let stdev = list.reduce((s, i) => s + ((i.stdev || 0) * (i.marketValueTWD || 0)), 0) / totalVal;
+            let totalVal = list.reduce((s, i) => s + (i.marketValueTWD || 0), 0); if (totalVal === 0) return { totalVal: 0, cagr: 0, stdev: 0 };
+            let cagr = list.reduce((s, i) => s + ((i.cagr || 0) * (i.marketValueTWD || 0)), 0) / totalVal; let stdev = list.reduce((s, i) => s + ((i.stdev || 0) * (i.marketValueTWD || 0)), 0) / totalVal;
             return { totalVal, cagr, stdev };
         }
 
@@ -595,10 +555,7 @@
                 if (item.historicalDividends && item.historicalDividends.length > 0) {
                     const now = new Date(); const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1); const monthKeys = [];
                     for (let i = 0; i < 24; i++) monthKeys.push(`${new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1).getFullYear()}-${(new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1).getMonth() + 1).toString().padStart(2, '0')}`);
-                    item.historicalDividends.forEach(div => {
-                        const dDate = new Date(div.date * 1000); const futureKey = `${dDate.getFullYear() + 1}-${(dDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                        if (monthKeys.indexOf(futureKey) >= 12) totalExpectedDividend += div.amount * item.shares * exRate;
-                    });
+                    item.historicalDividends.forEach(div => { const dDate = new Date(div.date * 1000); const futureKey = `${dDate.getFullYear() + 1}-${(dDate.getMonth() + 1).toString().padStart(2, '0')}`; if (monthKeys.indexOf(futureKey) >= 12) totalExpectedDividend += div.amount * item.shares * exRate; });
                 }
             });
             localStorage.setItem('sync_invest_data', JSON.stringify({ totalValue: metrics.totalVal, cagr: metrics.cagr, dividendYield: metrics.totalVal > 0 ? (totalExpectedDividend / metrics.totalVal) : 0, timestamp: new Date().getTime() }));
@@ -606,8 +563,7 @@
 
         // ================= CSV 匯入相關 =================
         async function handleFileUpload(event, market) {
-            const file = event.target.files[0]; if (!file) return;
-            setLoading(true);
+            const file = event.target.files[0]; if (!file) return; setLoading(true);
             Papa.parse(file, {
                 header: true, skipEmptyLines: true,
                 complete: async function(results) {
@@ -635,8 +591,7 @@
 
         function askForSymbol(stockName) {
             return new Promise((resolve) => {
-                setLoading(false); const overlay = document.getElementById('csv-prompt-overlay');
-                document.getElementById('csv-stock-name').innerText = stockName; document.getElementById('csv-input-val').value = ''; document.getElementById('csv-error-msg').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-confirm').style.display = 'none';
+                setLoading(false); const overlay = document.getElementById('csv-prompt-overlay'); document.getElementById('csv-stock-name').innerText = stockName; document.getElementById('csv-input-val').value = ''; document.getElementById('csv-error-msg').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-confirm').style.display = 'none';
                 overlay.classList.add('active'); let currentTestSymbol = ''; const cleanup = () => { overlay.classList.remove('active'); setLoading(true); };
                 document.getElementById('btn-csv-skip').onclick = () => { cleanup(); resolve('SKIP'); };
                 document.getElementById('btn-csv-check').onclick = async () => {
@@ -644,9 +599,7 @@
                     currentTestSymbol = val; document.getElementById('csv-step-input').style.display = 'none'; document.getElementById('csv-step-loading').style.display = 'block';
                     try {
                         const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: [val] }) }); const json = await res.json();
-                        if (json.status === 'success' && json.data[val] && !json.data[val].error) {
-                            document.getElementById('csv-yahoo-name').innerText = json.data[val].yahooName || val; document.getElementById('csv-yahoo-price').innerText = json.data[val].price; document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-confirm').style.display = 'block'; 
-                        } else { alert('找不到此代號'); document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; }
+                        if (json.status === 'success' && json.data[val] && !json.data[val].error) { document.getElementById('csv-yahoo-name').innerText = json.data[val].yahooName || val; document.getElementById('csv-yahoo-price').innerText = json.data[val].price; document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-confirm').style.display = 'block'; } else { alert('找不到此代號'); document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; }
                     } catch (e) { alert('連線異常'); document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; }
                 };
                 document.getElementById('btn-csv-retry').onclick = () => { document.getElementById('csv-step-confirm').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; };
@@ -682,14 +635,10 @@
             document.getElementById('inventory-modal-overlay').classList.add('active');
         }
 
-        // 庫存列表內的智慧連動
         function syncInvInput(market, index, changedField) {
             let portfolio = activeScenarioId === 'real' ? realPortfolio : sandboxScenarios.find(s => s.id === activeScenarioId).portfolio;
-            let item = portfolio[market][index];
-            let m = stockMapCache[item.symbol]; if(!m) return;
-            let exRate = market === 'us' ? currentRate : 1;
-            let sEl = document.getElementById(`inv-shares-${market}-${index}`);
-            let cEl = document.getElementById(`inv-cost-${market}-${index}`);
+            let item = portfolio[market][index]; let m = stockMapCache[item.symbol]; if(!m) return;
+            let exRate = market === 'us' ? currentRate : 1; let sEl = document.getElementById(`inv-shares-${market}-${index}`); let cEl = document.getElementById(`inv-cost-${market}-${index}`);
             if(changedField === 'shares') { cEl.value = Math.round((parseFloat(sEl.value) || 0) * m.price * exRate); } 
             else { sEl.value = ((parseFloat(cEl.value) || 0) / (m.price * exRate)).toFixed(4); }
         }
@@ -763,27 +712,20 @@
         function openReport() {
             if(compareData.realGlobal === null) { showToast("請先匯入資料"); return; }
             isReportRendered = false; 
-            document.getElementById('report-overlay').style.display = 'block';
-            document.body.style.overflow = 'hidden';
+            document.getElementById('report-overlay').style.display = 'block'; document.body.style.overflow = 'hidden';
         }
         function closeReport() { document.getElementById('report-overlay').style.display = 'none'; document.body.style.overflow = ''; }
 
         function renderScatterChart() {
-            if (charts.scatter) charts.scatter.destroy();
-            let d = compareData; let datasets = [];
+            if (charts.scatter) charts.scatter.destroy(); let d = compareData; let datasets = [];
             
             if(d.realGlobal && d.realGlobal.totalVal > 0) datasets.push({ label: '全球總持倉', data: [{x: d.realGlobal.stdev*100, y: d.realGlobal.cagr*100, r: 8}], backgroundColor: '#3498db' });
             if(d.realTW && d.realTW.totalVal > 0) datasets.push({ label: '🇹🇼 台股部位', data: [{x: d.realTW.stdev*100, y: d.realTW.cagr*100, r: 6}], backgroundColor: '#2ecc71' });
             if(d.realUS && d.realUS.totalVal > 0) datasets.push({ label: '🇺🇸 美股部位', data: [{x: d.realUS.stdev*100, y: d.realUS.cagr*100, r: 6}], backgroundColor: '#e74c3c' });
             
-            // 【多重宇宙】把所有建立的劇本畫上去
             const scColors = ['#f1c40f', '#9b59b6', '#00cec9', '#e67e22', '#fd79a8'];
             if(d.sandboxList && d.sandboxList.length > 0) {
-                d.sandboxList.forEach((sc, idx) => {
-                    if(sc.metrics.totalVal > 0) {
-                        datasets.push({ label: `🧪 ${sc.name}`, data: [{x: sc.metrics.stdev*100, y: sc.metrics.cagr*100, r: 8}], backgroundColor: scColors[idx % scColors.length], borderColor: '#fff', borderWidth: 1 });
-                    }
-                });
+                d.sandboxList.forEach((sc, idx) => { if(sc.metrics.totalVal > 0) { datasets.push({ label: `🧪 ${sc.name}`, data: [{x: sc.metrics.stdev*100, y: sc.metrics.cagr*100, r: 8}], backgroundColor: scColors[idx % scColors.length], borderColor: '#fff', borderWidth: 1 }); } });
             }
 
             let legendHtml = ''; datasets.forEach(ds => { legendHtml += `<div class="legend-item"><div class="dot" style="background:${ds.backgroundColor}"></div>${ds.label}</div>`; }); document.getElementById('scatter-legend').innerHTML = legendHtml;
@@ -823,7 +765,6 @@
                 if(twData[dimKey].length>0) datasets.push({ label: '🇹🇼 台股部位', data: twData[dimKey], borderColor: '#2ecc71', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
                 if(usData[dimKey].length>0) datasets.push({ label: '🇺🇸 美股部位', data: usData[dimKey], borderColor: '#e74c3c', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
                 
-                // 【多重宇宙實心線】將所有劇本畫為實心線
                 const scColors = ['#f1c40f', '#9b59b6', '#00cec9', '#e67e22', '#fd79a8'];
                 d.sandboxList.forEach((sc, idx) => {
                     let scData = genTraj(sc.metrics);
@@ -831,9 +772,7 @@
                 });
             }
 
-            charts.mcCompare = new Chart(document.getElementById('mcCompareChart'), {
-                type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: currentMCDim !== 'FULL', labels: { color: '#E0E6ED', boxWidth: 12, font: {size: 11} }, position: 'bottom' }, tooltip: { callbacks: { title: c => ({'0':'今天','1':'未來 1 年','3':'未來 3 年','5':'未來 5 年','10':'未來 10 年'})[c[0].parsed.x]||'', label: c => c.dataset.label + ': ' + Math.round(c.parsed.y) + 'w' } } }, scales: { x: { type: 'linear', grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 10, ticks: { color: '#95A5A6', stepSize: 1, callback: v => ({'0':'今天','1':'+1年','3':'+3年','5':'+5年','10':'+10年'})[v]||'' } }, y: { position: 'right', border: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#95A5A6', callback: v => Math.round(v)+'w' } } } }
-            });
+            charts.mcCompare = new Chart(document.getElementById('mcCompareChart'), { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: currentMCDim !== 'FULL', labels: { color: '#E0E6ED', boxWidth: 12, font: {size: 11} }, position: 'bottom' }, tooltip: { callbacks: { title: c => ({'0':'今天','1':'未來 1 年','3':'未來 3 年','5':'未來 5 年','10':'未來 10 年'})[c[0].parsed.x]||'', label: c => c.dataset.label + ': ' + Math.round(c.parsed.y) + 'w' } } }, scales: { x: { type: 'linear', grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 10, ticks: { color: '#95A5A6', stepSize: 1, callback: v => ({'0':'今天','1':'+1年','3':'+3年','5':'+5年','10':'+10年'})[v]||'' } }, y: { position: 'right', border: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#95A5A6', callback: v => Math.round(v)+'w' } } } } });
         }
 
         // ================= Dashboard 渲染 =================
@@ -856,15 +795,12 @@
             updateCharts(list, totalVal, weightedCAGR, weightedStdev); updateRiskList(list);
         }
 
-        // 【修復】風險名單容錯，不再卡死
         function updateRiskList(list) {
             const container = document.getElementById('risk-list'); container.innerHTML = '';
             if(list.length === 0) { container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div>'; return; }
             const sortedList = [...list].sort((a,b) => (b.cagr || -999) - (a.cagr || -999));
             sortedList.forEach(item => {
-                const cagrStr = item.cagr !== undefined ? (item.cagr*100).toFixed(1)+'%' : '--%';
-                const stdevStr = item.stdev !== undefined ? (item.stdev*100).toFixed(1)+'%' : '--%';
-                const colorClass = (item.cagr !== undefined && item.cagr >= 0) ? 'text-red' : (item.cagr < 0 ? 'text-green' : 'text-muted');
+                const cagrStr = item.cagr !== undefined ? (item.cagr*100).toFixed(1)+'%' : '--%'; const stdevStr = item.stdev !== undefined ? (item.stdev*100).toFixed(1)+'%' : '--%'; const colorClass = (item.cagr !== undefined && item.cagr >= 0) ? 'text-red' : (item.cagr < 0 ? 'text-green' : 'text-muted');
                 container.innerHTML += `<div class="list-row"><div class="col-left"><div class="item-name" title="${item.name}"><span class="badge-market">${item.market}</span> ${item.name}</div><div class="item-sub">YTD: ${(item.ytd*100).toFixed(1)}% | 波動: ${stdevStr}</div></div><div class="col-right"><div class="item-name ${colorClass} num">${cagrStr}</div><div class="item-sub">CAGR</div></div></div>`;
             });
         }
