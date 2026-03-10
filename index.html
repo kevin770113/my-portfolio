@@ -375,7 +375,9 @@
             <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">累積總損益</span><span class="stat-main num" id="val-profit">--</span><span class="stat-sub num" id="val-profit-pct">--%</span></div>
             <div class="stat-item"><span class="stat-label" style="align-items: center; display: flex;">今日損益 (預估) <span id="data-date" style="margin-left:6px; background:#e0e6ed; color:#2c3e50; padding:2px 4px; border-radius:4px; font-size:10px; font-weight:bold; display:none; letter-spacing:0.5px;"></span></span><span class="stat-main num" id="val-day-change">--</span><span class="stat-sub num" id="val-day-change-pct">--%</span></div>
             <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">YTD 績效 (今年)</span><span class="stat-main num" id="val-ytd">--</span><span class="stat-sub num" id="val-ytd-pct">--%</span></div>
-            <div class="stat-item"><span class="stat-label">整體年化報酬 / 波動率</span><span class="stat-main num" id="val-cagr">--%</span><span class="stat-sub text-muted num">標準差 <span id="val-stdev">--%</span></span></div>
+            
+            <div class="stat-item"><span class="stat-label">整體年化報酬 / 波動率 <span style="font-size:10px; color:#95A5A6; margin-left:4px; text-transform:none; font-weight:normal;">(馬可維茲共變異數)</span></span><span class="stat-main num" id="val-cagr">--%</span><span class="stat-sub text-muted num">標準差 <span id="val-stdev">--%</span></span></div>
+            
             <div class="stat-item" style="text-align: right;"><span class="stat-label" style="justify-content: flex-end;">未來 12 個月配息</span><span class="stat-main text-red num" id="val-dividend">--</span><span class="stat-sub text-muted num">殖利率約 <span id="val-yield">--%</span></span></div>
         </div>
         <div class="chart-container-large" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 16px;">
@@ -478,7 +480,49 @@
             else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); bar.innerHTML = `🧪 試算中：${sc.name} ▾`; bar.className = "scenario-bar sandbox"; rowUpload.style.display = "none"; btnInv.innerHTML = "✏️ 調整持股"; }
         }
 
-        // ================= 資料處理 =================
+        // ================= 全域矩陣風險計算引擎 (核心升級) =================
+        function calculateMatrixRisk(list, totalVal) {
+            if (!list || list.length === 0 || totalVal <= 0) return 0;
+            let validStocks = list.filter(s => stockMapCache[s.symbol]);
+            let N = validStocks.length;
+            if (N === 0) return 0;
+            if (N === 1) return stockMapCache[validStocks[0].symbol].stdev || 0;
+
+            let commonMonths = null; let returnsMap = {};
+            validStocks.forEach(s => {
+                let m = stockMapCache[s.symbol];
+                if(m && m.monthlyReturns) {
+                    let months = Object.keys(m.monthlyReturns);
+                    if(commonMonths === null) commonMonths = months; else commonMonths = commonMonths.filter(x => months.includes(x));
+                }
+            });
+
+            let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
+            if (commonMonths && commonMonths.length >= 3) {
+                validStocks.forEach((s) => { returnsMap[s.symbol] = commonMonths.map(mStr => stockMapCache[s.symbol].monthlyReturns[mStr]); });
+                for(let i=0; i<N; i++) {
+                    for(let j=0; j<N; j++) {
+                        let meanI = returnsMap[validStocks[i].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
+                        let meanJ = returnsMap[validStocks[j].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
+                        let cov = 0;
+                        for(let k=0; k<commonMonths.length; k++) { cov += (returnsMap[validStocks[i].symbol][k] - meanI) * (returnsMap[validStocks[j].symbol][k] - meanJ); }
+                        cov = cov / (commonMonths.length - 1);
+                        Sigma[i][j] = cov * 12; // 轉為年化共變異數
+                    }
+                }
+            } else {
+                // 資料不足時退回簡單加權
+                for(let i=0; i<N; i++) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][i] = sd * sd; }
+            }
+
+            let weights = validStocks.map(s => (s.marketValueTWD || 0) / totalVal);
+            
+            let portVar = 0;
+            for(let i=0; i<N; i++) { for(let j=0; j<N; j++) { portVar += weights[i] * weights[j] * Sigma[i][j]; } }
+            return Math.sqrt(Math.max(0, portVar));
+        }
+
+        // ================= 資料處理與 API 連線 =================
         async function updateFinanceData() {
             let symbolsToFetch = new Set();
             realPortfolio.tw.forEach(i => symbolsToFetch.add(i.symbol)); realPortfolio.us.forEach(i => symbolsToFetch.add(i.symbol));
@@ -524,7 +568,8 @@
 
         function calcPortfolioMetrics(list) {
             let totalVal = list.reduce((s, i) => s + (i.marketValueTWD || 0), 0); if (totalVal === 0) return { totalVal: 0, cagr: 0, stdev: 0 };
-            let cagr = list.reduce((s, i) => s + ((i.cagr || 0) * (i.marketValueTWD || 0)), 0) / totalVal; let stdev = list.reduce((s, i) => s + ((i.stdev || 0) * (i.marketValueTWD || 0)), 0) / totalVal;
+            let cagr = list.reduce((s, i) => s + ((i.cagr || 0) * (i.marketValueTWD || 0)), 0) / totalVal; 
+            let stdev = calculateMatrixRisk(list, totalVal); // 改採馬可維茲引擎計算
             return { totalVal, cagr, stdev };
         }
 
@@ -542,7 +587,7 @@
             localStorage.setItem('sync_invest_data', JSON.stringify({ totalValue: metrics.totalVal, cagr: metrics.cagr, dividendYield: metrics.totalVal > 0 ? (totalExpectedDividend / metrics.totalVal) : 0, timestamp: new Date().getTime() }));
         }
 
-        // ================= CSV 匯入 =================
+        // ================= CSV 匯入與字典解析 =================
         async function handleFileUpload(event, market) {
             const file = event.target.files[0]; if (!file) return; setLoading(true);
             Papa.parse(file, {
@@ -597,7 +642,6 @@
                 if(!list || list.length === 0) return;
                 let html = `<div style="font-weight:bold; margin: 15px 0 8px; color: var(--primary-dark); font-size: 15px; border-bottom: 2px solid #eaeaea; padding-bottom: 4px;">${market === 'tw' ? '🇹🇼 台股' : '🇺🇸 美股'}</div>`;
                 list.forEach((item, index) => {
-                    // 【UI優化】輸入框標題加上原幣提示
                     html += `<div class="inv-item">
                             <div class="inv-item-header"><span>${item.name} <span style="color:#999; font-weight:normal; font-size:12px;">(${item.symbol})</span></span></div>
                             ${activeScenarioId !== 'real' ? `<button class="btn-del-stock" onclick="removeSandboxStock('${market}', ${index})">✕</button>` : ''}
@@ -618,7 +662,6 @@
             let portfolio = activeScenarioId === 'real' ? realPortfolio : sandboxScenarios.find(s => s.id === activeScenarioId).portfolio;
             let item = portfolio[market][index]; let m = stockMapCache[item.symbol]; if(!m) return;
             let sEl = document.getElementById(`inv-shares-${market}-${index}`); let cEl = document.getElementById(`inv-cost-${market}-${index}`);
-            // 【修復】這裡不乘匯率，保持原幣連動
             if(changedField === 'shares') { cEl.value = parseFloat(((parseFloat(sEl.value) || 0) * m.price).toFixed(2)); } 
             else { sEl.value = parseFloat(((parseFloat(cEl.value) || 0) / m.price).toFixed(4)); }
         }
@@ -631,7 +674,6 @@
             else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); updateList('tw', sc.portfolio.tw); updateList('us', sc.portfolio.us); saveScenarios(); }
             closeInventoryManager(); setLoading(true); try { await updateFinanceData(); showToast("✅ 組合已更新並重新計算"); } catch (err) {} finally { setLoading(false); }
         }
-        
         function removeSandboxStock(market, index) { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); if(sc) { sc.portfolio[market].splice(index, 1); openInventoryManager(); } }
 
         function openSandboxAddStock() { closeInventoryManager(); const overlay = document.getElementById('sandbox-add-overlay'); document.getElementById('sb-step-input').style.display = 'block'; document.getElementById('sb-step-confirm').style.display = 'none'; document.getElementById('sb-input-val').value = ''; overlay.classList.add('active'); }
@@ -657,7 +699,7 @@
             let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
             let market = symbol.includes('.TW') || symbol.includes('.TWO') ? 'tw' : 'us'; 
             let exRate = market === 'us' ? currentRate : 1;
-            let finalCost = parseFloat((budgetTWD / exRate).toFixed(2)); // 【修復】換回原幣儲存
+            let finalCost = parseFloat((budgetTWD / exRate).toFixed(2)); 
             sc.portfolio[market].push({ market: market.toUpperCase(), name: name, symbol: symbol, shares: shares, cost: finalCost });
             document.getElementById('sandbox-add-overlay').classList.remove('active'); saveInventoryChanges(); 
         };
@@ -716,7 +758,6 @@
                     for(let i=0; i<N; i++) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][i] = sd * sd; }
                 }
 
-                // 【公平打擂台：將原組合過水，算出真實的矩陣風險】
                 let origTotalVal = 0;
                 validStocks.forEach(s => { let exRate = s.market === 'US' ? currentRate : 1; origTotalVal += s.shares * stockMapCache[s.symbol].price * exRate; });
                 let origWeights = validStocks.map(s => { if(origTotalVal === 0) return 1/N; let exRate = s.market === 'US' ? currentRate : 1; return (s.shares * stockMapCache[s.symbol].price * exRate) / origTotalVal; });
@@ -822,9 +863,7 @@
                 let targetValTWD = totalVal * pendingAIWeights.weights[idx];
                 let exRate = s.market === 'US' ? currentRate : 1;
                 let targetShares = targetValTWD / (stockMapCache[s.symbol].price * exRate);
-                
-                // 【修復】雙重匯率放大 Bug：將 TWD 還原為 USD 再存入成本
-                let targetCost = targetValTWD / exRate;
+                let targetCost = targetValTWD / exRate; 
                 
                 let item = sc.portfolio.tw.find(x => x.symbol === s.symbol) || sc.portfolio.us.find(x => x.symbol === s.symbol);
                 if(item) { 
@@ -839,24 +878,55 @@
             updateFinanceData().then(() => { setLoading(false); showToast("✅ 智能配置套用成功！"); });
         }
 
-        // ================= Dashboard 工具 =================
-        function askClearAllData() {
-            openConfirmModal("警告", "確定要清空所有真實持股資料嗎？<br><br>這將移除儀表板上的所有紀錄。", "確定清空", () => {
-                localStorage.removeItem('portfolio_tw'); localStorage.removeItem('portfolio_us');
-                realPortfolio = { tw: [], us: [] }; globalCombinedList = [];
-                document.getElementById('label-tw').innerText = '📁 匯入台股'; document.getElementById('label-us').innerText = '📁 匯入美股';
-                exportGlobalSyncData([]); renderCurrentView(); showToast('已清空所有資料');
-            });
-        }
+        // ================= Dashboard 渲染 =================
+        function askClearAllData() { openConfirmModal("警告", "確定要清空所有真實持股資料嗎？<br><br>這將移除儀表板上的所有紀錄。", "確定清空", () => { localStorage.removeItem('portfolio_tw'); localStorage.removeItem('portfolio_us'); realPortfolio = { tw: [], us: [] }; globalCombinedList = []; document.getElementById('label-tw').innerText = '📁 匯入台股'; document.getElementById('label-us').innerText = '📁 匯入美股'; exportGlobalSyncData([]); renderCurrentView(); showToast('已清空所有資料'); }); }
         function togglePrivacy() { isPrivacyMode = !isPrivacyMode; document.getElementById('btn-privacy').innerHTML = isPrivacyMode ? '🙈' : '👁️'; renderCurrentView(); showToast(isPrivacyMode ? "隱私模式已開啟" : "隱私模式已關閉"); }
         function switchMarket(market) { currentMarketView = market; document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active')); document.getElementById(`tab-${market}`).classList.add('active'); renderCurrentView(); let name = market === 'ALL' ? '全球總覽' : (market === 'TW' ? '台股' : '美股'); showToast(`已切換至 ${name}`); }
+        
         function renderCurrentView() {
             if (globalCombinedList.length === 0) { renderDashboard([]); return; }
             let filteredList = currentMarketView !== 'ALL' ? globalCombinedList.filter(item => item.market === currentMarketView) : globalCombinedList;
             renderDashboard(filteredList);
         }
 
-        // ================= 全劇本深度比較報告 =================
+        function renderDashboard(list) {
+            if (list.length === 0) {
+                document.getElementById('val-total').innerText = fmtMoney(0); document.getElementById('val-cost').innerText = fmtMoney(0); document.getElementById('val-profit').innerText = fmtMoney(0); document.getElementById('val-profit').className = 'stat-main num text-muted'; document.getElementById('val-profit-pct').innerText = '0.00%'; document.getElementById('val-profit-pct').className = 'stat-sub num text-muted'; document.getElementById('val-day-change').innerText = fmtMoney(0); document.getElementById('val-day-change').className = 'stat-main num text-muted'; document.getElementById('val-day-change-pct').innerText = '0.00%'; document.getElementById('val-day-change-pct').className = 'stat-sub num text-muted'; document.getElementById('val-ytd').innerText = fmtMoney(0); document.getElementById('val-ytd').className = 'stat-main num text-muted'; document.getElementById('val-ytd-pct').innerText = '0.00%'; document.getElementById('val-ytd-pct').className = 'stat-sub num text-muted'; document.getElementById('val-cagr').innerText = '0.0%'; document.getElementById('val-cagr').className = 'stat-main num text-muted'; document.getElementById('val-stdev').innerText = '--%'; document.getElementById('val-dividend').innerText = fmtMoney(0); document.getElementById('val-yield').innerText = '0.00%';
+                if (charts.alloc) charts.alloc.destroy(); if (charts.perf) charts.perf.destroy(); if (charts.mc) charts.mc.destroy(); if (charts.cf) charts.cf.destroy();
+                document.getElementById('alloc-legend').innerHTML = '<div style="color: #999; text-align: center; margin-top: 50px;">此市場暫無資料</div>'; updateRiskList([]); return;
+            }
+            const totalVal = list.reduce((a, b) => a + (b.marketValueTWD || 0), 0); const totalCost = list.reduce((a, b) => a + (b.costTWD || 0), 0); const totalProfit = totalVal - totalCost; const dayChange = list.reduce((a, b) => a + (b.dayChangeTWD || 0), 0);
+            document.getElementById('val-total').innerText = fmtMoney(totalVal); document.getElementById('val-cost').innerText = fmtMoney(totalCost);
+            const profitEl = document.getElementById('val-profit'); profitEl.innerText = (totalProfit > 0 ? '+' : '') + fmtMoney(totalProfit); profitEl.className = `stat-main num ${totalProfit >= 0 ? 'text-red' : 'text-green'}`;
+            const profitPctEl = document.getElementById('val-profit-pct'); profitPctEl.innerText = (totalCost > 0 ? ((totalProfit/totalCost)*100).toFixed(2) : 0) + '%'; profitPctEl.className = `stat-sub num ${totalProfit >= 0 ? 'text-red' : 'text-green'}`;
+            const dayEl = document.getElementById('val-day-change'); const dayPctEl = document.getElementById('val-day-change-pct'); const dayPct = totalVal > 0 ? (dayChange / totalVal) : 0;
+            if (Math.abs(dayPct) > 0.25) { dayEl.innerText = '盤後/異常'; dayEl.className = 'stat-main num text-muted'; dayPctEl.innerText = '--%'; dayPctEl.className = 'stat-sub num text-muted'; } else { dayEl.innerText = (dayChange > 0 ? '+' : '') + fmtMoney(dayChange); dayEl.className = `stat-main num ${dayChange >= 0 ? 'text-red' : 'text-green'}`; dayPctEl.innerText = (dayPct > 0 ? '+' : '') + (dayPct * 100).toFixed(2) + '%'; dayPctEl.className = `stat-sub num ${dayChange >= 0 ? 'text-red' : 'text-green'}`; }
+            
+            let weightedYTD = 0, weightedCAGR = 0;
+            if (totalVal > 0) { list.forEach(i => { let w = (i.marketValueTWD / totalVal); if (i.ytd) weightedYTD += i.ytd * w; if (i.cagr) weightedCAGR += i.cagr * w; }); }
+            
+            const ytdAmount = totalVal - (totalVal / (1 + weightedYTD)); document.getElementById('val-ytd').innerText = (ytdAmount > 0 ? '+' : '') + fmtMoney(ytdAmount); document.getElementById('val-ytd').className = `stat-main num ${ytdAmount >= 0 ? 'text-red' : 'text-green'}`; document.getElementById('val-ytd-pct').innerText = (weightedYTD > 0 ? '+' : '') + (weightedYTD * 100).toFixed(2) + '%'; document.getElementById('val-ytd-pct').className = `stat-sub num ${ytdAmount >= 0 ? 'text-red' : 'text-green'}`;
+            document.getElementById('val-cagr').innerText = (weightedCAGR * 100).toFixed(1) + '%'; document.getElementById('val-cagr').className = weightedCAGR >= 0 ? 'stat-main num text-red' : 'stat-main num text-green'; 
+            
+            // 【馬可維茲引擎】計算主面板真實風險
+            let matrixStdev = calculateMatrixRisk(list, totalVal);
+            document.getElementById('val-stdev').innerText = (matrixStdev * 100).toFixed(1) + '%';
+            
+            updateCharts(list, totalVal, weightedCAGR, matrixStdev); 
+            updateRiskList(list);
+        }
+
+        function updateRiskList(list) {
+            const container = document.getElementById('risk-list'); container.innerHTML = '';
+            if(list.length === 0) { container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div>'; return; }
+            const sortedList = [...list].sort((a,b) => (b.cagr || -999) - (a.cagr || -999));
+            sortedList.forEach(item => {
+                const cagrStr = item.cagr !== undefined ? (item.cagr*100).toFixed(1)+'%' : '--%'; const stdevStr = item.stdev !== undefined ? (item.stdev*100).toFixed(1)+'%' : '--%'; const colorClass = (item.cagr !== undefined && item.cagr >= 0) ? 'text-red' : (item.cagr < 0 ? 'text-green' : 'text-muted');
+                container.innerHTML += `<div class="list-row"><div class="col-left"><div class="item-name" title="${item.name}"><span class="badge-market">${item.market}</span> ${item.name}</div><div class="item-sub">YTD: ${(item.ytd*100).toFixed(1)}% | 波動: ${stdevStr}</div></div><div class="col-right"><div class="item-name ${colorClass} num">${cagrStr}</div><div class="item-sub">CAGR</div></div></div>`;
+            });
+        }
+
+        // ================= 比較報告圖表 =================
         function openReport() {
             if(compareData.realGlobal === null) { showToast("請先匯入資料"); return; }
             isReportRendered = false; document.getElementById('report-overlay').style.display = 'block'; document.body.style.overflow = 'hidden';
@@ -898,43 +968,13 @@
                 if(gData[dimKey].length>0) datasets.push({ label: '全球總持倉', data: gData[dimKey], borderColor: '#3498db', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
                 if(twData[dimKey].length>0) datasets.push({ label: '🇹🇼 台股部位', data: twData[dimKey], borderColor: '#2ecc71', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
                 if(usData[dimKey].length>0) datasets.push({ label: '🇺🇸 美股部位', data: usData[dimKey], borderColor: '#e74c3c', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
-                
                 const scColors = ['#f1c40f', '#9b59b6', '#00cec9', '#e67e22', '#fd79a8'];
                 d.sandboxList.forEach((sc, idx) => { let scData = genTraj(sc.metrics); if(scData[dimKey].length>0) datasets.push({ label: `🧪 ${sc.name}`, data: scData[dimKey], borderColor: scColors[idx % scColors.length], borderWidth: 3, fill: false, pointRadius: 4, tension: 0.4 }); });
             }
             charts.mcCompare = new Chart(document.getElementById('mcCompareChart'), { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: currentMCDim !== 'FULL', labels: { color: '#E0E6ED', boxWidth: 12, font: {size: 11} }, position: 'bottom' }, tooltip: { callbacks: { title: c => ({'0':'今天','1':'未來 1 年','3':'未來 3 年','5':'未來 5 年','10':'未來 10 年'})[c[0].parsed.x]||'', label: c => c.dataset.label + ': ' + Math.round(c.parsed.y) + 'w' } } }, scales: { x: { type: 'linear', grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 10, ticks: { color: '#95A5A6', stepSize: 1, callback: v => ({'0':'今天','1':'+1年','3':'+3年','5':'+5年','10':'+10年'})[v]||'' } }, y: { position: 'right', border: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#95A5A6', callback: v => Math.round(v)+'w' } } } } });
         }
 
-        // ================= Dashboard 渲染 =================
-        function renderDashboard(list) {
-            if (list.length === 0) {
-                document.getElementById('val-total').innerText = fmtMoney(0); document.getElementById('val-cost').innerText = fmtMoney(0); document.getElementById('val-profit').innerText = fmtMoney(0); document.getElementById('val-profit').className = 'stat-main num text-muted'; document.getElementById('val-profit-pct').innerText = '0.00%'; document.getElementById('val-profit-pct').className = 'stat-sub num text-muted'; document.getElementById('val-day-change').innerText = fmtMoney(0); document.getElementById('val-day-change').className = 'stat-main num text-muted'; document.getElementById('val-day-change-pct').innerText = '0.00%'; document.getElementById('val-day-change-pct').className = 'stat-sub num text-muted'; document.getElementById('val-ytd').innerText = fmtMoney(0); document.getElementById('val-ytd').className = 'stat-main num text-muted'; document.getElementById('val-ytd-pct').innerText = '0.00%'; document.getElementById('val-ytd-pct').className = 'stat-sub num text-muted'; document.getElementById('val-cagr').innerText = '0.0%'; document.getElementById('val-cagr').className = 'stat-main num text-muted'; document.getElementById('val-stdev').innerText = '--%'; document.getElementById('val-dividend').innerText = fmtMoney(0); document.getElementById('val-yield').innerText = '0.00%';
-                if (charts.alloc) charts.alloc.destroy(); if (charts.perf) charts.perf.destroy(); if (charts.mc) charts.mc.destroy(); if (charts.cf) charts.cf.destroy();
-                document.getElementById('alloc-legend').innerHTML = '<div style="color: #999; text-align: center; margin-top: 50px;">此市場暫無資料</div>'; updateRiskList([]); return;
-            }
-            const totalVal = list.reduce((a, b) => a + (b.marketValueTWD || 0), 0); const totalCost = list.reduce((a, b) => a + (b.costTWD || 0), 0); const totalProfit = totalVal - totalCost; const dayChange = list.reduce((a, b) => a + (b.dayChangeTWD || 0), 0);
-            document.getElementById('val-total').innerText = fmtMoney(totalVal); document.getElementById('val-cost').innerText = fmtMoney(totalCost);
-            const profitEl = document.getElementById('val-profit'); profitEl.innerText = (totalProfit > 0 ? '+' : '') + fmtMoney(totalProfit); profitEl.className = `stat-main num ${totalProfit >= 0 ? 'text-red' : 'text-green'}`;
-            const profitPctEl = document.getElementById('val-profit-pct'); profitPctEl.innerText = (totalCost > 0 ? ((totalProfit/totalCost)*100).toFixed(2) : 0) + '%'; profitPctEl.className = `stat-sub num ${totalProfit >= 0 ? 'text-red' : 'text-green'}`;
-            const dayEl = document.getElementById('val-day-change'); const dayPctEl = document.getElementById('val-day-change-pct'); const dayPct = totalVal > 0 ? (dayChange / totalVal) : 0;
-            if (Math.abs(dayPct) > 0.25) { dayEl.innerText = '盤後/異常'; dayEl.className = 'stat-main num text-muted'; dayPctEl.innerText = '--%'; dayPctEl.className = 'stat-sub num text-muted'; } else { dayEl.innerText = (dayChange > 0 ? '+' : '') + fmtMoney(dayChange); dayEl.className = `stat-main num ${dayChange >= 0 ? 'text-red' : 'text-green'}`; dayPctEl.innerText = (dayPct > 0 ? '+' : '') + (dayPct * 100).toFixed(2) + '%'; dayPctEl.className = `stat-sub num ${dayChange >= 0 ? 'text-red' : 'text-green'}`; }
-            let weightedYTD = 0, weightedCAGR = 0, weightedStdev = 0;
-            if (totalVal > 0) { list.forEach(i => { let w = (i.marketValueTWD / totalVal); if (i.ytd) weightedYTD += i.ytd * w; if (i.cagr) weightedCAGR += i.cagr * w; if (i.stdev) weightedStdev += i.stdev * w; }); }
-            const ytdAmount = totalVal - (totalVal / (1 + weightedYTD)); document.getElementById('val-ytd').innerText = (ytdAmount > 0 ? '+' : '') + fmtMoney(ytdAmount); document.getElementById('val-ytd').className = `stat-main num ${ytdAmount >= 0 ? 'text-red' : 'text-green'}`; document.getElementById('val-ytd-pct').innerText = (weightedYTD > 0 ? '+' : '') + (weightedYTD * 100).toFixed(2) + '%'; document.getElementById('val-ytd-pct').className = `stat-sub num ${ytdAmount >= 0 ? 'text-red' : 'text-green'}`;
-            document.getElementById('val-cagr').innerText = (weightedCAGR * 100).toFixed(1) + '%'; document.getElementById('val-cagr').className = weightedCAGR >= 0 ? 'stat-main num text-red' : 'stat-main num text-green'; document.getElementById('val-stdev').innerText = (weightedStdev * 100).toFixed(1) + '%';
-            updateCharts(list, totalVal, weightedCAGR, weightedStdev); updateRiskList(list);
-        }
-
-        function updateRiskList(list) {
-            const container = document.getElementById('risk-list'); container.innerHTML = '';
-            if(list.length === 0) { container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div>'; return; }
-            const sortedList = [...list].sort((a,b) => (b.cagr || -999) - (a.cagr || -999));
-            sortedList.forEach(item => {
-                const cagrStr = item.cagr !== undefined ? (item.cagr*100).toFixed(1)+'%' : '--%'; const stdevStr = item.stdev !== undefined ? (item.stdev*100).toFixed(1)+'%' : '--%'; const colorClass = (item.cagr !== undefined && item.cagr >= 0) ? 'text-red' : (item.cagr < 0 ? 'text-green' : 'text-muted');
-                container.innerHTML += `<div class="list-row"><div class="col-left"><div class="item-name" title="${item.name}"><span class="badge-market">${item.market}</span> ${item.name}</div><div class="item-sub">YTD: ${(item.ytd*100).toFixed(1)}% | 波動: ${stdevStr}</div></div><div class="col-right"><div class="item-name ${colorClass} num">${cagrStr}</div><div class="item-sub">CAGR</div></div></div>`;
-            });
-        }
-
+        // ================= 其他圖表繪製 =================
         function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
             const sortedByVal = [...list].sort((a,b) => b.marketValueTWD - a.marketValueTWD); const top5 = sortedByVal.slice(0, 5); const othersVal = sortedByVal.slice(5).reduce((a,b) => a + b.marketValueTWD, 0);
             const labels = top5.map(i => i.name); const data = top5.map(i => i.marketValueTWD); const colors = ['#d93025', '#e2584f', '#ea8079', '#f2a8a4', '#f9cfce', '#dadce0', '#b0bec5', '#90a4ae', '#78909c', '#607d8b']; if (othersVal > 0) { labels.push('其他'); data.push(othersVal); }
