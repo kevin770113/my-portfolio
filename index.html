@@ -131,6 +131,12 @@
         .btn-ai-magic { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; font-size: 14px; width: 100%; margin-bottom: 15px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 6px; box-shadow: 0 4px 10px rgba(118, 75, 162, 0.3); transition: transform 0.2s; }
         .btn-ai-magic:active { transform: scale(0.98); }
 
+        /* ================= AI 選項卡片設計 ================= */
+        .ai-opt-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; margin-bottom: 15px; }
+        .ai-opt-card { background: #f8f9fa; border: 2px solid transparent; border-radius: 10px; padding: 14px 16px; font-size: 14px; font-weight: 600; color: #7f8c8d; cursor: pointer; transition: all 0.2s ease; text-align: left; line-height: 1.4; -webkit-tap-highlight-color: transparent; }
+        .ai-opt-card.active { background: #e8f4fd; border-color: var(--primary-dark); color: var(--primary-dark); font-weight: 700; box-shadow: 0 4px 12px rgba(44, 62, 80, 0.08); transform: translateY(-1px); }
+        .ai-opt-card:active { transform: scale(0.98); }
+
         .report-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #1A252F; z-index: 4500; display: none; overflow-y: auto; animation: slideUp 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); padding: 15px; color: white; }
         .report-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; margin-top: 10px; }
         .report-title { font-size: 20px; font-weight: bold; color: #CF9236; margin: 0; }
@@ -278,13 +284,14 @@
             <div class="prompt-desc">以現有持股進行馬可維茲矩陣與蒙地卡羅模擬，尋找最佳配置。</div>
 
             <div style="text-align:left; margin-bottom:15px;">
-                <label style="font-size:12px; font-weight:bold; color:var(--primary-dark);">🎯 最佳化目標</label>
-                <select id="ai-opt-objective" class="prompt-input" style="height:40px; font-size:14px; margin-top:5px; background:#f8f9fa;">
-                    <option value="efficiency">⚖️ 投資效率最大化 (報酬/風險比)</option>
-                    <option value="max_cagr">🚀 報酬最大化</option>
-                    <option value="min_risk">🛡️ 風險最小化</option>
-                    <option value="max_yield">💰 殖利率最大化</option>
-                </select>
+                <label style="font-size:12px; font-weight:bold; color:var(--primary-dark);">最佳化目標</label>
+                <input type="hidden" id="ai-opt-objective" value="efficiency">
+                <div class="ai-opt-cards">
+                    <div class="ai-opt-card active" data-val="efficiency" onclick="selectAIOpt(this)">投資效率最大化 (報酬/風險比)</div>
+                    <div class="ai-opt-card" data-val="max_cagr" onclick="selectAIOpt(this)">報酬最大化</div>
+                    <div class="ai-opt-card" data-val="min_risk" onclick="selectAIOpt(this)">風險最小化</div>
+                    <div class="ai-opt-card" data-val="max_yield" onclick="selectAIOpt(this)">殖利率最大化</div>
+                </div>
             </div>
 
             <div style="text-align:left; margin-bottom:15px; background:#f0f2f5; padding:12px; border-radius:8px;">
@@ -429,8 +436,6 @@
                 }
             });
             observer.observe(reportOverlay);
-
-            // 移除自動換算監聽器，讓使用者自由填寫歷史成本與股數
 
             const savedTW = localStorage.getItem('portfolio_tw'); const savedUS = localStorage.getItem('portfolio_us'); const savedScen = localStorage.getItem('invest_scenarios_v1');
             if (savedTW) try { realPortfolio.tw = JSON.parse(savedTW); } catch(e) {}
@@ -641,7 +646,6 @@
                 if(!list || list.length === 0) return;
                 let html = `<div style="font-weight:bold; margin: 15px 0 8px; color: var(--primary-dark); font-size: 15px; border-bottom: 2px solid #eaeaea; padding-bottom: 4px;">${market === 'tw' ? '🇹🇼 台股' : '🇺🇸 美股'}</div>`;
                 list.forEach((item, index) => {
-                    // 【解除連動】移除 oninput 事件，讓使用者自由填寫歷史成本
                     html += `<div class="inv-item">
                             <div class="inv-item-header"><span>${item.name} <span style="color:#999; font-weight:normal; font-size:12px;">(${item.symbol})</span></span></div>
                             ${activeScenarioId !== 'real' ? `<button class="btn-del-stock" onclick="removeSandboxStock('${market}', ${index})">✕</button>` : ''}
@@ -657,7 +661,7 @@
             if(portfolio.tw.length === 0 && portfolio.us.length === 0) container.innerHTML = '<div style="text-align:center; padding: 30px 20px; color:#999;">無資料。</div>';
             document.getElementById('inventory-modal-overlay').classList.add('active');
         }
-
+        
         function closeInventoryManager() { document.getElementById('inventory-modal-overlay').classList.remove('active'); }
         
         async function saveInventoryChanges() {
@@ -683,7 +687,6 @@
         };
         document.getElementById('btn-sb-retry').onclick = openSandboxAddStock;
         
-        // 【解除連動與精準防呆】儲存時直接拿原幣數值
         document.getElementById('btn-sb-save').onclick = () => {
             let shares = parseFloat(document.getElementById('sb-shares').value) || 0; 
             let finalCost = parseFloat(document.getElementById('sb-cost').value) || 0; 
@@ -703,6 +706,13 @@
             saveInventoryChanges(); 
         };
 
+        // ================= AI 最佳化卡片點擊事件 =================
+        function selectAIOpt(el) {
+            document.querySelectorAll('.ai-opt-card').forEach(card => card.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById('ai-opt-objective').value = el.getAttribute('data-val');
+        }
+
         let pendingAIWeights = null;
         
         function openAIOptimizer() {
@@ -710,7 +720,9 @@
             let sc = sandboxScenarios.find(s => s.id === activeScenarioId);
             let totalStocks = sc.portfolio.tw.length + sc.portfolio.us.length;
             if(totalStocks < 2) { 
-                showInfoModal("⚠️ 資料不足", "AI 智能配置需要利用資產間的相關性來抵銷風險。<br><br>請至少加入 <b>2 檔</b> 不同的股票才能啟動最佳化引擎！", true, () => { openInventoryManager(); }); 
+                showInfoModal("⚠️ 資料不足", "AI 智能配置需要利用資產間的相關性來抵銷風險。<br><br>請至少加入 <b>2 檔</b> 不同的股票才能啟動最佳化引擎！", true, () => {
+                    openInventoryManager(); 
+                }); 
                 return; 
             }
             document.getElementById('ai-opt-modal').classList.add('active');
@@ -800,7 +812,7 @@
 
                 if(bestWeights === null) {
                     showInfoModal("⚠️ 無法找到最佳解", "您設定的限制條件過於嚴苛，無法在 10,000 次模擬中找到符合所有條件的配置組合。<br><br>請嘗試調降「最低報酬」或調高「最高風險」後重試！", true, () => {
-                        document.getElementById('ai-opt-modal').classList.add('active');
+                        document.getElementById('ai-opt-modal').classList.add('active'); 
                     });
                 } else {
                     pendingAIWeights = { weights: bestWeights, stocks: validStocks };
