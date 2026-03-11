@@ -7,7 +7,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
-    <!-- 若遭廣告阻擋器攔截，系統將啟動優雅降級防禦 -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     
     <style>
@@ -327,8 +326,7 @@
     </div>
 
     <div id="ai-res-modal" class="modal-overlay system-top">
-        <div class="custom-prompt-box" id="ai-res-content" style="padding:20px;">
-            </div>
+        <div class="custom-prompt-box" id="ai-res-content" style="padding:20px;"></div>
     </div>
 
     <div id="report-overlay" class="report-overlay">
@@ -406,7 +404,6 @@
         </div>
     </div>
 
-    
     <div class="card galaxy-card">
         <div class="galaxy-header">
             <h2 class="card-title">🪐 資產連動星系圖</h2>
@@ -473,7 +470,14 @@
             updateScenarioUI();
             if (realPortfolio.tw.length > 0 || realPortfolio.us.length > 0) { 
                 setLoading(true); 
-                try { await updateFinanceData(); } catch(e) { console.error("資料更新異常:", e); renderCurrentView(); } finally { setLoading(false); } 
+                try { 
+                    await updateFinanceData(); 
+                } catch(e) { 
+                    console.error("資料更新異常:", e); 
+                    renderCurrentView(); 
+                } finally { 
+                    setLoading(false); 
+                } 
             } else { 
                 renderCurrentView(); 
             }
@@ -617,6 +621,8 @@
 
             const dateEl = document.getElementById('data-date');
             if (globalCombinedList.length > 0) { let d = latestDataTime > 0 ? new Date(latestDataTime * 1000) : new Date(); let mm = (d.getMonth() + 1).toString().padStart(2, '0'); let dd = d.getDate().toString().padStart(2, '0'); dateEl.innerText = `📅 ${mm}/${dd}`; dateEl.style.display = 'inline-block'; } else { dateEl.style.display = 'none'; }
+            
+            // 安全觸發畫面更新
             renderCurrentView();
         }
 
@@ -656,11 +662,13 @@
                 }
             });
         }
+        
         async function processDictionary(twList) {
             const names = twList.map(item => item.name); const res = await fetch('/api/dictionary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ names }) }); const dictMap = await res.json();
             for (let item of twList) { if (dictMap[item.name]) { item.symbol = dictMap[item.name]; } else { const input = await askForSymbol(item.name); item.symbol = input; if (input !== 'SKIP') await fetch('/api/dictionary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ update: { name: item.name, symbol: input } }) }); } }
             localStorage.setItem('portfolio_tw', JSON.stringify(twList));
         }
+
         function askForSymbol(stockName) {
             return new Promise((resolve) => {
                 setLoading(false); const overlay = document.getElementById('csv-prompt-overlay'); document.getElementById('csv-stock-name').innerText = stockName; document.getElementById('csv-input-val').value = ''; document.getElementById('csv-error-msg').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-confirm').style.display = 'none';
@@ -718,6 +726,7 @@
             else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); updateList('tw', sc.portfolio.tw); updateList('us', sc.portfolio.us); saveScenarios(); }
             closeInventoryManager(); setLoading(true); try { await updateFinanceData(); showToast("✅ 組合已更新並重新計算"); } catch (err) {} finally { setLoading(false); }
         }
+
         function removeSandboxStock(market, index) { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); if(sc) { sc.portfolio[market].splice(index, 1); openInventoryManager(); } }
 
         function openSandboxAddStock() { closeInventoryManager(); const overlay = document.getElementById('sandbox-add-overlay'); document.getElementById('sb-step-input').style.display = 'block'; document.getElementById('sb-step-confirm').style.display = 'none'; document.getElementById('sb-input-val').value = ''; overlay.classList.add('active'); }
@@ -1025,7 +1034,7 @@
             updateFinanceData().then(() => { setLoading(false); showToast("✅ 演算配置套用成功！"); });
         }
 
-        // 全域動畫計時器
+        // ================= 【史詩進化】活體星系拓樸圖 =================
         let galaxyNodesData = [];
         if(window.galaxyPulseInterval) clearInterval(window.galaxyPulseInterval);
         if(window.galaxyFlashInterval) clearInterval(window.galaxyFlashInterval);
@@ -1321,6 +1330,45 @@
                 d.sandboxList.forEach((sc, idx) => { if(sc.metrics){ let scData = genTraj(sc.metrics); if(scData[dimKey].length>0) datasets.push({ label: `🧪 ${sc.name}`, data: scData[dimKey], borderColor: scColors[idx % scColors.length], borderWidth: 3, fill: false, pointRadius: 4, tension: 0.4 }); } });
             }
             charts.mcCompare = new Chart(document.getElementById('mcCompareChart'), { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: currentMCDim !== 'FULL', labels: { color: '#E0E6ED', boxWidth: 12, font: {size: 11} }, position: 'bottom' }, tooltip: { callbacks: { title: c => ({'0':'今天','1':'未來 1 年','3':'未來 3 年','5':'未來 5 年','10':'未來 10 年'})[c[0].parsed.x]||'', label: c => c.dataset.label + ': ' + Math.round(c.parsed.y) + 'w' } } }, scales: { x: { type: 'linear', grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 10, ticks: { color: '#95A5A6', stepSize: 1, callback: v => ({'0':'今天','1':'+1年','3':'+3年','5':'+5年','10':'+10年'})[v]||'' } }, y: { position: 'right', border: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#95A5A6', callback: v => Math.round(v)+'w' } } } } });
+        }
+
+        // 【失落的拼圖補齊】 - 核心儀表板渲染與報表更新邏輯
+        function renderDashboard(list) {
+            if (list.length === 0) {
+                document.getElementById('val-total').innerText = fmtMoney(0); document.getElementById('val-cost').innerText = fmtMoney(0); document.getElementById('val-profit').innerText = fmtMoney(0); document.getElementById('val-profit').className = 'stat-main num text-muted'; document.getElementById('val-profit-pct').innerText = '0.00%'; document.getElementById('val-profit-pct').className = 'stat-sub num text-muted'; document.getElementById('val-day-change').innerText = fmtMoney(0); document.getElementById('val-day-change').className = 'stat-main num text-muted'; document.getElementById('val-day-change-pct').innerText = '0.00%'; document.getElementById('val-day-change-pct').className = 'stat-sub num text-muted'; document.getElementById('val-ytd').innerText = fmtMoney(0); document.getElementById('val-ytd').className = 'stat-main num text-muted'; document.getElementById('val-ytd-pct').innerText = '0.00%'; document.getElementById('val-ytd-pct').className = 'stat-sub num text-muted'; document.getElementById('val-cagr').innerText = '0.0%'; document.getElementById('val-cagr').className = 'stat-main num text-muted'; document.getElementById('val-stdev').innerText = '--%'; document.getElementById('val-dividend').innerText = fmtMoney(0); document.getElementById('val-yield').innerText = '0.00%';
+                if (charts.alloc) charts.alloc.destroy(); if (charts.perf) charts.perf.destroy(); if (charts.mc) charts.mc.destroy(); if (charts.cf) charts.cf.destroy();
+                if (charts.corr) { charts.corr.dispose(); charts.corr = null; }
+                document.getElementById('alloc-legend').innerHTML = '<div style="color: #999; text-align: center; margin-top: 50px;">此市場暫無資料</div>'; updateRiskList([]); return;
+            }
+            const totalVal = list.reduce((a, b) => a + (b.marketValueTWD || 0), 0); const totalCost = list.reduce((a, b) => a + (b.costTWD || 0), 0); const totalProfit = totalVal - totalCost; const dayChange = list.reduce((a, b) => a + (b.dayChangeTWD || 0), 0);
+            document.getElementById('val-total').innerText = fmtMoney(totalVal); document.getElementById('val-cost').innerText = fmtMoney(totalCost);
+            const profitEl = document.getElementById('val-profit'); profitEl.innerText = (totalProfit > 0 ? '+' : '') + fmtMoney(totalProfit); profitEl.className = `stat-main num ${totalProfit >= 0 ? 'text-red' : 'text-green'}`;
+            const profitPctEl = document.getElementById('val-profit-pct'); profitPctEl.innerText = (totalCost > 0 ? ((totalProfit/totalCost)*100).toFixed(2) : 0) + '%'; profitPctEl.className = `stat-sub num ${totalProfit >= 0 ? 'text-red' : 'text-green'}`;
+            const dayEl = document.getElementById('val-day-change'); const dayPctEl = document.getElementById('val-day-change-pct'); const dayPct = totalVal > 0 ? (dayChange / totalVal) : 0;
+            if (Math.abs(dayPct) > 0.25) { dayEl.innerText = '盤後/異常'; dayEl.className = 'stat-main num text-muted'; dayPctEl.innerText = '--%'; dayPctEl.className = 'stat-sub num text-muted'; } else { dayEl.innerText = (dayChange > 0 ? '+' : '') + fmtMoney(dayChange); dayEl.className = `stat-main num ${dayChange >= 0 ? 'text-red' : 'text-green'}`; dayPctEl.innerText = (dayPct > 0 ? '+' : '') + (dayPct * 100).toFixed(2) + '%'; dayPctEl.className = `stat-sub num ${dayChange >= 0 ? 'text-red' : 'text-green'}`; }
+            
+            let weightedYTD = 0, weightedCAGR = 0;
+            if (totalVal > 0) { list.forEach(i => { let w = (i.marketValueTWD / totalVal); if (i.ytd) weightedYTD += i.ytd * w; if (i.cagr) weightedCAGR += i.cagr * w; }); }
+            
+            const ytdAmount = totalVal - (totalVal / (1 + weightedYTD)); document.getElementById('val-ytd').innerText = (ytdAmount > 0 ? '+' : '') + fmtMoney(ytdAmount); document.getElementById('val-ytd').className = `stat-main num ${ytdAmount >= 0 ? 'text-red' : 'text-green'}`; document.getElementById('val-ytd-pct').innerText = (weightedYTD > 0 ? '+' : '') + (weightedYTD * 100).toFixed(2) + '%'; document.getElementById('val-ytd-pct').className = `stat-sub num ${ytdAmount >= 0 ? 'text-red' : 'text-green'}`;
+            document.getElementById('val-cagr').innerText = (weightedCAGR * 100).toFixed(1) + '%'; document.getElementById('val-cagr').className = weightedCAGR >= 0 ? 'stat-main num text-red' : 'stat-main num text-green'; 
+            
+            let matrixStdev = calculateMatrixRisk(list, totalVal);
+            document.getElementById('val-stdev').innerText = (matrixStdev * 100).toFixed(1) + '%';
+            
+            updateCharts(list, totalVal, weightedCAGR, matrixStdev); 
+            renderCorrelationGraph(list, totalVal);
+            updateRiskList(list);
+        }
+
+        function updateRiskList(list) {
+            const container = document.getElementById('risk-list'); container.innerHTML = '';
+            if(list.length === 0) { container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div>'; return; }
+            const sortedList = [...list].sort((a,b) => (b.cagr || -999) - (a.cagr || -999));
+            sortedList.forEach(item => {
+                const cagrStr = item.cagr !== undefined ? (item.cagr*100).toFixed(1)+'%' : '--%'; const stdevStr = item.stdev !== undefined ? (item.stdev*100).toFixed(1)+'%' : '--%'; const colorClass = (item.cagr !== undefined && item.cagr >= 0) ? 'text-red' : (item.cagr < 0 ? 'text-green' : 'text-muted');
+                container.innerHTML += `<div class="list-row"><div class="col-left"><div class="item-name" title="${item.name}"><span class="badge-market">${item.market}</span> ${item.name}</div><div class="item-sub">YTD: ${(item.ytd*100).toFixed(1)}% | 波動: ${stdevStr}</div></div><div class="col-right"><div class="item-name ${colorClass} num">${cagrStr}</div><div class="item-sub">CAGR</div></div></div>`;
+            });
         }
 
         function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
