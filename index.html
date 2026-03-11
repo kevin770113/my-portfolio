@@ -156,6 +156,12 @@
         .report-legend { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 15px; font-size: 12px; color: #BDC3C7; }
         .legend-item { display: flex; align-items: center; gap: 4px; }
         .dot { width: 10px; height: 10px; border-radius: 50%; }
+        
+        /* 活體宇宙深色卡片 */
+        .galaxy-card { background-color: #0d1117; border: 1px solid #30363d; }
+        .galaxy-card .card-title { color: #e6edf3; }
+        .galaxy-card .card-subtitle { color: #8b949e; }
+        .galaxy-header { border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -399,15 +405,16 @@
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-header">
-            <h2 class="card-title">資產連動星系圖</h2>
-            <span class="card-subtitle">引力代表相關性，點擊星體可聚焦</span>
+    
+    <div class="card galaxy-card">
+        <div class="galaxy-header">
+            <h2 class="card-title">🪐 資產連動星系圖</h2>
+            <span class="card-subtitle">星體發光綁定真實損益，點擊可喚醒神經連結</span>
         </div>
-        <div id="correlationGraph" style="width: 100%; height: 320px;"></div>
-        <div style="display:flex; justify-content:center; gap:15px; font-size:11px; color:#666; margin-top:8px;">
-            <span><b style="color:#d93025; font-size:14px; vertical-align:middle;">━</b> 同漲同跌 (正相關)</span>
-            <span><b style="color:#188038; font-size:14px; vertical-align:middle;">┅</b> 互補避震 (負相關)</span>
+        <div id="correlationGraph" style="width: 100%; height: 450px; position: relative;"></div>
+        <div style="display:flex; justify-content:center; gap:15px; font-size:11px; color:#8b949e; margin-top:8px;">
+            <span><b style="color:#ff4757; font-size:14px; vertical-align:middle;">━</b> 系統風險 (正相關)</span>
+            <span><b style="color:#00e676; font-size:14px; vertical-align:middle;">┅</b> 完美避震 (負相關)</span>
         </div>
     </div>
 
@@ -440,7 +447,6 @@
             document.getElementById('upload-tw').addEventListener('change', (e) => handleFileUpload(e, 'tw'));
             document.getElementById('upload-us').addEventListener('change', (e) => handleFileUpload(e, 'us'));
 
-            // 確保 ECharts 在視窗縮放時也能完美響應
             window.addEventListener('resize', () => { 
                 if (charts.corr) charts.corr.resize(); 
             });
@@ -680,7 +686,7 @@
             if(portfolio.tw.length === 0 && portfolio.us.length === 0) container.innerHTML = '<div style="text-align:center; padding: 30px 20px; color:#999;">無資料。</div>';
             document.getElementById('inventory-modal-overlay').classList.add('active');
         }
-
+        
         function closeInventoryManager() { document.getElementById('inventory-modal-overlay').classList.remove('active'); }
         
         async function saveInventoryChanges() {
@@ -981,6 +987,216 @@
             updateFinanceData().then(() => { setLoading(false); showToast("✅ 演算配置套用成功！"); });
         }
 
+        // ================= 【史詩進化】活體星系拓樸圖 (ECharts Force-Directed) =================
+        // 全域動畫計時器
+        let galaxyNodesData = [];
+        if(window.galaxyPulseInterval) clearInterval(window.galaxyPulseInterval);
+        if(window.galaxyFlashInterval) clearInterval(window.galaxyFlashInterval);
+
+        function renderCorrelationGraph(list, totalVal) {
+            let container = document.getElementById('correlationGraph');
+            if (list.length < 2 || totalVal <= 0) {
+                container.innerHTML = '<div style="color: #666; text-align: center; margin-top: 200px; font-size:12px;">🪐 至少需要 2 檔以上標的才能運算引力</div>';
+                return;
+            }
+            container.innerHTML = '';
+
+            let validStocks = list.filter(s => stockMapCache[s.symbol]);
+            let N = validStocks.length;
+            if (N < 2) return;
+
+            let commonMonths = null; let returnsMap = {};
+            validStocks.forEach(s => {
+                let m = stockMapCache[s.symbol];
+                if(m && m.monthlyReturns) {
+                    let months = Object.keys(m.monthlyReturns);
+                    if(commonMonths === null) commonMonths = months; else commonMonths = commonMonths.filter(x => months.includes(x));
+                }
+            });
+
+            let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
+            if (commonMonths && commonMonths.length >= 3) {
+                validStocks.forEach((s) => { returnsMap[s.symbol] = commonMonths.map(mStr => stockMapCache[s.symbol].monthlyReturns[mStr]); });
+                for(let i=0; i<N; i++) {
+                    for(let j=0; j<N; j++) {
+                        let meanI = returnsMap[validStocks[i].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
+                        let meanJ = returnsMap[validStocks[j].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
+                        let cov = 0;
+                        for(let k=0; k<commonMonths.length; k++) { cov += (returnsMap[validStocks[i].symbol][k] - meanI) * (returnsMap[validStocks[j].symbol][k] - meanJ); }
+                        cov = cov / (commonMonths.length - 1);
+                        Sigma[i][j] = cov; 
+                    }
+                }
+            } else {
+                for(let i=0; i<N; i++) { let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); Sigma[i][i] = sd * sd; }
+            }
+
+            let SD = [];
+            for(let i=0; i<N; i++) SD[i] = Math.sqrt(Math.max(0, Sigma[i][i]));
+
+            let posCount = Array(N).fill(0);
+            let negCount = Array(N).fill(0);
+            let links = [];
+
+            // 1. 建立隱形連線，並統計人氣王 (Hub & Hedge)
+            for(let i=0; i<N; i++) {
+                for(let j=i+1; j<N; j++) {
+                    if (SD[i] === 0 || SD[j] === 0) continue;
+                    let r = Sigma[i][j] / (SD[i] * SD[j]);
+                    
+                    // 只建立有意義的關聯 (過濾雜訊)
+                    if (r > 0.6 || r < -0.15) {
+                        let isNegative = r < 0;
+                        if(isNegative) { negCount[i]++; negCount[j]++; } else { posCount[i]++; posCount[j]++; }
+                        
+                        links.push({
+                            source: validStocks[i].symbol,
+                            target: validStocks[j].symbol,
+                            value: r.toFixed(2),
+                            lineStyle: {
+                                color: isNegative ? '#00e676' : '#ff4757', // 賽博綠 vs 雷射紅
+                                width: isNegative ? 2 : Math.min(8, Math.abs(r) * 6),
+                                type: isNegative ? 'dashed' : 'solid',
+                                curveness: 0.1,
+                                opacity: 0  // 預設完全隱形
+                            },
+                            emphasis: {
+                                lineStyle: {
+                                    opacity: 1, // 點擊時瞬間高亮
+                                    shadowBlur: 10,
+                                    shadowColor: isNegative ? '#00e676' : '#ff4757'
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+
+            let maxPosIdx = posCount.indexOf(Math.max(...posCount));
+            let maxNegIdx = negCount.indexOf(Math.max(...negCount));
+
+            // 2. 建立發光星體
+            galaxyNodesData = [];
+            validStocks.forEach((s, i) => {
+                let weight = (s.marketValueTWD || 0) / totalVal;
+                let size = Math.max(18, Math.min(65, weight * 100)); 
+                
+                // 盈虧自發光邏輯
+                let isProfit = (s.marketValueTWD - s.costTWD) >= 0;
+                let color = isProfit ? '#d93025' : '#188038'; // 暖紅 vs 冷綠
+                let glowColor = isProfit ? 'rgba(217, 48, 37, 0.8)' : 'rgba(24, 128, 56, 0.8)';
+
+                let isHub = (i === maxPosIdx && posCount[i] > 0);
+                let isHedge = (i === maxNegIdx && negCount[i] > 0);
+
+                galaxyNodesData.push({
+                    id: s.symbol,
+                    name: s.symbol.replace('.TW', ''), // 文字去冗餘
+                    value: (weight * 100).toFixed(1) + '%',
+                    symbolSize: size, 
+                    _baseSize: size, // 儲存原始大小給心跳動畫用
+                    _isSpecial: isHub || isHedge,
+                    itemStyle: { 
+                        color: color, 
+                        shadowBlur: 15, 
+                        shadowColor: glowColor,
+                        borderColor: '#fff',
+                        borderWidth: (isHub || isHedge) ? 2 : 0
+                    },
+                    label: { 
+                        show: size >= 35, // 大星球才直接顯示字，防截斷
+                        position: 'inside', 
+                        color: '#fff', 
+                        fontSize: 10,
+                        fontWeight: 'bold'
+                    }
+                });
+            });
+
+            if (!charts.corr) { charts.corr = echarts.init(container); }
+            
+            let option = {
+                tooltip: { formatter: '{b}: 佔比 {c}' },
+                series: [{
+                    type: 'graph',
+                    layout: 'force',
+                    roam: false, // 嚴禁拖曳縮放，防滑動劫持
+                    draggable: false, 
+                    data: galaxyNodesData,
+                    links: links,
+                    force: {
+                        repulsion: 120,    // 調降斥力防飛出
+                        edgeLength: [40, 100],
+                        gravity: 0.1       // 輕微向心力
+                    },
+                    emphasis: {
+                        focus: 'adjacency', // 【Tap to Isolate】點擊聚焦
+                        itemStyle: { shadowBlur: 25 },
+                        label: { show: true } // 聚焦時強制顯示文字
+                    }
+                }]
+            };
+            
+            charts.corr.setOption(option);
+
+            // ================= 注入生命力 (Animations) =================
+            clearInterval(window.galaxyPulseInterval);
+            let isPulsed = false;
+            
+            // 1. 脈衝呼吸燈 (Pulse Ripple)
+            window.galaxyPulseInterval = setInterval(() => {
+                isPulsed = !isPulsed;
+                let updatedNodes = galaxyNodesData.map(n => {
+                    if (n._isSpecial) {
+                        return {
+                            ...n,
+                            symbolSize: isPulsed ? n._baseSize * 1.15 : n._baseSize, // 放大縮小
+                            itemStyle: { ...n.itemStyle, shadowBlur: isPulsed ? 25 : 10 } // 光暈收放
+                        };
+                    }
+                    return n;
+                });
+                charts.corr.setOption({ series: [{ data: updatedNodes }] });
+            }, 1200);
+
+            // 2. 神經突觸閃爍 3秒待機循環 (Synaptic Flash)
+            let focusedNodeIndex = null;
+            clearInterval(window.galaxyFlashInterval);
+
+            charts.corr.on('click', function(params) {
+                if(params.dataType === 'node') {
+                    focusedNodeIndex = params.dataIndex;
+                    resetFlashTimer();
+                }
+            });
+
+            charts.corr.getZr().on('click', function(e) {
+                if (!e.target) { // 點擊空白太空
+                    focusedNodeIndex = null;
+                    clearInterval(window.galaxyFlashInterval);
+                    charts.corr.dispatchAction({ type: 'downplay' }); // 熄滅所有連線
+                }
+            });
+
+            function resetFlashTimer() {
+                clearInterval(window.galaxyFlashInterval);
+                if (focusedNodeIndex === null) return;
+                
+                window.galaxyFlashInterval = setInterval(() => {
+                    // 瞬間熄滅 (暗下)
+                    charts.corr.dispatchAction({ type: 'downplay' });
+                    // 150毫秒後瞬間通電高亮 (閃亮)
+                    setTimeout(() => {
+                        charts.corr.dispatchAction({
+                            type: 'highlight',
+                            seriesIndex: 0,
+                            dataIndex: focusedNodeIndex
+                        });
+                    }, 150);
+                }, 3000); // 每 3 秒觸發一次閃爍
+            }
+        }
+
         function askClearAllData() { openConfirmModal("警告", "確定要清空所有真實持股資料嗎？<br><br>這將移除儀表板上的所有紀錄。", "確定清空", () => { localStorage.removeItem('portfolio_tw'); localStorage.removeItem('portfolio_us'); realPortfolio = { tw: [], us: [] }; globalCombinedList = []; document.getElementById('label-tw').innerText = '📁 匯入台股'; document.getElementById('label-us').innerText = '📁 匯入美股'; exportGlobalSyncData([]); renderCurrentView(); showToast('已清空所有資料'); }); }
         function togglePrivacy() { isPrivacyMode = !isPrivacyMode; document.getElementById('btn-privacy').innerHTML = isPrivacyMode ? '🙈' : '👁️'; renderCurrentView(); showToast(isPrivacyMode ? "隱私模式已開啟" : "隱私模式已關閉"); }
         function switchMarket(market) { currentMarketView = market; document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active')); document.getElementById(`tab-${market}`).classList.add('active'); renderCurrentView(); let name = market === 'ALL' ? '全球總覽' : (market === 'TW' ? '台股' : '美股'); showToast(`已切換至 ${name}`); }
@@ -1042,155 +1258,6 @@
                 d.sandboxList.forEach((sc, idx) => { if(sc.metrics){ let scData = genTraj(sc.metrics); if(scData[dimKey].length>0) datasets.push({ label: `🧪 ${sc.name}`, data: scData[dimKey], borderColor: scColors[idx % scColors.length], borderWidth: 3, fill: false, pointRadius: 4, tension: 0.4 }); } });
             }
             charts.mcCompare = new Chart(document.getElementById('mcCompareChart'), { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: currentMCDim !== 'FULL', labels: { color: '#E0E6ED', boxWidth: 12, font: {size: 11} }, position: 'bottom' }, tooltip: { callbacks: { title: c => ({'0':'今天','1':'未來 1 年','3':'未來 3 年','5':'未來 5 年','10':'未來 10 年'})[c[0].parsed.x]||'', label: c => c.dataset.label + ': ' + Math.round(c.parsed.y) + 'w' } } }, scales: { x: { type: 'linear', grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 10, ticks: { color: '#95A5A6', stepSize: 1, callback: v => ({'0':'今天','1':'+1年','3':'+3年','5':'+5年','10':'+10年'})[v]||'' } }, y: { position: 'right', border: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#95A5A6', callback: v => Math.round(v)+'w' } } } } });
-        }
-
-        // ================= 【核心視覺升級】繪製資產連動星系圖 (ECharts Force-Directed Graph) =================
-        function renderCorrelationGraph(list, totalVal) {
-            let container = document.getElementById('correlationGraph');
-            if (list.length < 2 || totalVal <= 0) {
-                container.innerHTML = '<div style="color: #999; text-align: center; margin-top: 130px; font-size:12px;">至少需要2檔以上標的才能運算引力</div>';
-                return;
-            }
-            container.innerHTML = '';
-
-            let validStocks = list.filter(s => stockMapCache[s.symbol]);
-            let N = validStocks.length;
-            if (N < 2) return;
-
-            // 1. 計算共變異數與標準差，推導相關係數 R
-            let commonMonths = null; let returnsMap = {};
-            validStocks.forEach(s => {
-                let m = stockMapCache[s.symbol];
-                if(m && m.monthlyReturns) {
-                    let months = Object.keys(m.monthlyReturns);
-                    if(commonMonths === null) commonMonths = months; else commonMonths = commonMonths.filter(x => months.includes(x));
-                }
-            });
-
-            let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
-            if (commonMonths && commonMonths.length >= 3) {
-                validStocks.forEach((s) => { returnsMap[s.symbol] = commonMonths.map(mStr => stockMapCache[s.symbol].monthlyReturns[mStr]); });
-                for(let i=0; i<N; i++) {
-                    for(let j=0; j<N; j++) {
-                        let meanI = returnsMap[validStocks[i].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
-                        let meanJ = returnsMap[validStocks[j].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
-                        let cov = 0;
-                        for(let k=0; k<commonMonths.length; k++) { cov += (returnsMap[validStocks[i].symbol][k] - meanI) * (returnsMap[validStocks[j].symbol][k] - meanJ); }
-                        cov = cov / (commonMonths.length - 1);
-                        Sigma[i][j] = cov; 
-                    }
-                }
-            } else {
-                for(let i=0; i<N; i++) { let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); Sigma[i][i] = sd * sd; }
-            }
-
-            let SD = [];
-            for(let i=0; i<N; i++) SD[i] = Math.sqrt(Math.max(0, Sigma[i][i]));
-
-            let nodes = [];
-            validStocks.forEach((s, i) => {
-                let weight = (s.marketValueTWD || 0) / totalVal;
-                let size = Math.max(15, Math.min(60, weight * 100)); // 星球大小映射
-                let isTW = s.market === 'TW' || s.symbol.includes('.TW') || s.symbol.includes('.TWO');
-                nodes.push({
-                    id: s.symbol,
-                    name: s.name,
-                    value: (weight * 100).toFixed(1) + '%',
-                    symbolSize: isPrivacyMode ? 25 : size, 
-                    itemStyle: { color: isTW ? '#3498db' : '#e67e22', borderColor: '#fff', borderWidth: 1 }
-                });
-            });
-
-            let links = [];
-            for(let i=0; i<N; i++) {
-                for(let j=i+1; j<N; j++) {
-                    if (SD[i] === 0 || SD[j] === 0) continue;
-                    let r = Sigma[i][j] / (SD[i] * SD[j]);
-                    
-                    // 【降噪工程】只繪製有意義的連結
-                    if (r > 0.4 || r < -0.1) {
-                        let isNegative = r < 0;
-                        links.push({
-                            source: validStocks[i].symbol,
-                            target: validStocks[j].symbol,
-                            value: r.toFixed(2),
-                            lineStyle: {
-                                color: isNegative ? 'rgba(24, 128, 56, 0.6)' : 'rgba(217, 48, 37, 0.6)',
-                                width: isNegative ? 2 : Math.min(8, r * 6),
-                                type: isNegative ? 'dashed' : 'solid',
-                                curveness: 0.1 // 微微彎曲增加美感
-                            }
-                        });
-                    }
-                }
-            }
-
-            if (!charts.corr) {
-                charts.corr = echarts.init(container);
-            }
-            
-            let option = {
-                tooltip: { formatter: '{b}: {c}' },
-                series: [{
-                    type: 'graph',
-                    layout: 'force',
-                    roam: false, // 關閉拖曳與縮放，防止滑動劫持
-                    draggable: false, 
-                    data: nodes,
-                    links: links,
-                    label: { show: true, position: 'right', fontSize: 10, color: '#333' },
-                    force: {
-                        repulsion: 250,      // 斥力，讓星星散開
-                        edgeLength: [40, 120], // 彈簧長度
-                        gravity: 0.15        // 向中心靠攏的引力
-                    },
-                    emphasis: {
-                        focus: 'adjacency',  // 【核心功能】Tap to Isolate
-                        lineStyle: { width: 5 },
-                        itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' }
-                    }
-                }]
-            };
-            
-            charts.corr.setOption(option);
-        }
-
-        function renderDashboard(list) {
-            if (list.length === 0) {
-                document.getElementById('val-total').innerText = fmtMoney(0); document.getElementById('val-cost').innerText = fmtMoney(0); document.getElementById('val-profit').innerText = fmtMoney(0); document.getElementById('val-profit').className = 'stat-main num text-muted'; document.getElementById('val-profit-pct').innerText = '0.00%'; document.getElementById('val-profit-pct').className = 'stat-sub num text-muted'; document.getElementById('val-day-change').innerText = fmtMoney(0); document.getElementById('val-day-change').className = 'stat-main num text-muted'; document.getElementById('val-day-change-pct').innerText = '0.00%'; document.getElementById('val-day-change-pct').className = 'stat-sub num text-muted'; document.getElementById('val-ytd').innerText = fmtMoney(0); document.getElementById('val-ytd').className = 'stat-main num text-muted'; document.getElementById('val-ytd-pct').innerText = '0.00%'; document.getElementById('val-ytd-pct').className = 'stat-sub num text-muted'; document.getElementById('val-cagr').innerText = '0.0%'; document.getElementById('val-cagr').className = 'stat-main num text-muted'; document.getElementById('val-stdev').innerText = '--%'; document.getElementById('val-dividend').innerText = fmtMoney(0); document.getElementById('val-yield').innerText = '0.00%';
-                if (charts.alloc) charts.alloc.destroy(); if (charts.perf) charts.perf.destroy(); if (charts.mc) charts.mc.destroy(); if (charts.cf) charts.cf.destroy();
-                if (charts.corr) { charts.corr.dispose(); charts.corr = null; }
-                document.getElementById('alloc-legend').innerHTML = '<div style="color: #999; text-align: center; margin-top: 50px;">此市場暫無資料</div>'; updateRiskList([]); return;
-            }
-            const totalVal = list.reduce((a, b) => a + (b.marketValueTWD || 0), 0); const totalCost = list.reduce((a, b) => a + (b.costTWD || 0), 0); const totalProfit = totalVal - totalCost; const dayChange = list.reduce((a, b) => a + (b.dayChangeTWD || 0), 0);
-            document.getElementById('val-total').innerText = fmtMoney(totalVal); document.getElementById('val-cost').innerText = fmtMoney(totalCost);
-            const profitEl = document.getElementById('val-profit'); profitEl.innerText = (totalProfit > 0 ? '+' : '') + fmtMoney(totalProfit); profitEl.className = `stat-main num ${totalProfit >= 0 ? 'text-red' : 'text-green'}`;
-            const profitPctEl = document.getElementById('val-profit-pct'); profitPctEl.innerText = (totalCost > 0 ? ((totalProfit/totalCost)*100).toFixed(2) : 0) + '%'; profitPctEl.className = `stat-sub num ${totalProfit >= 0 ? 'text-red' : 'text-green'}`;
-            const dayEl = document.getElementById('val-day-change'); const dayPctEl = document.getElementById('val-day-change-pct'); const dayPct = totalVal > 0 ? (dayChange / totalVal) : 0;
-            if (Math.abs(dayPct) > 0.25) { dayEl.innerText = '盤後/異常'; dayEl.className = 'stat-main num text-muted'; dayPctEl.innerText = '--%'; dayPctEl.className = 'stat-sub num text-muted'; } else { dayEl.innerText = (dayChange > 0 ? '+' : '') + fmtMoney(dayChange); dayEl.className = `stat-main num ${dayChange >= 0 ? 'text-red' : 'text-green'}`; dayPctEl.innerText = (dayPct > 0 ? '+' : '') + (dayPct * 100).toFixed(2) + '%'; dayPctEl.className = `stat-sub num ${dayChange >= 0 ? 'text-red' : 'text-green'}`; }
-            
-            let weightedYTD = 0, weightedCAGR = 0;
-            if (totalVal > 0) { list.forEach(i => { let w = (i.marketValueTWD / totalVal); if (i.ytd) weightedYTD += i.ytd * w; if (i.cagr) weightedCAGR += i.cagr * w; }); }
-            
-            const ytdAmount = totalVal - (totalVal / (1 + weightedYTD)); document.getElementById('val-ytd').innerText = (ytdAmount > 0 ? '+' : '') + fmtMoney(ytdAmount); document.getElementById('val-ytd').className = `stat-main num ${ytdAmount >= 0 ? 'text-red' : 'text-green'}`; document.getElementById('val-ytd-pct').innerText = (weightedYTD > 0 ? '+' : '') + (weightedYTD * 100).toFixed(2) + '%'; document.getElementById('val-ytd-pct').className = `stat-sub num ${ytdAmount >= 0 ? 'text-red' : 'text-green'}`;
-            document.getElementById('val-cagr').innerText = (weightedCAGR * 100).toFixed(1) + '%'; document.getElementById('val-cagr').className = weightedCAGR >= 0 ? 'stat-main num text-red' : 'stat-main num text-green'; 
-            
-            let matrixStdev = calculateMatrixRisk(list, totalVal);
-            document.getElementById('val-stdev').innerText = (matrixStdev * 100).toFixed(1) + '%';
-            
-            updateCharts(list, totalVal, weightedCAGR, matrixStdev); 
-            renderCorrelationGraph(list, totalVal); // 觸發星系圖繪製
-            updateRiskList(list);
-        }
-
-        function updateRiskList(list) {
-            const container = document.getElementById('risk-list'); container.innerHTML = '';
-            if(list.length === 0) { container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div>'; return; }
-            const sortedList = [...list].sort((a,b) => (b.cagr || -999) - (a.cagr || -999));
-            sortedList.forEach(item => {
-                const cagrStr = item.cagr !== undefined ? (item.cagr*100).toFixed(1)+'%' : '--%'; const stdevStr = item.stdev !== undefined ? (item.stdev*100).toFixed(1)+'%' : '--%'; const colorClass = (item.cagr !== undefined && item.cagr >= 0) ? 'text-red' : (item.cagr < 0 ? 'text-green' : 'text-muted');
-                container.innerHTML += `<div class="list-row"><div class="col-left"><div class="item-name" title="${item.name}"><span class="badge-market">${item.market}</span> ${item.name}</div><div class="item-sub">YTD: ${(item.ytd*100).toFixed(1)}% | 波動: ${stdevStr}</div></div><div class="col-right"><div class="item-name ${colorClass} num">${cagrStr}</div><div class="item-sub">CAGR</div></div></div>`;
-            });
         }
 
         function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
