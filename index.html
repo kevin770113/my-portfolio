@@ -46,7 +46,6 @@
         .prompt-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; flex-shrink: 0; }
         .prompt-input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; margin-bottom: 10px; transition: border-color 0.2s; text-align: left; }
         .prompt-input:focus { outline: none; border-color: var(--primary-dark); box-shadow: 0 0 0 2px rgba(44,62,80,0.2); }
-        .error-msg { color: var(--red-profit); font-size: 12px; margin-bottom: 15px; display: none; font-weight: bold; text-align: left; }
         .prompt-actions { display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-shrink: 0; }
         .btn-skip, .btn-confirm, .btn-success, .btn-danger { flex: 1; padding: 14px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px; }
         .btn-skip { background: #e0e6ed; color: #7f8c8d; }
@@ -408,36 +407,20 @@
         let toastTimeout;
         function showToast(msg) { const toast = document.getElementById('toast-container'); toast.innerText = msg; toast.classList.add('show'); clearTimeout(toastTimeout); toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500); }
 
-        // ================= 全域狀態與沙盒機制 =================
         let isPrivacyMode = false; let currentRate = 32.5; let latestDataTime = 0; let charts = {}; let currentMarketView = 'ALL'; 
         let realPortfolio = { tw: [], us: [] }; let sandboxScenarios = []; let activeScenarioId = 'real'; 
         let stockMapCache = {}; let globalCombinedList = []; 
         let compareData = { realGlobal: null, realTW: null, realUS: null, sandboxList: [] };
-        let currentMCDim = 'P50'; let isReportRendered = false; 
+        let currentMCDim = 'P50'; 
         let currentPromptPrice = 0; let currentPromptIsUS = false;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // 綁定檔案上傳監聽
             document.getElementById('upload-tw').addEventListener('change', (e) => handleFileUpload(e, 'tw'));
             document.getElementById('upload-us').addEventListener('change', (e) => handleFileUpload(e, 'us'));
 
-            // ResizeObserver (解決圖表在隱藏時繪製長寬為0的Bug)
-            const reportOverlay = document.getElementById('report-overlay');
-            const observer = new ResizeObserver(entries => {
-                for (let entry of entries) {
-                    if (entry.contentRect.width > 0 && reportOverlay.style.display === 'block') {
-                        if (!isReportRendered) { renderScatterChart(); renderMCCompareChart(); isReportRendered = true; } 
-                        else { if(charts.scatter) charts.scatter.resize(); if(charts.mcCompare) charts.mcCompare.resize(); }
-                    }
-                }
-            });
-            observer.observe(reportOverlay);
-
-            // 智慧輸入框：成本與股數自動連動
             document.getElementById('sb-cost').addEventListener('input', function() { if(!currentPromptPrice) return; let exRate = currentPromptIsUS ? currentRate : 1; let cost = parseFloat(this.value) || 0; document.getElementById('sb-shares').value = (cost / (currentPromptPrice * exRate)).toFixed(4); });
             document.getElementById('sb-shares').addEventListener('input', function() { if(!currentPromptPrice) return; let exRate = currentPromptIsUS ? currentRate : 1; let shares = parseFloat(this.value) || 0; document.getElementById('sb-cost').value = Math.round(shares * currentPromptPrice * exRate); });
 
-            // 載入本地記憶
             const savedTW = localStorage.getItem('portfolio_tw'); const savedUS = localStorage.getItem('portfolio_us'); const savedScen = localStorage.getItem('invest_scenarios_v1');
             if (savedTW) try { realPortfolio.tw = JSON.parse(savedTW); } catch(e) {}
             if (savedUS) try { realPortfolio.us = JSON.parse(savedUS); } catch(e) {}
@@ -447,7 +430,6 @@
             if (realPortfolio.tw.length > 0 || realPortfolio.us.length > 0) { setLoading(true); try { await updateFinanceData(); } catch(e) {} finally { setLoading(false); } } else { renderCurrentView(); }
         });
 
-        // ================= 高質感自訂彈窗函式 =================
         let confirmCallback = null;
         function openConfirmModal(title, desc, btnText, callback) { document.getElementById('confirm-modal-title').innerText = title; document.getElementById('confirm-modal-desc').innerHTML = desc; document.getElementById('btn-confirm-danger').innerText = btnText; confirmCallback = callback; document.getElementById('confirm-modal-overlay').classList.add('active'); }
         function closeConfirmModal() { document.getElementById('confirm-modal-overlay').classList.remove('active'); }
@@ -468,7 +450,6 @@
         }
         function closeInfoModal() { document.getElementById('info-modal-overlay').classList.remove('active'); }
 
-        // ================= 劇本管理模組 =================
         function openScenModal() {
             document.getElementById('scen-list').innerHTML = '';
             let html = `<div class="scen-item" style="${activeScenarioId === 'real' ? 'background:rgba(0,86,179,0.05); font-weight:bold;' : ''}"><div class="scen-name" onclick="switchScenario('real')">🌍 真實持股 (鎖定) ${activeScenarioId === 'real' ? '✅' : ''}</div></div>`;
@@ -488,7 +469,6 @@
             else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); bar.innerHTML = `🧪 試算中：${sc.name} ▾`; bar.className = "scenario-bar sandbox"; rowUpload.style.display = "none"; btnInv.innerHTML = "✏️ 調整持股"; }
         }
 
-        // ================= 全域矩陣風險計算引擎 (核心升級) =================
         function calculateMatrixRisk(list, totalVal) {
             if (!list || list.length === 0 || totalVal <= 0) return 0;
             let validStocks = list.filter(s => stockMapCache[s.symbol]);
@@ -515,22 +495,19 @@
                         let cov = 0;
                         for(let k=0; k<commonMonths.length; k++) { cov += (returnsMap[validStocks[i].symbol][k] - meanI) * (returnsMap[validStocks[j].symbol][k] - meanJ); }
                         cov = cov / (commonMonths.length - 1);
-                        Sigma[i][j] = cov * 12; // 轉為年化共變異數
+                        Sigma[i][j] = cov * 12; 
                     }
                 }
             } else {
-                // 資料不足時退回簡單加權
                 for(let i=0; i<N; i++) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][i] = sd * sd; }
             }
 
             let weights = validStocks.map(s => (s.marketValueTWD || 0) / totalVal);
-            
             let portVar = 0;
             for(let i=0; i<N; i++) { for(let j=0; j<N; j++) { portVar += weights[i] * weights[j] * Sigma[i][j]; } }
             return Math.sqrt(Math.max(0, portVar));
         }
 
-        // ================= 資料處理與 API 連線 =================
         async function updateFinanceData() {
             let symbolsToFetch = new Set();
             realPortfolio.tw.forEach(i => symbolsToFetch.add(i.symbol)); realPortfolio.us.forEach(i => symbolsToFetch.add(i.symbol));
@@ -577,7 +554,7 @@
         function calcPortfolioMetrics(list) {
             let totalVal = list.reduce((s, i) => s + (i.marketValueTWD || 0), 0); if (totalVal === 0) return { totalVal: 0, cagr: 0, stdev: 0 };
             let cagr = list.reduce((s, i) => s + ((i.cagr || 0) * (i.marketValueTWD || 0)), 0) / totalVal; 
-            let stdev = calculateMatrixRisk(list, totalVal); // 改採馬可維茲引擎計算
+            let stdev = calculateMatrixRisk(list, totalVal); 
             return { totalVal, cagr, stdev };
         }
 
@@ -595,7 +572,6 @@
             localStorage.setItem('sync_invest_data', JSON.stringify({ totalValue: metrics.totalVal, cagr: metrics.cagr, dividendYield: metrics.totalVal > 0 ? (totalExpectedDividend / metrics.totalVal) : 0, timestamp: new Date().getTime() }));
         }
 
-        // ================= CSV 匯入與字典解析 =================
         async function handleFileUpload(event, market) {
             const file = event.target.files[0]; if (!file) return; setLoading(true);
             Papa.parse(file, {
@@ -636,7 +612,6 @@
             });
         }
 
-        // ================= 庫存校正與 AI 最佳化入口 =================
         function openInventoryManager() {
             const container = document.getElementById('inventory-list-container'); container.innerHTML = '';
             let portfolio = activeScenarioId === 'real' ? realPortfolio : sandboxScenarios.find(s => s.id === activeScenarioId).portfolio;
@@ -712,17 +687,12 @@
             document.getElementById('sandbox-add-overlay').classList.remove('active'); saveInventoryChanges(); 
         };
 
-        // ================= 真・馬可維茲 AI 最佳化引擎 =================
         let pendingAIWeights = null;
-        
         function openAIOptimizer() {
             closeInventoryManager();
             let sc = sandboxScenarios.find(s => s.id === activeScenarioId);
             let totalStocks = sc.portfolio.tw.length + sc.portfolio.us.length;
-            if(totalStocks < 2) { 
-                showInfoModal("⚠️ 資料不足", "AI 智能配置需要利用資產間的相關性來抵銷風險。<br><br>請至少加入 <b>2 檔</b> 不同的股票才能啟動最佳化引擎！", true); 
-                openInventoryManager(); return; 
-            }
+            if(totalStocks < 2) { showInfoModal("⚠️ 資料不足", "AI 智能配置需要利用資產間的相關性來抵銷風險。<br><br>請至少加入 <b>2 檔</b> 不同的股票才能啟動最佳化引擎！", true); openInventoryManager(); return; }
             document.getElementById('ai-opt-modal').classList.add('active');
         }
         function closeAIOptimizer() { document.getElementById('ai-opt-modal').classList.remove('active'); openInventoryManager(); }
@@ -886,7 +856,6 @@
             updateFinanceData().then(() => { setLoading(false); showToast("✅ 智能配置套用成功！"); });
         }
 
-        // ================= Dashboard 渲染 =================
         function askClearAllData() { openConfirmModal("警告", "確定要清空所有真實持股資料嗎？<br><br>這將移除儀表板上的所有紀錄。", "確定清空", () => { localStorage.removeItem('portfolio_tw'); localStorage.removeItem('portfolio_us'); realPortfolio = { tw: [], us: [] }; globalCombinedList = []; document.getElementById('label-tw').innerText = '📁 匯入台股'; document.getElementById('label-us').innerText = '📁 匯入美股'; exportGlobalSyncData([]); renderCurrentView(); showToast('已清空所有資料'); }); }
         function togglePrivacy() { isPrivacyMode = !isPrivacyMode; document.getElementById('btn-privacy').innerHTML = isPrivacyMode ? '🙈' : '👁️'; renderCurrentView(); showToast(isPrivacyMode ? "隱私模式已開啟" : "隱私模式已關閉"); }
         function switchMarket(market) { currentMarketView = market; document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active')); document.getElementById(`tab-${market}`).classList.add('active'); renderCurrentView(); let name = market === 'ALL' ? '全球總覽' : (market === 'TW' ? '台股' : '美股'); showToast(`已切換至 ${name}`); }
@@ -895,6 +864,72 @@
             if (globalCombinedList.length === 0) { renderDashboard([]); return; }
             let filteredList = currentMarketView !== 'ALL' ? globalCombinedList.filter(item => item.market === currentMarketView) : globalCombinedList;
             renderDashboard(filteredList);
+        }
+
+        // ================= 【修復】強制展開繪圖的比較報告 =================
+        function openReport() {
+            if(compareData.realGlobal === null) { showToast("請先匯入資料"); return; }
+            
+            // 強制展開覆蓋層
+            document.getElementById('report-overlay').style.display = 'block'; 
+            document.body.style.overflow = 'hidden';
+            
+            // 強制延遲 0.1 秒，等待瀏覽器渲染出寬度後，硬派畫圖！
+            setTimeout(() => {
+                renderScatterChart(); 
+                renderMCCompareChart();
+            }, 100);
+        }
+        
+        function closeReport() { document.getElementById('report-overlay').style.display = 'none'; document.body.style.overflow = ''; }
+
+        function renderScatterChart() {
+            if (charts.scatter) charts.scatter.destroy(); let d = compareData; let datasets = [];
+            if(d.realGlobal && d.realGlobal.totalVal > 0) datasets.push({ label: '全球總持倉', data: [{x: d.realGlobal.stdev*100, y: d.realGlobal.cagr*100, r: 8}], backgroundColor: '#3498db' });
+            if(d.realTW && d.realTW.totalVal > 0) datasets.push({ label: '🇹🇼 台股部位', data: [{x: d.realTW.stdev*100, y: d.realTW.cagr*100, r: 6}], backgroundColor: '#2ecc71' });
+            if(d.realUS && d.realUS.totalVal > 0) datasets.push({ label: '🇺🇸 美股部位', data: [{x: d.realUS.stdev*100, y: d.realUS.cagr*100, r: 6}], backgroundColor: '#e74c3c' });
+            
+            const scColors = ['#f1c40f', '#9b59b6', '#00cec9', '#e67e22', '#fd79a8'];
+            if(d.sandboxList && d.sandboxList.length > 0) {
+                d.sandboxList.forEach((sc, idx) => { if(sc.metrics && sc.metrics.totalVal > 0) { datasets.push({ label: `🧪 ${sc.name}`, data: [{x: sc.metrics.stdev*100, y: sc.metrics.cagr*100, r: 8}], backgroundColor: scColors[idx % scColors.length], borderColor: '#fff', borderWidth: 1 }); } });
+            }
+
+            let legendHtml = ''; datasets.forEach(ds => { legendHtml += `<div class="legend-item"><div class="dot" style="background:${ds.backgroundColor}"></div>${ds.label}</div>`; }); document.getElementById('scatter-legend').innerHTML = legendHtml;
+            let gX = datasets[0]?.data[0]?.x || 0; let gY = datasets[0]?.data[0]?.y || 0;
+
+            charts.scatter = new Chart(document.getElementById('scatterChart'), { type: 'bubble', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, layout: { padding: 10 }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label} (CAGR: ${c.parsed.y.toFixed(1)}%, 風險: ${c.parsed.x.toFixed(1)}%)` } }, annotation: { annotations: { line1: { type: 'line', yMin: gY, yMax: gY, borderColor: 'rgba(255,255,255,0.2)', borderDash: [5,5], borderWidth: 1 }, line2: { type: 'line', xMin: gX, xMax: gX, borderColor: 'rgba(255,255,255,0.2)', borderDash: [5,5], borderWidth: 1 } } } }, scales: { x: { grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: '風險 (標準差 %)', color: '#95A5A6' }, ticks: { color: '#95A5A6' } }, y: { grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: '報酬 (CAGR %)', color: '#95A5A6' }, ticks: { color: '#95A5A6' } } } } });
+        }
+
+        function switchMCDim(dim) {
+            document.querySelectorAll('.mc-btn').forEach(b => b.classList.remove('active')); document.getElementById('mc-' + dim).classList.add('active'); currentMCDim = dim; renderMCCompareChart();
+            let descMap = { 'P10':'極度悲觀 (抗跌防禦力測試)','P25':'悲觀市況','P50':'最有可能的中位數軌跡','P75':'樂觀市況','P90':'極度樂觀 (牛市爆發力測試)','FULL':'所選組合的完整未來分佈'}; document.getElementById('mc-desc-text').innerText = `目前顯示各組合的【${descMap[dim]}】。`;
+        }
+
+        function renderMCCompareChart() {
+            if (charts.mcCompare) charts.mcCompare.destroy(); let d = compareData; const years = [0, 1, 3, 5, 10];
+            const genTraj = (metrics) => { let p10=[], p25=[], p50=[], p75=[], p90=[]; if(!metrics || metrics.totalVal === 0) return {p10, p25, p50, p75, p90}; let sv = metrics.totalVal / 10000; years.forEach(y => { if(y===0) { [p10,p25,p50,p75,p90].forEach(a => a.push({x:y, y:sv})); }  else { let m = sv * Math.pow(1 + metrics.cagr, y); let diff = metrics.stdev * Math.sqrt(y); p50.push({x:y, y:m}); p90.push({x:y, y:m*(1+1.28*diff)}); p75.push({x:y, y:m*(1+0.67*diff)}); p25.push({x:y, y:m*(1-0.67*diff)}); p10.push({x:y, y:m*(1-1.28*diff)}); } }); return {p10, p25, p50, p75, p90}; };
+            let gData = genTraj(d.realGlobal); let twData = genTraj(d.realTW); let usData = genTraj(d.realUS); let datasets = [];
+            
+            // 【修復防呆】確保目標 metrics 存在
+            if(currentMCDim === 'FULL') {
+                let target = gData;
+                if (activeScenarioId !== 'real') {
+                    let sc = d.sandboxList.find(s => s.id === activeScenarioId);
+                    if (sc && sc.metrics) target = genTraj(sc.metrics);
+                }
+                
+                let labelPrefix = activeScenarioId === 'real' ? `🌍 全球:` : `🧪 試算:`;
+                datasets = [ { label: labelPrefix+' P90', data: target.p90, borderColor: 'transparent', fill: 1, backgroundColor: 'rgba(207, 146, 54, 0.05)', pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P10', data: target.p10, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P75', data: target.p75, borderColor: 'transparent', fill: 3, backgroundColor: 'rgba(207, 146, 54, 0.15)', pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P25', data: target.p25, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P50', data: target.p50, borderColor: '#CF9236', borderWidth: 2, fill: false, pointRadius: 0, tension: 0.4 } ];
+            } else {
+                let dimKey = currentMCDim.toLowerCase();
+                if(gData[dimKey].length>0) datasets.push({ label: '全球總持倉', data: gData[dimKey], borderColor: '#3498db', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
+                if(twData[dimKey].length>0) datasets.push({ label: '🇹🇼 台股部位', data: twData[dimKey], borderColor: '#2ecc71', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
+                if(usData[dimKey].length>0) datasets.push({ label: '🇺🇸 美股部位', data: usData[dimKey], borderColor: '#e74c3c', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
+                
+                const scColors = ['#f1c40f', '#9b59b6', '#00cec9', '#e67e22', '#fd79a8'];
+                d.sandboxList.forEach((sc, idx) => { if(sc.metrics){ let scData = genTraj(sc.metrics); if(scData[dimKey].length>0) datasets.push({ label: `🧪 ${sc.name}`, data: scData[dimKey], borderColor: scColors[idx % scColors.length], borderWidth: 3, fill: false, pointRadius: 4, tension: 0.4 }); } });
+            }
+            charts.mcCompare = new Chart(document.getElementById('mcCompareChart'), { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: currentMCDim !== 'FULL', labels: { color: '#E0E6ED', boxWidth: 12, font: {size: 11} }, position: 'bottom' }, tooltip: { callbacks: { title: c => ({'0':'今天','1':'未來 1 年','3':'未來 3 年','5':'未來 5 年','10':'未來 10 年'})[c[0].parsed.x]||'', label: c => c.dataset.label + ': ' + Math.round(c.parsed.y) + 'w' } } }, scales: { x: { type: 'linear', grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 10, ticks: { color: '#95A5A6', stepSize: 1, callback: v => ({'0':'今天','1':'+1年','3':'+3年','5':'+5年','10':'+10年'})[v]||'' } }, y: { position: 'right', border: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#95A5A6', callback: v => Math.round(v)+'w' } } } } });
         }
 
         function renderDashboard(list) {
