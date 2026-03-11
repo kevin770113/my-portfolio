@@ -46,6 +46,7 @@
         .prompt-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; flex-shrink: 0; }
         .prompt-input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; margin-bottom: 10px; transition: border-color 0.2s; text-align: left; }
         .prompt-input:focus { outline: none; border-color: var(--primary-dark); box-shadow: 0 0 0 2px rgba(44,62,80,0.2); }
+        .error-msg { color: var(--red-profit); font-size: 12px; margin-bottom: 15px; display: none; font-weight: bold; text-align: left; }
         .prompt-actions { display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-shrink: 0; }
         .btn-skip, .btn-confirm, .btn-success, .btn-danger { flex: 1; padding: 14px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px; }
         .btn-skip { background: #e0e6ed; color: #7f8c8d; }
@@ -440,15 +441,25 @@
         function closeScenPrompt() { document.getElementById('scen-prompt-modal').classList.remove('active'); }
         document.getElementById('scen-prompt-confirm').onclick = () => { closeScenPrompt(); if(promptCallback) promptCallback(document.getElementById('scen-prompt-input').value); };
 
-        function showInfoModal(title, desc, isError = false) { 
+        // 【修復重點 1：加入 Callback 機制】
+        let infoCallback = null;
+        function showInfoModal(title, desc, isError = false, callback = null) { 
             document.getElementById('info-modal-title').innerText = title; 
             document.getElementById('info-modal-desc').innerHTML = desc; 
             let icon = document.getElementById('info-modal-icon');
             if(isError) { icon.innerText = '!'; icon.style.background = '#FDECEA'; icon.style.color = '#B25858'; } 
             else { icon.innerText = '✓'; icon.style.background = '#E8F5E9'; icon.style.color = '#4E8765'; }
+            infoCallback = callback; // 儲存回呼函數
             document.getElementById('info-modal-overlay').classList.add('active'); 
         }
-        function closeInfoModal() { document.getElementById('info-modal-overlay').classList.remove('active'); }
+        function closeInfoModal() { 
+            document.getElementById('info-modal-overlay').classList.remove('active'); 
+            if (infoCallback) {
+                let cb = infoCallback;
+                infoCallback = null;
+                cb(); // 執行回呼函數 (例如重新打開 AI 控制台)
+            }
+        }
 
         function openScenModal() {
             document.getElementById('scen-list').innerHTML = '';
@@ -688,11 +699,17 @@
         };
 
         let pendingAIWeights = null;
+        
         function openAIOptimizer() {
             closeInventoryManager();
             let sc = sandboxScenarios.find(s => s.id === activeScenarioId);
             let totalStocks = sc.portfolio.tw.length + sc.portfolio.us.length;
-            if(totalStocks < 2) { showInfoModal("⚠️ 資料不足", "AI 智能配置需要利用資產間的相關性來抵銷風險。<br><br>請至少加入 <b>2 檔</b> 不同的股票才能啟動最佳化引擎！", true); openInventoryManager(); return; }
+            if(totalStocks < 2) { 
+                showInfoModal("⚠️ 資料不足", "AI 智能配置需要利用資產間的相關性來抵銷風險。<br><br>請至少加入 <b>2 檔</b> 不同的股票才能啟動最佳化引擎！", true, () => {
+                    openInventoryManager(); // 關閉提示後，重新打開庫存介面
+                }); 
+                return; 
+            }
             document.getElementById('ai-opt-modal').classList.add('active');
         }
         function closeAIOptimizer() { document.getElementById('ai-opt-modal').classList.remove('active'); openInventoryManager(); }
@@ -779,8 +796,10 @@
                 setLoading(false);
 
                 if(bestWeights === null) {
-                    showInfoModal("⚠️ 無法找到最佳解", "您設定的限制條件過於嚴苛，無法在 10,000 次模擬中找到符合所有條件的配置組合。<br><br>請嘗試調降「最低報酬」或調高「最高風險」後重試！", true);
-                    document.getElementById('ai-opt-modal').classList.add('active');
+                    // 【修復重點 2：失敗時透過 Callback 打開 AI 控制台】
+                    showInfoModal("⚠️ 無法找到最佳解", "您設定的限制條件過於嚴苛，無法在 10,000 次模擬中找到符合所有條件的配置組合。<br><br>請嘗試調降「最低報酬」或調高「最高風險」後重試！", true, () => {
+                        document.getElementById('ai-opt-modal').classList.add('active'); // 使用者按下確認後才重新打開 AI 視窗
+                    });
                 } else {
                     pendingAIWeights = { weights: bestWeights, stocks: validStocks };
                     
@@ -866,19 +885,11 @@
             renderDashboard(filteredList);
         }
 
-        // ================= 【修復】強制展開繪圖的比較報告 =================
         function openReport() {
             if(compareData.realGlobal === null) { showToast("請先匯入資料"); return; }
-            
-            // 強制展開覆蓋層
             document.getElementById('report-overlay').style.display = 'block'; 
             document.body.style.overflow = 'hidden';
-            
-            // 強制延遲 0.1 秒，等待瀏覽器渲染出寬度後，硬派畫圖！
-            setTimeout(() => {
-                renderScatterChart(); 
-                renderMCCompareChart();
-            }, 100);
+            setTimeout(() => { renderScatterChart(); renderMCCompareChart(); }, 100);
         }
         
         function closeReport() { document.getElementById('report-overlay').style.display = 'none'; document.body.style.overflow = ''; }
@@ -910,14 +921,9 @@
             const genTraj = (metrics) => { let p10=[], p25=[], p50=[], p75=[], p90=[]; if(!metrics || metrics.totalVal === 0) return {p10, p25, p50, p75, p90}; let sv = metrics.totalVal / 10000; years.forEach(y => { if(y===0) { [p10,p25,p50,p75,p90].forEach(a => a.push({x:y, y:sv})); }  else { let m = sv * Math.pow(1 + metrics.cagr, y); let diff = metrics.stdev * Math.sqrt(y); p50.push({x:y, y:m}); p90.push({x:y, y:m*(1+1.28*diff)}); p75.push({x:y, y:m*(1+0.67*diff)}); p25.push({x:y, y:m*(1-0.67*diff)}); p10.push({x:y, y:m*(1-1.28*diff)}); } }); return {p10, p25, p50, p75, p90}; };
             let gData = genTraj(d.realGlobal); let twData = genTraj(d.realTW); let usData = genTraj(d.realUS); let datasets = [];
             
-            // 【修復防呆】確保目標 metrics 存在
             if(currentMCDim === 'FULL') {
                 let target = gData;
-                if (activeScenarioId !== 'real') {
-                    let sc = d.sandboxList.find(s => s.id === activeScenarioId);
-                    if (sc && sc.metrics) target = genTraj(sc.metrics);
-                }
-                
+                if (activeScenarioId !== 'real') { let sc = d.sandboxList.find(s => s.id === activeScenarioId); if (sc && sc.metrics) target = genTraj(sc.metrics); }
                 let labelPrefix = activeScenarioId === 'real' ? `🌍 全球:` : `🧪 試算:`;
                 datasets = [ { label: labelPrefix+' P90', data: target.p90, borderColor: 'transparent', fill: 1, backgroundColor: 'rgba(207, 146, 54, 0.05)', pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P10', data: target.p10, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P75', data: target.p75, borderColor: 'transparent', fill: 3, backgroundColor: 'rgba(207, 146, 54, 0.15)', pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P25', data: target.p25, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P50', data: target.p50, borderColor: '#CF9236', borderWidth: 2, fill: false, pointRadius: 0, tension: 0.4 } ];
             } else {
