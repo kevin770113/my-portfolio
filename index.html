@@ -19,8 +19,7 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-
+        
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; 
             background-color: var(--bg-color); margin: 0; padding: 8px; color: var(--text-main); 
@@ -49,7 +48,6 @@
         .prompt-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; flex-shrink: 0; }
         .prompt-input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; margin-bottom: 10px; transition: border-color 0.2s; text-align: left; }
         .prompt-input:focus { outline: none; border-color: var(--primary-dark); box-shadow: 0 0 0 2px rgba(44,62,80,0.2); }
-        .error-msg { color: var(--red-profit); font-size: 12px; margin-bottom: 15px; display: none; font-weight: bold; text-align: left; }
         .prompt-actions { display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-shrink: 0; }
         .btn-skip, .btn-confirm, .btn-success, .btn-danger { flex: 1; padding: 14px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 14px; }
         .btn-skip { background: #e0e6ed; color: #7f8c8d; }
@@ -63,8 +61,7 @@
         .inv-input-group { display: flex; gap: 10px; }
         .inv-input-box { flex: 1; display: flex; flex-direction: column; }
         .inv-input-label { font-size: 11px; color: #7f8c8d; margin-bottom: 4px; font-weight: 600; }
-        .inv-input-field { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; font-family: "SF Pro Display", monospace; transition: all 0.2s; }
-        .inv-input-field:focus { outline: none; border-color: var(--primary-dark); background: #fff; }
+        .inv-input-field { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; transition: all 0.2s; }
         .btn-del-stock { position: absolute; top: 10px; right: 10px; color: var(--red-profit); background: none; border: none; font-size: 18px; cursor: pointer; opacity: 0.6; }
 
         .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 3000; opacity: 0; visibility: hidden; transition: 0.3s ease; }
@@ -80,8 +77,6 @@
         .drawer-item.active { background: rgba(255,255,255,0.1); border-left: 4px solid #CF9236; color: white; }
         .drawer-icon { margin-right: 16px; font-size: 20px; width: 24px; text-align: center; }
 
-        .scenario-bar { background-color: #E2E8F0; color: var(--primary-dark); padding: 10px; text-align: center; font-size: 13px; font-weight: bold; border-radius: 8px; margin-top: 8px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05); }
-        .scenario-bar.sandbox { background-color: #FFF3CD; color: #856404; border: 1px dashed #FFEEBA; }
         .bottom-sheet { position: fixed; bottom: -100%; left: 0; width: 100%; background: #fff; border-radius: 20px 20px 0 0; z-index: 4001; transition: bottom 0.3s ease; padding: 20px; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); max-height: 80vh; overflow-y: auto; }
         .bottom-sheet.show { bottom: 0; }
         .scen-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border-color); }
@@ -90,22 +85,25 @@
         .scen-btn { background: none; border: none; font-size: 18px; color: var(--text-muted); cursor: pointer; padding: 5px; }
         .scen-add-btn { width: 100%; padding: 14px; background: var(--primary-dark); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; margin-top: 15px; cursor: pointer; }
 
-        .control-panel { position: sticky; top: 0; z-index: 100; background-color: var(--bg-color); padding-bottom: 12px; display: flex; flex-direction: column; }
+        /* 【全新分離式版面】只鎖定上半部，釋放螢幕空間 */
+        .sticky-header { position: sticky; top: 0; z-index: 100; background-color: var(--bg-color); padding-bottom: 4px; display: flex; flex-direction: column; margin-bottom: 8px; }
         .top-bar { display: flex; justify-content: space-between; align-items: center; }
         .btn-menu { background: none; border: none; font-size: 24px; color: var(--primary-dark); cursor: pointer; padding: 4px 8px; border-radius: 6px; }
         .tabs { display: flex; background-color: #e4e6eb; border-radius: 8px; padding: 3px; flex: 1; margin-left: 8px; }
         .tab-btn { flex: 1; text-align: center; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--text-muted); border-radius: 6px; cursor: pointer; transition: all 0.2s; }
         .tab-btn.active { background-color: var(--card-bg); color: var(--text-main); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .scenario-bar { background-color: #E2E8F0; color: var(--primary-dark); padding: 10px; text-align: center; font-size: 13px; font-weight: bold; border-radius: 8px; margin-top: 8px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05); }
+        .scenario-bar.sandbox { background-color: #FFF3CD; color: #856404; border: 1px dashed #FFEEBA; }
         
-        .action-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+        /* 動作列不再鎖定，自然隨頁面滑動 */
+        .action-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
         .action-row { display: flex; gap: 8px; justify-content: space-between; align-items: stretch; }
-        .btn-upload { background-color: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; white-space: nowrap; flex: 1; text-align: center; padding: 12px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: 0.2s; }
+        .btn-upload { background-color: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; flex: 1; text-align: center; padding: 12px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         input[type="file"] { display: none; }
-        
-        .btn-tool { background-color: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; white-space: nowrap; flex: 1; display: flex; justify-content: center; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding: 10px 4px; transition: 0.2s; }
+        .btn-tool { background-color: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; flex: 1; display: flex; justify-content: center; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding: 10px 4px; }
         .btn-tool.icon-only { flex: 0 0 38px; padding: 10px 0; font-size: 16px; }
         .btn-tool.highlight { background-color: #2C3E50; color: white; border-color: #1A252F; }
-        .exchange-rate { flex: 0 0 65px; justify-content: center; font-size: 12px; background-color: #e8f4fd; border: 1px solid #cde4f7; border-radius: 8px; display: flex; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); white-space: nowrap; font-weight: 600; }
+        .exchange-rate { flex: 0 0 65px; justify-content: center; font-size: 12px; background-color: #e8f4fd; border: 1px solid #cde4f7; border-radius: 8px; display: flex; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); font-weight: 600; }
         
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
         .card-title { font-size: 15px; font-weight: 700; margin: 0; color: #333; }
@@ -357,7 +355,7 @@
         </div>
     </div>
 
-    <div class="control-panel">
+    <div class="sticky-header">
         <div class="top-bar">
             <button class="btn-menu" onclick="openDrawer()">☰</button>
             <div class="tabs">
@@ -367,19 +365,19 @@
             </div>
         </div>
         <div class="scenario-bar" id="scenario-bar" onclick="openScenModal()">📂 目前模式：真實持股 (鎖定) ▾</div>
-        
-        <div class="action-rows">
-            <div class="action-row" id="row-upload">
-                <label for="upload-tw" id="label-tw" class="btn-upload">📁 匯入台股</label><input type="file" id="upload-tw" accept=".csv">
-                <label for="upload-us" id="label-us" class="btn-upload">📁 匯入美股</label><input type="file" id="upload-us" accept=".csv">
-            </div>
-            <div class="action-row">
-                <button id="btn-inventory" class="btn-tool" onclick="openInventoryManager()">⚙️ 校正</button>
-                <button id="btn-report" class="btn-tool highlight" onclick="openReport()">📊 比較報告</button>
-                <button id="btn-clear" class="btn-tool icon-only" onclick="askClearAllData()" title="清空所有資料">🗑️</button>
-                <button id="btn-privacy" class="btn-tool icon-only" onclick="togglePrivacy()" title="切換隱私模式">👁️</button>
-                <div class="exchange-rate"><strong id="display-rate">--.--</strong></div>
-            </div>
+    </div>
+    
+    <div class="action-rows">
+        <div class="action-row" id="row-upload">
+            <label for="upload-tw" id="label-tw" class="btn-upload">📁 匯入台股</label><input type="file" id="upload-tw" accept=".csv">
+            <label for="upload-us" id="label-us" class="btn-upload">📁 匯入美股</label><input type="file" id="upload-us" accept=".csv">
+        </div>
+        <div class="action-row">
+            <button id="btn-inventory" class="btn-tool" onclick="openInventoryManager()">⚙️ 校正</button>
+            <button id="btn-report" class="btn-tool highlight" onclick="openReport()">📊 比較報告</button>
+            <button id="btn-clear" class="btn-tool icon-only" onclick="askClearAllData()" title="清空所有資料">🗑️</button>
+            <button id="btn-privacy" class="btn-tool icon-only" onclick="togglePrivacy()" title="切換隱私模式">👁️</button>
+            <div class="exchange-rate"><strong id="display-rate">--.--</strong></div>
         </div>
     </div>
 
@@ -407,7 +405,7 @@
     <div class="card galaxy-card">
         <div class="galaxy-header">
             <h2 class="card-title">🪐 資產連動星系圖</h2>
-            <span class="card-subtitle">星體發光綁定真實損益，點擊可喚醒神經連結</span>
+            <span class="card-subtitle">點擊星球動態演算關聯，無干擾純淨視野</span>
         </div>
         <div id="correlationGraph" style="width: 100%; height: 450px; position: relative;"></div>
         <div style="display:flex; justify-content:center; gap:15px; font-size:11px; color:#8b949e; margin-top:8px;">
@@ -422,7 +420,7 @@
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
     <script>
-        // 【全域變數與防呆補齊】
+        // 全域變數宣告
         let isPrivacyMode = false; let currentRate = 32.5; let latestDataTime = 0; let charts = {}; let currentMarketView = 'ALL'; 
         let realPortfolio = { tw: [], us: [] }; let sandboxScenarios = []; let activeScenarioId = 'real'; 
         let stockMapCache = {}; let globalCombinedList = []; 
@@ -431,6 +429,7 @@
         let currentPromptPrice = 0;
         let isReportRendered = false; 
 
+        // 導航與共用函數
         function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
         function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
         function navigateTo(url) { if (window.location.href.includes(url) || (url === 'index.html' && window.location.pathname.endsWith('/'))) { closeDrawer(); return; } closeDrawer(); setTimeout(() => { document.body.classList.add('fade-out'); setTimeout(() => { window.location.href = url; }, 400); }, 250); }
@@ -443,6 +442,7 @@
         let toastTimeout;
         function showToast(msg) { const toast = document.getElementById('toast-container'); toast.innerText = msg; toast.classList.add('show'); clearTimeout(toastTimeout); toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500); }
 
+        // 初始化監聽
         document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('upload-tw').addEventListener('change', (e) => handleFileUpload(e, 'tw'));
             document.getElementById('upload-us').addEventListener('change', (e) => handleFileUpload(e, 'us'));
@@ -470,19 +470,11 @@
             updateScenarioUI();
             if (realPortfolio.tw.length > 0 || realPortfolio.us.length > 0) { 
                 setLoading(true); 
-                try { 
-                    await updateFinanceData(); 
-                } catch(e) { 
-                    console.error("資料更新異常:", e); 
-                    renderCurrentView(); 
-                } finally { 
-                    setLoading(false); 
-                } 
-            } else { 
-                renderCurrentView(); 
-            }
+                try { await updateFinanceData(); } catch(e) { console.error(e); renderCurrentView(); } finally { setLoading(false); } 
+            } else { renderCurrentView(); }
         });
 
+        // 彈窗系統
         let confirmCallback = null;
         function openConfirmModal(title, desc, btnText, callback) { document.getElementById('confirm-modal-title').innerText = title; document.getElementById('confirm-modal-desc').innerHTML = desc; document.getElementById('btn-confirm-danger').innerText = btnText; confirmCallback = callback; document.getElementById('confirm-modal-overlay').classList.add('active'); }
         function closeConfirmModal() { document.getElementById('confirm-modal-overlay').classList.remove('active'); }
@@ -495,19 +487,15 @@
 
         let infoCallback = null;
         function showInfoModal(title, desc, isError = false, callback = null) { 
-            document.getElementById('info-modal-title').innerText = title; 
-            document.getElementById('info-modal-desc').innerHTML = desc; 
+            document.getElementById('info-modal-title').innerText = title; document.getElementById('info-modal-desc').innerHTML = desc; 
             let icon = document.getElementById('info-modal-icon');
             if(isError) { icon.innerText = '!'; icon.style.background = '#FDECEA'; icon.style.color = '#B25858'; } 
             else { icon.innerText = '✓'; icon.style.background = '#E8F5E9'; icon.style.color = '#4E8765'; }
-            infoCallback = callback; 
-            document.getElementById('info-modal-overlay').classList.add('active'); 
+            infoCallback = callback; document.getElementById('info-modal-overlay').classList.add('active'); 
         }
-        function closeInfoModal() { 
-            document.getElementById('info-modal-overlay').classList.remove('active'); 
-            if (infoCallback) { let cb = infoCallback; infoCallback = null; cb(); }
-        }
+        function closeInfoModal() { document.getElementById('info-modal-overlay').classList.remove('active'); if (infoCallback) { let cb = infoCallback; infoCallback = null; cb(); } }
 
+        // 劇本切換系統
         function openScenModal() {
             document.getElementById('scen-list').innerHTML = '';
             let html = `<div class="scen-item" style="${activeScenarioId === 'real' ? 'background:rgba(0,86,179,0.05); font-weight:bold;' : ''}"><div class="scen-name" onclick="switchScenario('real')">🌍 真實持股 (鎖定) ${activeScenarioId === 'real' ? '✅' : ''}</div></div>`;
@@ -527,7 +515,7 @@
             else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); bar.innerHTML = `🧪 試算中：${sc.name} ▾`; bar.className = "scenario-bar sandbox"; rowUpload.style.display = "none"; btnInv.innerHTML = "✏️ 調整持股"; }
         }
 
-        // 【防線一】矩陣防彈衣：確保 undefined 歷史數據不會引發死當
+        // 核心計算
         function calculateMatrixRisk(list, totalVal) {
             if (!list || list.length === 0 || totalVal <= 0) return 0;
             let validStocks = list.filter(s => stockMapCache[s.symbol]);
@@ -540,8 +528,7 @@
                 let m = stockMapCache[s.symbol];
                 if(m && m.monthlyReturns && Object.keys(m.monthlyReturns).length > 0) {
                     let months = Object.keys(m.monthlyReturns);
-                    if(commonMonths === null) commonMonths = months; 
-                    else commonMonths = commonMonths.filter(x => months.includes(x));
+                    if(commonMonths === null) commonMonths = months; else commonMonths = commonMonths.filter(x => months.includes(x));
                 }
             });
 
@@ -555,19 +542,14 @@
                     for(let j=0; j<N; j++) {
                         let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns;
                         let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns;
-                        
                         if(hasRetI && hasRetJ) {
-                            let arrI = returnsMap[validStocks[i].symbol];
-                            let arrJ = returnsMap[validStocks[j].symbol];
-                            let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length;
-                            let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
+                            let arrI = returnsMap[validStocks[i].symbol]; let arrJ = returnsMap[validStocks[j].symbol];
+                            let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
                             let cov = 0;
                             for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
-                            cov = cov / (commonMonths.length - 1);
-                            Sigma[i][j] = cov * 12; 
+                            Sigma[i][j] = (cov / (commonMonths.length - 1)) * 12; 
                         } else {
-                            if (i === j) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][j] = sd * sd; } 
-                            else { Sigma[i][j] = 0; }
+                            if (i === j) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][j] = sd * sd; } else { Sigma[i][j] = 0; }
                         }
                     }
                 }
@@ -575,8 +557,7 @@
                 for(let i=0; i<N; i++) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][i] = sd * sd; }
             }
 
-            let weights = validStocks.map(s => (s.marketValueTWD || 0) / totalVal);
-            let portVar = 0;
+            let weights = validStocks.map(s => (s.marketValueTWD || 0) / totalVal); let portVar = 0;
             for(let i=0; i<N; i++) { for(let j=0; j<N; j++) { portVar += weights[i] * weights[j] * Sigma[i][j]; } }
             return Math.sqrt(Math.max(0, portVar));
         }
@@ -594,10 +575,7 @@
                     if (!res.ok) throw new Error('API 連線失敗');
                     const json = await res.json();
                     if (json.status === 'success') { stockMapCache = Object.assign(stockMapCache, json.data); if(json.exchangeRate) currentRate = json.exchangeRate; }
-                } catch(e) {
-                    console.error('Fetch error:', e);
-                    showToast("⚠️ 報價伺服器連線異常或超時，目前使用快取資料");
-                }
+                } catch(e) { console.error('Fetch error:', e); showToast("⚠️ 報價伺服器連線異常或超時，目前使用快取資料"); }
             }
             
             document.getElementById('display-rate').innerText = currentRate.toFixed(2); latestDataTime = 0;
@@ -622,7 +600,6 @@
             const dateEl = document.getElementById('data-date');
             if (globalCombinedList.length > 0) { let d = latestDataTime > 0 ? new Date(latestDataTime * 1000) : new Date(); let mm = (d.getMonth() + 1).toString().padStart(2, '0'); let dd = d.getDate().toString().padStart(2, '0'); dateEl.innerText = `📅 ${mm}/${dd}`; dateEl.style.display = 'inline-block'; } else { dateEl.style.display = 'none'; }
             
-            // 觸發安全渲染
             renderCurrentView();
         }
 
@@ -647,6 +624,7 @@
             localStorage.setItem('sync_invest_data', JSON.stringify({ totalValue: metrics.totalVal, cagr: metrics.cagr, dividendYield: metrics.totalVal > 0 ? (totalExpectedDividend / metrics.totalVal) : 0, timestamp: new Date().getTime() }));
         }
 
+        // CSV 匯入與 API
         async function handleFileUpload(event, market) {
             const file = event.target.files[0]; if (!file) return; setLoading(true);
             Papa.parse(file, {
@@ -671,7 +649,7 @@
 
         function askForSymbol(stockName) {
             return new Promise((resolve) => {
-                setLoading(false); const overlay = document.getElementById('csv-prompt-overlay'); document.getElementById('csv-stock-name').innerText = stockName; document.getElementById('csv-input-val').value = ''; document.getElementById('csv-error-msg').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-confirm').style.display = 'none';
+                setLoading(false); const overlay = document.getElementById('csv-prompt-overlay'); document.getElementById('csv-stock-name').innerText = stockName; document.getElementById('csv-input-val').value = ''; document.getElementById('csv-step-input').style.display = 'block'; document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-confirm').style.display = 'none';
                 overlay.classList.add('active'); let currentTestSymbol = ''; const cleanup = () => { overlay.classList.remove('active'); setLoading(true); };
                 document.getElementById('btn-csv-skip').onclick = () => { cleanup(); resolve('SKIP'); };
                 document.getElementById('btn-csv-check').onclick = async () => {
@@ -679,362 +657,117 @@
                     currentTestSymbol = val; document.getElementById('csv-step-input').style.display = 'none'; document.getElementById('csv-step-loading').style.display = 'block';
                     try {
                         const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: [val] }) }); 
-                        if (!res.ok) throw new Error('HTTP ' + res.status);
-                        const json = await res.json();
+                        if (!res.ok) throw new Error('HTTP ' + res.status); const json = await res.json();
                         if (json.status === 'success' && json.data[val] && !json.data[val].error) { document.getElementById('csv-yahoo-name').innerText = json.data[val].yahooName || val; document.getElementById('csv-yahoo-price').innerText = json.data[val].price; document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-confirm').style.display = 'block'; } 
-                        else { showInfoModal('搜尋失敗', 'Yahoo Finance 查無此代號，請檢查格式是否正確 (例如: 2330.TW)。', true); document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; }
-                    } catch (e) { showInfoModal('連線異常', '伺服器無回應或逾時，請稍後再試。', true); document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; }
+                        else { showInfoModal('搜尋失敗', 'Yahoo Finance 查無此代號。', true); document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; }
+                    } catch (e) { showInfoModal('連線異常', '伺服器無回應。', true); document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; }
                 };
                 document.getElementById('btn-csv-retry').onclick = () => { document.getElementById('csv-step-confirm').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; }; document.getElementById('btn-csv-save').onclick = () => { cleanup(); resolve(currentTestSymbol); };
             });
         }
 
+        // 庫存管理
         function openInventoryManager() {
             const container = document.getElementById('inventory-list-container'); container.innerHTML = '';
             let portfolio = activeScenarioId === 'real' ? realPortfolio : sandboxScenarios.find(s => s.id === activeScenarioId).portfolio;
-            
-            document.getElementById('btn-inv-add-stock').style.display = activeScenarioId === 'real' ? 'none' : 'inline-block';
-            document.getElementById('btn-ai-entry').style.display = activeScenarioId === 'real' ? 'none' : 'flex';
-            document.getElementById('inv-modal-title').innerText = activeScenarioId === 'real' ? '⚙️ 庫存校正中心' : '✏️ 試算持股調整';
-            document.getElementById('inv-modal-desc').innerText = activeScenarioId === 'real' ? '手動調整真實持股的股數或成本。' : '自由新增或刪除股票，或啟動 AI 智能配置。';
+            document.getElementById('btn-inv-add-stock').style.display = activeScenarioId === 'real' ? 'none' : 'inline-block'; document.getElementById('btn-ai-entry').style.display = activeScenarioId === 'real' ? 'none' : 'flex';
+            document.getElementById('inv-modal-title').innerText = activeScenarioId === 'real' ? '⚙️ 庫存校正中心' : '✏️ 試算持股調整'; document.getElementById('inv-modal-desc').innerText = activeScenarioId === 'real' ? '手動調整真實持股的股數或成本。' : '自由新增或刪除股票，或啟動 AI 智能配置。';
 
             const renderList = (market, list) => {
-                if(!list || list.length === 0) return;
-                let html = `<div style="font-weight:bold; margin: 15px 0 8px; color: var(--primary-dark); font-size: 15px; border-bottom: 2px solid #eaeaea; padding-bottom: 4px;">${market === 'tw' ? '🇹🇼 台股' : '🇺🇸 美股'}</div>`;
+                if(!list || list.length === 0) return; let html = `<div style="font-weight:bold; margin: 15px 0 8px; color: var(--primary-dark); font-size: 15px; border-bottom: 2px solid #eaeaea; padding-bottom: 4px;">${market === 'tw' ? '🇹🇼 台股' : '🇺🇸 美股'}</div>`;
                 list.forEach((item, index) => {
-                    html += `<div class="inv-item">
-                            <div class="inv-item-header"><span>${item.name} <span style="color:#999; font-weight:normal; font-size:12px;">(${item.symbol})</span></span></div>
-                            ${activeScenarioId !== 'real' ? `<button class="btn-del-stock" onclick="removeSandboxStock('${market}', ${index})">✕</button>` : ''}
-                            <div class="inv-input-group">
-                                <div class="inv-input-box"><span class="inv-input-label">總持有成本 (原幣)</span><input type="number" class="inv-input-field num" id="inv-cost-${market}-${index}" value="${item.cost}" step="any"></div>
-                                <div class="inv-input-box"><span class="inv-input-label">目前股數</span><input type="number" class="inv-input-field num" id="inv-shares-${market}-${index}" value="${item.shares}" step="any"></div>
-                            </div></div>`;
-                });
-                container.innerHTML += html;
+                    html += `<div class="inv-item"><div class="inv-item-header"><span>${item.name} <span style="color:#999; font-weight:normal; font-size:12px;">(${item.symbol})</span></span></div>${activeScenarioId !== 'real' ? `<button class="btn-del-stock" onclick="removeSandboxStock('${market}', ${index})">✕</button>` : ''}<div class="inv-input-group"><div class="inv-input-box"><span class="inv-input-label">總持有成本 (原幣)</span><input type="number" class="inv-input-field num" id="inv-cost-${market}-${index}" value="${item.cost}" step="any"></div><div class="inv-input-box"><span class="inv-input-label">目前股數</span><input type="number" class="inv-input-field num" id="inv-shares-${market}-${index}" value="${item.shares}" step="any"></div></div></div>`;
+                }); container.innerHTML += html;
             };
-
             renderList('tw', portfolio.tw); renderList('us', portfolio.us);
             if(portfolio.tw.length === 0 && portfolio.us.length === 0) container.innerHTML = '<div style="text-align:center; padding: 30px 20px; color:#999;">無資料。</div>';
             document.getElementById('inventory-modal-overlay').classList.add('active');
         }
-        
         function closeInventoryManager() { document.getElementById('inventory-modal-overlay').classList.remove('active'); }
-        
         async function saveInventoryChanges() {
             const updateList = (market, list) => { if(!list) return; list.forEach((item, index) => { const sInp = document.getElementById(`inv-shares-${market}-${index}`); const cInp = document.getElementById(`inv-cost-${market}-${index}`); if(sInp && cInp) { item.shares = parseFloat(sInp.value) || 0; item.cost = parseFloat(cInp.value) || 0; } }); };
-            if(activeScenarioId === 'real') { updateList('tw', realPortfolio.tw); updateList('us', realPortfolio.us); localStorage.setItem('portfolio_tw', JSON.stringify(realPortfolio.tw)); localStorage.setItem('portfolio_us', JSON.stringify(realPortfolio.us)); } 
-            else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); updateList('tw', sc.portfolio.tw); updateList('us', sc.portfolio.us); saveScenarios(); }
+            if(activeScenarioId === 'real') { updateList('tw', realPortfolio.tw); updateList('us', realPortfolio.us); localStorage.setItem('portfolio_tw', JSON.stringify(realPortfolio.tw)); localStorage.setItem('portfolio_us', JSON.stringify(realPortfolio.us)); } else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); updateList('tw', sc.portfolio.tw); updateList('us', sc.portfolio.us); saveScenarios(); }
             closeInventoryManager(); setLoading(true); try { await updateFinanceData(); showToast("✅ 組合已更新並重新計算"); } catch (err) {} finally { setLoading(false); }
         }
-
         function removeSandboxStock(market, index) { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); if(sc) { sc.portfolio[market].splice(index, 1); openInventoryManager(); } }
-
         function openSandboxAddStock() { closeInventoryManager(); const overlay = document.getElementById('sandbox-add-overlay'); document.getElementById('sb-step-input').style.display = 'block'; document.getElementById('sb-step-confirm').style.display = 'none'; document.getElementById('sb-input-val').value = ''; overlay.classList.add('active'); }
         function closeSandboxAddStock() { document.getElementById('sandbox-add-overlay').classList.remove('active'); openInventoryManager(); }
-        
         document.getElementById('btn-sb-check').onclick = async () => {
             const val = document.getElementById('sb-input-val').value.trim().toUpperCase(); if (!val) return;
             document.getElementById('sb-step-input').style.display = 'none'; document.getElementById('sb-step-loading').style.display = 'block';
             try {
-                const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: [val] }) }); 
-                if(!res.ok) throw new Error('API Error'); const json = await res.json();
-                if (json.status === 'success' && json.data[val] && !json.data[val].error) { const data = json.data[val]; stockMapCache[val] = data; currentPromptPrice = data.price; document.getElementById('sb-yahoo-name').innerText = data.yahooName || val; document.getElementById('sb-yahoo-price').innerText = data.price; document.getElementById('sb-shares').value = ''; document.getElementById('sb-cost').value = ''; document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-confirm').style.display = 'block'; } 
-                else { showInfoModal('搜尋失敗', 'Yahoo Finance 查無此代號，請檢查是否輸入正確。', true); document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-input').style.display = 'block'; }
-            } catch (e) { showInfoModal('連線異常', '伺服器無回應或逾時，請稍後再試。', true); document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-input').style.display = 'block'; }
+                const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: [val] }) }); if(!res.ok) throw new Error('API Error'); const json = await res.json();
+                if (json.status === 'success' && json.data[val] && !json.data[val].error) { const data = json.data[val]; stockMapCache[val] = data; document.getElementById('sb-yahoo-name').innerText = data.yahooName || val; document.getElementById('sb-yahoo-price').innerText = data.price; document.getElementById('sb-shares').value = ''; document.getElementById('sb-cost').value = ''; document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-confirm').style.display = 'block'; } else { showInfoModal('搜尋失敗', 'Yahoo Finance 查無此代號。', true); document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-input').style.display = 'block'; }
+            } catch (e) { showInfoModal('連線異常', '伺服器無回應。', true); document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-input').style.display = 'block'; }
         };
         document.getElementById('btn-sb-retry').onclick = openSandboxAddStock;
-        
         document.getElementById('btn-sb-save').onclick = () => {
-            let shares = parseFloat(document.getElementById('sb-shares').value) || 0; 
-            let finalCost = parseFloat(document.getElementById('sb-cost').value) || 0; 
-            let symbol = document.getElementById('sb-input-val').value.trim().toUpperCase(); 
-            let name = document.getElementById('sb-yahoo-name').innerText;
-            
-            if(shares <= 0 || finalCost < 0) { 
-                showInfoModal('輸入錯誤', '請輸入大於 0 的股數，並確保成本不為負數。', true); 
-                return; 
-            }
-            
-            let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
-            let market = symbol.includes('.TW') || symbol.includes('.TWO') ? 'tw' : 'us'; 
-            
+            let shares = parseFloat(document.getElementById('sb-shares').value) || 0; let finalCost = parseFloat(document.getElementById('sb-cost').value) || 0; let symbol = document.getElementById('sb-input-val').value.trim().toUpperCase(); let name = document.getElementById('sb-yahoo-name').innerText;
+            if(shares <= 0 || finalCost < 0) { showInfoModal('輸入錯誤', '請輸入大於 0 的股數。', true); return; }
+            let sc = sandboxScenarios.find(s => s.id === activeScenarioId); let market = symbol.includes('.TW') || symbol.includes('.TWO') ? 'tw' : 'us'; 
             sc.portfolio[market].push({ market: market.toUpperCase(), name: name, symbol: symbol, shares: shares, cost: finalCost });
-            document.getElementById('sandbox-add-overlay').classList.remove('active'); 
-            saveInventoryChanges(); 
+            document.getElementById('sandbox-add-overlay').classList.remove('active'); saveInventoryChanges(); 
         };
 
-        function selectAIOpt(el) {
-            document.querySelectorAll('.ai-opt-card').forEach(card => card.classList.remove('active'));
-            el.classList.add('active');
-            document.getElementById('ai-opt-objective').value = el.getAttribute('data-val');
-        }
-
+        // AI 最佳化
+        function selectAIOpt(el) { document.querySelectorAll('.ai-opt-card').forEach(card => card.classList.remove('active')); el.classList.add('active'); document.getElementById('ai-opt-objective').value = el.getAttribute('data-val'); }
         let pendingAIWeights = null;
-        
-        function openAIOptimizer() {
-            closeInventoryManager();
-            let sc = sandboxScenarios.find(s => s.id === activeScenarioId);
-            let totalStocks = sc.portfolio.tw.length + sc.portfolio.us.length;
-            if(totalStocks < 2) { 
-                showInfoModal("⚠️ 資料不足", "AI 智能配置需要利用資產間的相關性來抵銷風險。<br><br>請至少加入 <b>2 檔</b> 不同的股票才能啟動最佳化引擎！", true, () => { openInventoryManager(); }); 
-                return; 
-            }
-            document.getElementById('ai-opt-modal').classList.add('active');
-        }
+        function openAIOptimizer() { closeInventoryManager(); let sc = sandboxScenarios.find(s => s.id === activeScenarioId); let totalStocks = sc.portfolio.tw.length + sc.portfolio.us.length; if(totalStocks < 2) { showInfoModal("⚠️ 資料不足", "至少需要 2 檔不同的股票才能啟動最佳化引擎！", true, () => { openInventoryManager(); }); return; } document.getElementById('ai-opt-modal').classList.add('active'); }
         function closeAIOptimizer() { document.getElementById('ai-opt-modal').classList.remove('active'); openInventoryManager(); }
         function closeAIResult() { document.getElementById('ai-res-modal').classList.remove('active'); document.getElementById('ai-opt-modal').classList.add('active'); }
-
         function executeAIOptimizer() {
-            if (typeof numeric === 'undefined') {
-                showInfoModal("系統錯誤", "無法載入矩陣運算引擎 (numeric.js)，請檢查網路連線後重試。", true);
-                return;
-            }
-
-            document.getElementById('ai-opt-modal').classList.remove('active');
-            setLoading(true, "正在執行二次規劃矩陣求解...");
-            
+            if (typeof numeric === 'undefined') { showInfoModal("系統錯誤", "載入矩陣運算引擎失敗。", true); return; }
+            document.getElementById('ai-opt-modal').classList.remove('active'); setLoading(true, "正在執行二次規劃矩陣求解...");
             setTimeout(() => {
-                let sc = sandboxScenarios.find(s => s.id === activeScenarioId);
-                let validStocks = [...sc.portfolio.tw, ...sc.portfolio.us].filter(s => stockMapCache[s.symbol]);
-                let N = validStocks.length;
-
+                let sc = sandboxScenarios.find(s => s.id === activeScenarioId); let validStocks = [...sc.portfolio.tw, ...sc.portfolio.us].filter(s => stockMapCache[s.symbol]); let N = validStocks.length;
                 let commonMonths = null; let returnsMap = {};
-                validStocks.forEach(s => {
-                    let m = stockMapCache[s.symbol];
-                    if(m && m.monthlyReturns && Object.keys(m.monthlyReturns).length > 0) {
-                        let months = Object.keys(m.monthlyReturns);
-                        if(commonMonths === null) commonMonths = months; 
-                        else commonMonths = commonMonths.filter(x => months.includes(x));
-                    }
-                });
-
-                let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
-                let expectedCAGR = validStocks.map(s => stockMapCache[s.symbol].cagr || 0);
-                let expectedYield = validStocks.map(s => stockMapCache[s.symbol].dividendYield || 0);
-
+                validStocks.forEach(s => { let m = stockMapCache[s.symbol]; if(m && m.monthlyReturns && Object.keys(m.monthlyReturns).length > 0) { let months = Object.keys(m.monthlyReturns); if(commonMonths === null) commonMonths = months; else commonMonths = commonMonths.filter(x => months.includes(x)); } });
+                let Sigma = Array(N).fill(0).map(() => Array(N).fill(0)); let expectedCAGR = validStocks.map(s => stockMapCache[s.symbol].cagr || 0); let expectedYield = validStocks.map(s => stockMapCache[s.symbol].dividendYield || 0);
                 if (commonMonths && commonMonths.length >= 3) {
-                    validStocks.forEach((s) => { 
-                        let m = stockMapCache[s.symbol];
-                        returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns && m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
-                    });
-                    for(let i=0; i<N; i++) {
-                        for(let j=0; j<N; j++) {
-                            let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns;
-                            let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns;
-                            
-                            if(hasRetI && hasRetJ) {
-                                let arrI = returnsMap[validStocks[i].symbol];
-                                let arrJ = returnsMap[validStocks[j].symbol];
-                                let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length;
-                                let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
-                                let cov = 0;
-                                for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
-                                cov = cov / (commonMonths.length - 1);
-                                Sigma[i][j] = cov * 12; 
-                            } else {
-                                if (i === j) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][j] = sd * sd; } 
-                                else { Sigma[i][j] = 0; }
-                            }
-                        }
-                    }
-                } else {
-                    for(let i=0; i<N; i++) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][i] = sd * sd; }
-                }
-
-                let origTotalVal = 0;
-                validStocks.forEach(s => { let exRate = s.market === 'US' ? currentRate : 1; origTotalVal += s.shares * stockMapCache[s.symbol].price * exRate; });
-                let origWeights = validStocks.map(s => { if(origTotalVal === 0) return 1/N; let exRate = s.market === 'US' ? currentRate : 1; return (s.shares * stockMapCache[s.symbol].price * exRate) / origTotalVal; });
+                    validStocks.forEach((s) => { let m = stockMapCache[s.symbol]; returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns && m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); });
+                    for(let i=0; i<N; i++) { for(let j=0; j<N; j++) { let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns; let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns; if(hasRetI && hasRetJ) { let arrI = returnsMap[validStocks[i].symbol]; let arrJ = returnsMap[validStocks[j].symbol]; let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length; let cov = 0; for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); } Sigma[i][j] = (cov / (commonMonths.length - 1)) * 12; } else { if (i === j) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][j] = sd * sd; } else { Sigma[i][j] = 0; } } } }
+                } else { for(let i=0; i<N; i++) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][i] = sd * sd; } }
                 
-                let origCAGR = 0; let origYield = 0;
-                for(let i=0; i<N; i++) { origCAGR += origWeights[i] * expectedCAGR[i]; origYield += origWeights[i] * expectedYield[i]; }
-                let origVar = 0;
-                for(let i=0; i<N; i++) { for(let j=0; j<N; j++) { origVar += origWeights[i] * origWeights[j] * Sigma[i][j]; } }
-                let origRisk = Math.sqrt(Math.max(0, origVar));
-
-                let objType = document.getElementById('ai-opt-objective').value;
-                let userMinCagr = parseFloat(document.getElementById('ai-const-cagr').value) / 100;
-                if(isNaN(userMinCagr)) userMinCagr = -Infinity;
-                let userMaxRisk = parseFloat(document.getElementById('ai-const-risk').value) / 100;
-                if(isNaN(userMaxRisk)) userMaxRisk = Infinity;
-                let userMinYield = parseFloat(document.getElementById('ai-const-yield').value) / 100;
-                if(isNaN(userMinYield)) userMinYield = -Infinity;
-
-                let maxPossibleCagr = Math.max(...expectedCAGR);
-                let maxPossibleYield = Math.max(...expectedYield);
-                if (userMinCagr > maxPossibleCagr + 1e-4 || userMinYield > maxPossibleYield + 1e-4) {
-                    setLoading(false);
-                    showInfoModal("⚠️ 無法找到最佳解", "您設定的「最低報酬」或「最低殖利率」已經超越了目前資產組合能達到的<b>物理極限</b>。<br><br>請放寬條件後重試！", true, () => {
-                        document.getElementById('ai-opt-modal').classList.add('active'); 
-                    });
-                    return;
-                }
-
+                let origTotalVal = 0; validStocks.forEach(s => { let exRate = s.market === 'US' ? currentRate : 1; origTotalVal += s.shares * stockMapCache[s.symbol].price * exRate; });
+                let origWeights = validStocks.map(s => { if(origTotalVal === 0) return 1/N; let exRate = s.market === 'US' ? currentRate : 1; return (s.shares * stockMapCache[s.symbol].price * exRate) / origTotalVal; });
+                let origCAGR = 0; let origYield = 0; for(let i=0; i<N; i++) { origCAGR += origWeights[i] * expectedCAGR[i]; origYield += origWeights[i] * expectedYield[i]; }
+                let origVar = 0; for(let i=0; i<N; i++) { for(let j=0; j<N; j++) { origVar += origWeights[i] * origWeights[j] * Sigma[i][j]; } } let origRisk = Math.sqrt(Math.max(0, origVar));
+                let objType = document.getElementById('ai-opt-objective').value; let userMinCagr = parseFloat(document.getElementById('ai-const-cagr').value) / 100; if(isNaN(userMinCagr)) userMinCagr = -Infinity; let userMaxRisk = parseFloat(document.getElementById('ai-const-risk').value) / 100; if(isNaN(userMaxRisk)) userMaxRisk = Infinity; let userMinYield = parseFloat(document.getElementById('ai-const-yield').value) / 100; if(isNaN(userMinYield)) userMinYield = -Infinity;
+                let maxPossibleCagr = Math.max(...expectedCAGR); let maxPossibleYield = Math.max(...expectedYield);
+                if (userMinCagr > maxPossibleCagr + 1e-4 || userMinYield > maxPossibleYield + 1e-4) { setLoading(false); showInfoModal("⚠️ 無法找到最佳解", "限制條件超越了資產極限。", true, () => { document.getElementById('ai-opt-modal').classList.add('active'); }); return; }
                 const solveQP = (targetC, targetY) => {
-                    let D = []; let d = [];
-                    for(let i=0; i<N; i++){
-                        D[i] = [];
-                        for(let j=0; j<N; j++){ D[i][j] = Sigma[i][j] + (i===j ? 1e-8 : 0); } 
-                        d.push(0);
-                    }
+                    let D = []; let d = []; for(let i=0; i<N; i++){ D[i] = []; for(let j=0; j<N; j++){ D[i][j] = Sigma[i][j] + (i===j ? 1e-8 : 0); } d.push(0); }
                     let A = []; for(let i=0; i<N; i++) A.push([]); let b = [];
-                    
                     for(let i=0; i<N; i++) A[i].push(1); b.push(1);
                     for(let j=0; j<N; j++){ for(let i=0; i<N; i++){ A[i].push(i===j ? 1 : 0); } b.push(0); }
                     if(targetC > -Infinity){ for(let i=0; i<N; i++) A[i].push(expectedCAGR[i]); b.push(targetC); }
                     if(targetY > -Infinity){ for(let i=0; i<N; i++) A[i].push(expectedYield[i]); b.push(targetY); }
-
-                    try {
-                        let qp = numeric.solveQP(D, d, A, b, 1);
-                        if (qp.message) return { feasible: false };
-                        
-                        let sol = qp.solution;
-                        if (!sol || sol.some(isNaN)) return { feasible: false };
-                        
-                        sol = sol.map(v => Math.max(0, v));
-                        let sum = sol.reduce((acc, val) => acc + val, 0);
-                        if (sum === 0) return { feasible: false };
-                        let w = sol.map(v => v / sum);
-                        
-                        let c = 0, y = 0, v = 0;
-                        for(let i=0; i<N; i++){ c += w[i]*expectedCAGR[i]; y += w[i]*expectedYield[i]; }
-                        for(let i=0; i<N; i++){ for(let j=0; j<N; j++){ v += w[i]*w[j]*Sigma[i][j]; } }
-                        let rsk = Math.sqrt(Math.max(0, v));
-                        
-                        let tol = 1e-4; 
-                        if (c < userMinCagr - tol || y < userMinYield - tol || rsk > userMaxRisk + tol) {
-                            return { feasible: false };
-                        }
-
-                        return { feasible: true, weights: w, cagr: c, yield: y, risk: rsk };
-                    } catch(e) { return { feasible: false }; }
+                    try { let qp = numeric.solveQP(D, d, A, b, 1); if (qp.message) return { feasible: false }; let sol = qp.solution.map(v => Math.max(0, v)); let sum = sol.reduce((acc, val) => acc + val, 0); if (sum === 0) return { feasible: false }; let w = sol.map(v => v / sum); let c = 0, y = 0, v = 0; for(let i=0; i<N; i++){ c += w[i]*expectedCAGR[i]; y += w[i]*expectedYield[i]; } for(let i=0; i<N; i++){ for(let j=0; j<N; j++){ v += w[i]*w[j]*Sigma[i][j]; } } let rsk = Math.sqrt(Math.max(0, v)); if (c < userMinCagr - 1e-4 || y < userMinYield - 1e-4 || rsk > userMaxRisk + 1e-4) { return { feasible: false }; } return { feasible: true, weights: w, cagr: c, yield: y, risk: rsk }; } catch(e) { return { feasible: false }; }
                 };
-
                 let bestRes = null;
-
-                if (objType === 'min_risk') {
-                    let r = solveQP(userMinCagr, userMinYield);
-                    if (r.feasible) bestRes = r;
-                }
-                else if (objType === 'max_cagr') {
-                    let low = userMinCagr === -Infinity ? Math.min(...expectedCAGR) : userMinCagr;
-                    let high = maxPossibleCagr;
-                    for (let step=0; step<30; step++) {
-                        let mid = (low + high) / 2;
-                        let r = solveQP(mid, userMinYield);
-                        if (r.feasible) { bestRes = r; low = mid; } 
-                        else { high = mid; }
-                    }
-                    if (!bestRes) { let r = solveQP(userMinCagr, userMinYield); if(r.feasible) bestRes = r; }
-                }
-                else if (objType === 'max_yield') {
-                    let low = userMinYield === -Infinity ? Math.max(0, Math.min(...expectedYield)) : userMinYield;
-                    let high = maxPossibleYield;
-                    for (let step=0; step<30; step++) {
-                        let mid = (low + high) / 2;
-                        let r = solveQP(userMinCagr, mid);
-                        if (r.feasible) { bestRes = r; low = mid; } 
-                        else { high = mid; }
-                    }
-                    if (!bestRes) { let r = solveQP(userMinCagr, userMinYield); if(r.feasible) bestRes = r; }
-                }
-                else if (objType === 'efficiency') {
-                    let minR = userMinCagr === -Infinity ? Math.min(...expectedCAGR) : userMinCagr;
-                    let maxR = maxPossibleCagr;
-                    let steps = 50; 
-                    let bestScore = -Infinity;
-                    for (let i=0; i<=steps; i++) {
-                        let targetC = minR + (maxR - minR) * (i / steps);
-                        let r = solveQP(targetC, userMinYield);
-                        if (r.feasible) {
-                            let score = r.risk > 0 ? (r.cagr / r.risk) : (r.cagr > 0 ? Infinity : -Infinity);
-                            if (score > bestScore) { bestScore = score; bestRes = r; }
-                        }
-                    }
-                }
-
+                if (objType === 'min_risk') { let r = solveQP(userMinCagr, userMinYield); if (r.feasible) bestRes = r; }
+                else if (objType === 'max_cagr') { let low = userMinCagr === -Infinity ? Math.min(...expectedCAGR) : userMinCagr; let high = maxPossibleCagr; for (let step=0; step<30; step++) { let mid = (low + high) / 2; let r = solveQP(mid, userMinYield); if (r.feasible) { bestRes = r; low = mid; } else { high = mid; } } if (!bestRes) { let r = solveQP(userMinCagr, userMinYield); if(r.feasible) bestRes = r; } }
+                else if (objType === 'max_yield') { let low = userMinYield === -Infinity ? Math.max(0, Math.min(...expectedYield)) : userMinYield; let high = maxPossibleYield; for (let step=0; step<30; step++) { let mid = (low + high) / 2; let r = solveQP(userMinCagr, mid); if (r.feasible) { bestRes = r; low = mid; } else { high = mid; } } if (!bestRes) { let r = solveQP(userMinCagr, userMinYield); if(r.feasible) bestRes = r; } }
+                else if (objType === 'efficiency') { let minR = userMinCagr === -Infinity ? Math.min(...expectedCAGR) : userMinCagr; let maxR = maxPossibleCagr; let steps = 50; let bestScore = -Infinity; for (let i=0; i<=steps; i++) { let targetC = minR + (maxR - minR) * (i / steps); let r = solveQP(targetC, userMinYield); if (r.feasible) { let score = r.risk > 0 ? (r.cagr / r.risk) : (r.cagr > 0 ? Infinity : -Infinity); if (score > bestScore) { bestScore = score; bestRes = r; } } } }
                 setLoading(false);
-
-                if(!bestRes) {
-                    showInfoModal("⚠️ 無法找到最佳解", "在您設定的條件下，數學矩陣運算結果為「無解 (Infeasible)」。<br><br>這代表該資產組合無法同時滿足您的所有限制。請嘗試調降「最低報酬」或調高「最高風險」後重試！", true, () => {
-                        document.getElementById('ai-opt-modal').classList.add('active'); 
-                    });
-                } else {
+                if(!bestRes) { showInfoModal("⚠️ 無解", "條件過於嚴苛，請放寬限制。", true, () => { document.getElementById('ai-opt-modal').classList.add('active'); }); } else {
                     pendingAIWeights = { weights: bestRes.weights, stocks: validStocks };
-                    
-                    let html = `
-                        <div class="prompt-title">📊 最佳化矩陣演算報告</div>
-                        <div class="prompt-desc">基於二次規劃 (Quadratic Programming) 矩陣尋找之全局最佳解。</div>
-                        
-                        <table style="width:100%; font-size:13px; margin-bottom:15px; text-align:center; border-collapse:collapse; background:#f8f9fa; border-radius:8px; overflow:hidden;">
-                            <tr style="background:#e0e6ed; color:#2c3e50;">
-                                <th style="padding:8px;">指標</th><th style="padding:8px;">原組合</th><th style="padding:8px;">演算建議</th>
-                            </tr>
-                            <tr style="border-bottom:1px solid #eee;">
-                                <td style="padding:8px;">CAGR</td><td>${(origCAGR*100).toFixed(1)}%</td>
-                                <td style="color:var(--red-profit); font-weight:bold;">${(bestRes.cagr*100).toFixed(1)}%</td>
-                            </tr>
-                            <tr style="border-bottom:1px solid #eee;">
-                                <td style="padding:8px;">風險 (波動)</td><td>${(origRisk*100).toFixed(1)}%</td>
-                                <td style="color:var(--primary-dark); font-weight:bold;">${(bestRes.risk*100).toFixed(1)}%</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:8px;">殖利率</td><td>${(origYield*100).toFixed(1)}%</td>
-                                <td style="color:var(--primary-dark); font-weight:bold;">${(bestRes.yield*100).toFixed(1)}%</td>
-                            </tr>
-                        </table>
-
-                        <div style="text-align:left; font-size:12px; font-weight:bold; margin-bottom:8px; color:var(--primary-dark);">💡 最佳配置權重：</div>
-                        <div style="max-height:180px; overflow-y:auto; text-align:left; font-size:12px; padding-right:5px; margin-bottom:15px;">
-                    `;
-
-                    validStocks.forEach((s, i) => {
-                        let oldW = origWeights[i]*100; let newW = bestRes.weights[i]*100;
-                        html += `
-                        <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px dashed #eee; padding-bottom:6px;">
-                            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px; font-weight:bold;">${s.name}</span>
-                            <span><span style="color:#999">${oldW.toFixed(1)}%</span> <span style="color:#bdc3c7;">➔</span> <strong style="color:var(--primary-dark); font-size:14px;">${newW.toFixed(1)}%</strong></span>
-                        </div>`;
-                    });
-                    html += `</div>
-                        <div class="prompt-actions">
-                            <button class="btn-skip" onclick="closeAIResult()">返回</button>
-                            <button class="btn-success" onclick="applyAIWeights()">✅ 套用比例並重算</button>
-                        </div>
-                    `;
-                    document.getElementById('ai-res-content').innerHTML = html;
-                    document.getElementById('ai-res-modal').classList.add('active');
+                    let html = `<div class="prompt-title">📊 演算報告</div><table style="width:100%; font-size:13px; margin-bottom:15px; text-align:center; border-collapse:collapse; background:#f8f9fa; border-radius:8px;"> <tr style="background:#e0e6ed; color:#2c3e50;"><th style="padding:8px;">指標</th><th style="padding:8px;">原組合</th><th style="padding:8px;">建議</th></tr><tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">CAGR</td><td>${(origCAGR*100).toFixed(1)}%</td><td style="color:var(--red-profit); font-weight:bold;">${(bestRes.cagr*100).toFixed(1)}%</td></tr><tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">風險</td><td>${(origRisk*100).toFixed(1)}%</td><td style="color:var(--primary-dark); font-weight:bold;">${(bestRes.risk*100).toFixed(1)}%</td></tr><tr><td style="padding:8px;">殖利率</td><td>${(origYield*100).toFixed(1)}%</td><td style="color:var(--primary-dark); font-weight:bold;">${(bestRes.yield*100).toFixed(1)}%</td></tr></table><div style="text-align:left; font-size:12px; font-weight:bold; margin-bottom:8px; color:var(--primary-dark);">💡 最佳權重：</div><div style="max-height:180px; overflow-y:auto; text-align:left; font-size:12px; padding-right:5px; margin-bottom:15px;">`;
+                    validStocks.forEach((s, i) => { let oldW = origWeights[i]*100; let newW = bestRes.weights[i]*100; html += `<div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px dashed #eee; padding-bottom:6px;"><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px; font-weight:bold;">${s.name}</span><span><span style="color:#999">${oldW.toFixed(1)}%</span> ➔ <strong style="color:var(--primary-dark); font-size:14px;">${newW.toFixed(1)}%</strong></span></div>`; });
+                    html += `</div><div class="prompt-actions"><button class="btn-skip" onclick="closeAIResult()">返回</button><button class="btn-success" onclick="applyAIWeights()">✅ 套用並重算</button></div>`;
+                    document.getElementById('ai-res-content').innerHTML = html; document.getElementById('ai-res-modal').classList.add('active');
                 }
             }, 100);
         }
-
         function applyAIWeights() {
-            if(!pendingAIWeights) return;
-            let sc = sandboxScenarios.find(s => s.id === activeScenarioId);
-            
-            let totalVal = 0;
-            pendingAIWeights.stocks.forEach(s => { let exRate = s.market === 'US' ? currentRate : 1; totalVal += s.shares * stockMapCache[s.symbol].price * exRate; });
-            
-            pendingAIWeights.stocks.forEach((s, idx) => {
-                let targetValTWD = totalVal * pendingAIWeights.weights[idx];
-                let exRate = s.market === 'US' ? currentRate : 1;
-                let targetShares = targetValTWD / (stockMapCache[s.symbol].price * exRate);
-                let targetCost = targetValTWD / exRate; 
-                
-                let item = sc.portfolio.tw.find(x => x.symbol === s.symbol) || sc.portfolio.us.find(x => x.symbol === s.symbol);
-                if(item) { 
-                    item.shares = parseFloat(targetShares.toFixed(4)); 
-                    item.cost = parseFloat(targetCost.toFixed(2)); 
-                }
-            });
-
-            saveScenarios();
-            document.getElementById('ai-res-modal').classList.remove('active');
-            setLoading(true);
-            updateFinanceData().then(() => { setLoading(false); showToast("✅ 演算配置套用成功！"); });
+            if(!pendingAIWeights) return; let sc = sandboxScenarios.find(s => s.id === activeScenarioId); let totalVal = 0; pendingAIWeights.stocks.forEach(s => { let exRate = s.market === 'US' ? currentRate : 1; totalVal += s.shares * stockMapCache[s.symbol].price * exRate; });
+            pendingAIWeights.stocks.forEach((s, idx) => { let targetValTWD = totalVal * pendingAIWeights.weights[idx]; let exRate = s.market === 'US' ? currentRate : 1; let targetShares = targetValTWD / (stockMapCache[s.symbol].price * exRate); let targetCost = targetValTWD / exRate; let item = sc.portfolio.tw.find(x => x.symbol === s.symbol) || sc.portfolio.us.find(x => x.symbol === s.symbol); if(item) { item.shares = parseFloat(targetShares.toFixed(4)); item.cost = parseFloat(targetCost.toFixed(2)); } });
+            saveScenarios(); document.getElementById('ai-res-modal').classList.remove('active'); setLoading(true); updateFinanceData().then(() => { setLoading(false); showToast("✅ 配置套用成功！"); });
         }
 
-        // ================= 【史詩進化】具備智慧離合器的活體星系拓樸圖 =================
+        // ================= 【化有為無】動態連線星系拓樸圖 =================
         let galaxyNodesData = [];
+        let theoreticalLinks = []; // 把所有連線存在全域陣列，不畫上去
         if(window.galaxyPulseInterval) clearInterval(window.galaxyPulseInterval);
         if(window.galaxyFlashInterval) clearInterval(window.galaxyFlashInterval);
 
@@ -1048,6 +781,7 @@
 
             if (list.length < 2 || totalVal <= 0) {
                 container.innerHTML = '<div style="color: #666; text-align: center; padding-top: 200px; font-size:12px;">🪐 至少需要 2 檔以上標的才能運算引力</div>';
+                if (charts.corr) { charts.corr.dispose(); charts.corr = null; }
                 return;
             }
             container.innerHTML = '';
@@ -1056,6 +790,7 @@
             let N = validStocks.length;
             if (N < 2) return;
 
+            // 1. 共變異數計算
             let commonMonths = null; let returnsMap = {};
             validStocks.forEach(s => {
                 let m = stockMapCache[s.symbol];
@@ -1076,19 +811,13 @@
                     for(let j=0; j<N; j++) {
                         let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns;
                         let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns;
-                        
                         if(hasRetI && hasRetJ) {
-                            let arrI = returnsMap[validStocks[i].symbol];
-                            let arrJ = returnsMap[validStocks[j].symbol];
-                            let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length;
-                            let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
-                            let cov = 0;
-                            for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
-                            cov = cov / (commonMonths.length - 1);
+                            let arrI = returnsMap[validStocks[i].symbol]; let arrJ = returnsMap[validStocks[j].symbol];
+                            let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
+                            let cov = 0; for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
                             Sigma[i][j] = cov; 
                         } else {
-                            if (i === j) { let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); Sigma[i][j] = sd * sd; } 
-                            else { Sigma[i][j] = 0; }
+                            if (i === j) { let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); Sigma[i][j] = sd * sd; } else { Sigma[i][j] = 0; }
                         }
                     }
                 }
@@ -1099,9 +828,10 @@
             let SD = [];
             for(let i=0; i<N; i++) SD[i] = Math.sqrt(Math.max(0, Sigma[i][i]));
 
+            // 2. 建構「理論」連線陣列 (不畫上畫面)
             let posCount = Array(N).fill(0);
             let negCount = Array(N).fill(0);
-            let links = [];
+            theoreticalLinks = []; 
 
             for(let i=0; i<N; i++) {
                 for(let j=i+1; j<N; j++) {
@@ -1112,25 +842,12 @@
                         let isNegative = r < 0;
                         if(isNegative) { negCount[i]++; negCount[j]++; } else { posCount[i]++; posCount[j]++; }
                         
-                        links.push({
+                        // 儲存理論資料，點擊時才真正轉化為 ECharts 物件
+                        theoreticalLinks.push({
                             source: validStocks[i].symbol,
                             target: validStocks[j].symbol,
-                            value: r.toFixed(2),
-                            lineStyle: {
-                                color: isNegative ? '#00e676' : '#ff4757', 
-                                width: isNegative ? 2 : Math.min(8, Math.abs(r) * 6),
-                                type: isNegative ? 'dashed' : 'solid',
-                                curveness: 0.1,
-                                opacity: 0  
-                            },
-                            silent: true, 
-                            emphasis: {
-                                lineStyle: {
-                                    opacity: 1, 
-                                    shadowBlur: 10,
-                                    shadowColor: isNegative ? '#00e676' : '#ff4757'
-                                }
-                            }
+                            value: r,
+                            isNegative: isNegative
                         });
                     }
                 }
@@ -1139,15 +856,13 @@
             let maxPosIdx = posCount.indexOf(Math.max(...posCount));
             let maxNegIdx = negCount.indexOf(Math.max(...negCount));
 
+            // 3. 建構星體
             galaxyNodesData = [];
             validStocks.forEach((s, i) => {
                 let weight = (s.marketValueTWD || 0) / totalVal;
                 let size = Math.max(18, Math.min(65, weight * 100)); 
-                
                 let isProfit = (s.marketValueTWD - s.costTWD) >= 0;
-                let color = isProfit ? '#d93025' : '#188038'; 
-                let glowColor = isProfit ? 'rgba(217, 48, 37, 0.8)' : 'rgba(24, 128, 56, 0.8)';
-
+                
                 let isHub = (i === maxPosIdx && posCount[i] > 0);
                 let isHedge = (i === maxNegIdx && negCount[i] > 0);
 
@@ -1159,24 +874,19 @@
                     _baseSize: size, 
                     _isSpecial: isHub || isHedge,
                     itemStyle: { 
-                        color: color, 
+                        color: isProfit ? '#d93025' : '#188038', 
                         shadowBlur: 15, 
-                        shadowColor: glowColor,
+                        shadowColor: isProfit ? 'rgba(217, 48, 37, 0.8)' : 'rgba(24, 128, 56, 0.8)',
                         borderColor: '#fff',
                         borderWidth: (isHub || isHedge) ? 2 : 0
                     },
-                    label: { 
-                        show: size >= 35, 
-                        position: 'inside', 
-                        color: '#fff', 
-                        fontSize: 10,
-                        fontWeight: 'bold'
-                    }
+                    label: { show: size >= 35, position: 'inside', color: '#fff', fontSize: 10, fontWeight: 'bold' }
                 });
             });
 
             if (!charts.corr) { charts.corr = echarts.init(container); }
             
+            // 【核心改變】初始載入時，links 給空陣列，徹底拔除幽靈路障
             let option = {
                 tooltip: { formatter: '{b}: 佔比 {c}' },
                 series: [{
@@ -1185,135 +895,146 @@
                     roam: false, 
                     draggable: false, 
                     data: galaxyNodesData,
-                    links: links,
-                    force: {
-                        repulsion: 120,    
-                        edgeLength: [40, 100],
-                        gravity: 0.1       
-                    },
-                    emphasis: {
-                        focus: 'adjacency', 
-                        itemStyle: { shadowBlur: 25 },
-                        label: { show: true } 
-                    }
+                    links: [], 
+                    force: { repulsion: 120, edgeLength: [40, 100], gravity: 0.1 },
+                    emphasis: { itemStyle: { shadowBlur: 25 }, label: { show: true } }
                 }]
             };
-            
-            charts.corr.setOption(option);
+            charts.corr.setOption(option, true); // true 代表完全覆蓋
 
-            // ================= 智慧離合器與動畫系統 =================
+            // ================= 動態注入與動畫系統 =================
             let isPulsed = false;
-            let focusedNodeIndex = null;
+            let focusedNodeId = null;
+            let currentActiveEchartsLinks = []; 
             clearInterval(window.galaxyPulseInterval);
             clearInterval(window.galaxyFlashInterval);
             
+            // 啟動全域呼吸燈
             function startPulse() {
                 clearInterval(window.galaxyPulseInterval);
                 window.galaxyPulseInterval = setInterval(() => {
-                    if (!charts.corr || charts.corr.isDisposed()) {
-                        clearInterval(window.galaxyPulseInterval);
-                        return;
-                    }
+                    if (!charts.corr || charts.corr.isDisposed()) { clearInterval(window.galaxyPulseInterval); return; }
                     isPulsed = !isPulsed;
                     let updatedNodes = galaxyNodesData.map(n => {
                         if (n._isSpecial) {
-                            return {
-                                ...n,
-                                symbolSize: isPulsed ? n._baseSize * 1.15 : n._baseSize, 
-                                itemStyle: { ...n.itemStyle, shadowBlur: isPulsed ? 25 : 10 } 
-                            };
-                        }
-                        return n;
+                            return { ...n, symbolSize: isPulsed ? n._baseSize * 1.15 : n._baseSize, itemStyle: { ...n.itemStyle, shadowBlur: isPulsed ? 25 : 10 } };
+                        } return n;
                     });
                     charts.corr.setOption({ series: [{ data: updatedNodes }] });
                 }, 1200);
             }
 
+            // 暫停呼吸燈 (屏息模式)
             function stopPulse() {
                 clearInterval(window.galaxyPulseInterval);
                 let resetNodes = galaxyNodesData.map(n => {
-                    if (n._isSpecial) {
-                        return { ...n, symbolSize: n._baseSize, itemStyle: { ...n.itemStyle, shadowBlur: 15 } };
-                    }
-                    return n;
+                    if (n._isSpecial) { return { ...n, symbolSize: n._baseSize, itemStyle: { ...n.itemStyle, shadowBlur: 15 } }; } return n;
                 });
-                if(charts.corr && !charts.corr.isDisposed()) {
-                    charts.corr.setOption({ series: [{ data: resetNodes }] });
-                }
+                if(charts.corr && !charts.corr.isDisposed()) { charts.corr.setOption({ series: [{ data: resetNodes }] }); }
             }
 
             startPulse();
 
+            // 點擊星球 ➔ 動態畫線
             charts.corr.on('click', function(params) {
                 if(params.dataType === 'edge') return; 
 
                 if(params.dataType === 'node') {
-                    focusedNodeIndex = params.dataIndex;
-                    stopPulse(); 
+                    focusedNodeId = params.data.id;
+                    stopPulse(); // 屏息
+                    
+                    // 從理論資料庫中找出與這顆球有關的線，當場轉化為 ECharts 實體連線
+                    currentActiveEchartsLinks = theoreticalLinks.filter(l => l.source === focusedNodeId || l.target === focusedNodeId).map(l => {
+                        let w = l.isNegative ? 2 : Math.min(8, Math.abs(l.value) * 6);
+                        return {
+                            source: l.source,
+                            target: l.target,
+                            value: rToStr(l.value),
+                            _baseWidth: w, // 記錄原始寬度供閃爍使用
+                            lineStyle: {
+                                color: l.isNegative ? '#00e676' : '#ff4757',
+                                width: w,
+                                type: l.isNegative ? 'dashed' : 'solid',
+                                curveness: 0.1,
+                                opacity: 1, // 直接全亮，沒有覆寫問題
+                                shadowBlur: 10,
+                                shadowColor: l.isNegative ? '#00e676' : '#ff4757'
+                            }
+                        };
+                    });
+
+                    // 【動態注入】把算好的連線直接推上畫面
+                    charts.corr.setOption({ series: [{ links: currentActiveEchartsLinks }] });
+                    
+                    // 啟動專屬的 3秒手工閃爍
                     resetFlashTimer(); 
                 }
             });
 
+            // 點擊空白太空 ➔ 抹除所有連線
             charts.corr.getZr().on('click', function(e) {
                 if (!e.target) { 
-                    focusedNodeIndex = null;
+                    focusedNodeId = null;
                     clearInterval(window.galaxyFlashInterval);
                     if(charts.corr && !charts.corr.isDisposed()) {
+                        charts.corr.setOption({ series: [{ links: [] }] }); // 瞬間抽走所有線條
                         charts.corr.dispatchAction({ type: 'downplay' }); 
                     }
-                    startPulse(); 
+                    startPulse(); // 恢復呼吸
                 }
             });
 
+            function rToStr(v) { return v > 0 ? '+'+v.toFixed(2) : v.toFixed(2); }
+
+            // 手工 3秒神經突觸閃爍
             function resetFlashTimer() {
                 clearInterval(window.galaxyFlashInterval);
-                if (focusedNodeIndex === null) return;
-                
-                let adjNodes = [focusedNodeIndex];
-                let adjEdges = [];
-                links.forEach((link, idx) => {
-                    let sourceIdx = galaxyNodesData.findIndex(n => n.id === link.source);
-                    let targetIdx = galaxyNodesData.findIndex(n => n.id === link.target);
-                    if (sourceIdx === focusedNodeIndex) { adjNodes.push(targetIdx); adjEdges.push(idx); } 
-                    else if (targetIdx === focusedNodeIndex) { adjNodes.push(sourceIdx); adjEdges.push(idx); }
-                });
+                if (!focusedNodeId || currentActiveEchartsLinks.length === 0) return;
 
                 window.galaxyFlashInterval = setInterval(() => {
-                    if (!charts.corr || charts.corr.isDisposed() || focusedNodeIndex === null) {
+                    if (!charts.corr || charts.corr.isDisposed() || !focusedNodeId) {
                         clearInterval(window.galaxyFlashInterval); return;
                     }
                     
-                    charts.corr.dispatchAction({ type: 'downplay' });
+                    // 1. 變暗變細 (Dim)
+                    let dimLinks = currentActiveEchartsLinks.map(l => ({
+                        ...l, lineStyle: { ...l.lineStyle, opacity: 0.1, shadowBlur: 0, width: 1 }
+                    }));
+                    charts.corr.setOption({ series: [{ links: dimLinks }] });
                     
+                    // 2. 150ms 後爆亮通電 (Bright)
                     setTimeout(() => {
-                        if (!charts.corr || charts.corr.isDisposed()) return;
-                        charts.corr.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: adjNodes });
-                        charts.corr.dispatchAction({ type: 'highlight', seriesIndex: 0, dataType: 'edge', dataIndex: adjEdges });
+                        if (!charts.corr || charts.corr.isDisposed() || !focusedNodeId) return;
+                        let brightLinks = currentActiveEchartsLinks.map(l => ({
+                            ...l, lineStyle: { ...l.lineStyle, opacity: 1, shadowBlur: 15, width: l._baseWidth + 3 }
+                        }));
+                        charts.corr.setOption({ series: [{ links: brightLinks }] });
+                        
+                        // 再過 150ms 恢復正常狀態
+                        setTimeout(() => {
+                            if (!charts.corr || charts.corr.isDisposed() || !focusedNodeId) return;
+                            charts.corr.setOption({ series: [{ links: currentActiveEchartsLinks }] });
+                        }, 150);
+
                     }, 150);
                 }, 3000); 
             }
         }
 
-        // ================= 【完美歸位】中控台與報告渲染核心模塊 =================
+        // ================= 中控台與報告渲染 =================
         function askClearAllData() { 
             openConfirmModal("警告", "確定要清空所有真實持股資料嗎？<br><br>這將移除儀表板上的所有紀錄。", "確定清空", () => { 
-                localStorage.removeItem('portfolio_tw'); 
-                localStorage.removeItem('portfolio_us'); 
-                realPortfolio = { tw: [], us: [] }; 
-                globalCombinedList = []; 
-                document.getElementById('label-tw').innerText = '📁 匯入台股'; 
-                document.getElementById('label-us').innerText = '📁 匯入美股'; 
-                exportGlobalSyncData([]); 
-                renderCurrentView(); 
-                showToast('已清空所有資料'); 
+                localStorage.removeItem('portfolio_tw'); localStorage.removeItem('portfolio_us'); 
+                realPortfolio = { tw: [], us: [] }; globalCombinedList = []; 
+                document.getElementById('label-tw').innerText = '📁 匯入台股'; document.getElementById('label-us').innerText = '📁 匯入美股'; 
+                exportGlobalSyncData([]); renderCurrentView(); showToast('已清空所有資料'); 
             }); 
         }
 
         function togglePrivacy() { 
             isPrivacyMode = !isPrivacyMode; 
             document.getElementById('btn-privacy').innerHTML = isPrivacyMode ? '🙈' : '👁️'; 
-            renderCurrentView(); 
-            showToast(isPrivacyMode ? "隱私模式已開啟" : "隱私模式已關閉"); 
+            renderCurrentView(); showToast(isPrivacyMode ? "隱私模式已開啟" : "隱私模式已關閉"); 
         }
 
         function switchMarket(market) { 
@@ -1333,15 +1054,11 @@
 
         function openReport() {
             if(compareData.realGlobal === null || compareData.realGlobal.totalVal === 0) { showToast("請先匯入資料"); return; }
-            document.getElementById('report-overlay').style.display = 'block'; 
-            document.body.style.overflow = 'hidden';
+            document.getElementById('report-overlay').style.display = 'block'; document.body.style.overflow = 'hidden';
             setTimeout(() => { renderScatterChart(); renderMCCompareChart(); }, 100);
         }
         
-        function closeReport() { 
-            document.getElementById('report-overlay').style.display = 'none'; 
-            document.body.style.overflow = ''; 
-        }
+        function closeReport() { document.getElementById('report-overlay').style.display = 'none'; document.body.style.overflow = ''; }
 
         function renderScatterChart() {
             if (charts.scatter) charts.scatter.destroy(); let d = compareData; let datasets = [];
