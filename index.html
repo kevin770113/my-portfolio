@@ -422,6 +422,7 @@
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
     <script>
+        // 【全域變數與防呆補齊】
         let isPrivacyMode = false; let currentRate = 32.5; let latestDataTime = 0; let charts = {}; let currentMarketView = 'ALL'; 
         let realPortfolio = { tw: [], us: [] }; let sandboxScenarios = []; let activeScenarioId = 'real'; 
         let stockMapCache = {}; let globalCombinedList = []; 
@@ -469,8 +470,17 @@
             updateScenarioUI();
             if (realPortfolio.tw.length > 0 || realPortfolio.us.length > 0) { 
                 setLoading(true); 
-                try { await updateFinanceData(); } catch(e) { console.error("資料更新異常:", e); renderCurrentView(); } finally { setLoading(false); } 
-            } else { renderCurrentView(); }
+                try { 
+                    await updateFinanceData(); 
+                } catch(e) { 
+                    console.error("資料更新異常:", e); 
+                    renderCurrentView(); 
+                } finally { 
+                    setLoading(false); 
+                } 
+            } else { 
+                renderCurrentView(); 
+            }
         });
 
         let confirmCallback = null;
@@ -493,7 +503,10 @@
             infoCallback = callback; 
             document.getElementById('info-modal-overlay').classList.add('active'); 
         }
-        function closeInfoModal() { document.getElementById('info-modal-overlay').classList.remove('active'); if (infoCallback) { let cb = infoCallback; infoCallback = null; cb(); } }
+        function closeInfoModal() { 
+            document.getElementById('info-modal-overlay').classList.remove('active'); 
+            if (infoCallback) { let cb = infoCallback; infoCallback = null; cb(); }
+        }
 
         function openScenModal() {
             document.getElementById('scen-list').innerHTML = '';
@@ -514,6 +527,7 @@
             else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); bar.innerHTML = `🧪 試算中：${sc.name} ▾`; bar.className = "scenario-bar sandbox"; rowUpload.style.display = "none"; btnInv.innerHTML = "✏️ 調整持股"; }
         }
 
+        // 【防線一】矩陣防彈衣：確保 undefined 歷史數據不會引發死當
         function calculateMatrixRisk(list, totalVal) {
             if (!list || list.length === 0 || totalVal <= 0) return 0;
             let validStocks = list.filter(s => stockMapCache[s.symbol]);
@@ -608,6 +622,7 @@
             const dateEl = document.getElementById('data-date');
             if (globalCombinedList.length > 0) { let d = latestDataTime > 0 ? new Date(latestDataTime * 1000) : new Date(); let mm = (d.getMonth() + 1).toString().padStart(2, '0'); let dd = d.getDate().toString().padStart(2, '0'); dateEl.innerText = `📅 ${mm}/${dd}`; dateEl.style.display = 'inline-block'; } else { dateEl.style.display = 'none'; }
             
+            // 觸發安全渲染
             renderCurrentView();
         }
 
@@ -1108,7 +1123,7 @@
                                 curveness: 0.1,
                                 opacity: 0  
                             },
-                            silent: true, // 關閉線條本身的滑鼠/觸控事件
+                            silent: true, 
                             emphasis: {
                                 lineStyle: {
                                     opacity: 1, 
@@ -1177,7 +1192,7 @@
                         gravity: 0.1       
                     },
                     emphasis: {
-                        focus: 'adjacency', // 自動高亮相鄰的神經元與突觸
+                        focus: 'adjacency', 
                         itemStyle: { shadowBlur: 25 },
                         label: { show: true } 
                     }
@@ -1192,7 +1207,6 @@
             clearInterval(window.galaxyPulseInterval);
             clearInterval(window.galaxyFlashInterval);
             
-            // 啟動全域呼吸燈
             function startPulse() {
                 clearInterval(window.galaxyPulseInterval);
                 window.galaxyPulseInterval = setInterval(() => {
@@ -1215,7 +1229,6 @@
                 }, 1200);
             }
 
-            // 暫停呼吸燈並還原節點大小 (屏息模式)
             function stopPulse() {
                 clearInterval(window.galaxyPulseInterval);
                 let resetNodes = galaxyNodesData.map(n => {
@@ -1229,39 +1242,33 @@
                 }
             }
 
-            // 初次載入啟動呼吸
             startPulse();
 
-            // 監聽點擊事件
             charts.corr.on('click', function(params) {
-                // 【防線】強制攔截線條點擊，就算摸到線也完全無效
                 if(params.dataType === 'edge') return; 
 
                 if(params.dataType === 'node') {
                     focusedNodeIndex = params.dataIndex;
-                    stopPulse(); // 【智慧離合器】暫停呼吸燈，防止重繪洗掉高亮狀態
-                    resetFlashTimer(); // 啟動 3 秒神經閃爍
+                    stopPulse(); 
+                    resetFlashTimer(); 
                 }
             });
 
-            // 監聽點擊空白太空
             charts.corr.getZr().on('click', function(e) {
                 if (!e.target) { 
                     focusedNodeIndex = null;
                     clearInterval(window.galaxyFlashInterval);
                     if(charts.corr && !charts.corr.isDisposed()) {
-                        charts.corr.dispatchAction({ type: 'downplay' }); // 熄滅所有聚焦
+                        charts.corr.dispatchAction({ type: 'downplay' }); 
                     }
-                    startPulse(); // 【智慧離合器】解除屏息，恢復全域呼吸
+                    startPulse(); 
                 }
             });
 
-            // 3秒神經突觸閃爍邏輯
             function resetFlashTimer() {
                 clearInterval(window.galaxyFlashInterval);
                 if (focusedNodeIndex === null) return;
                 
-                // 預先計算出與這顆星球相連的所有節點與線條 Index
                 let adjNodes = [focusedNodeIndex];
                 let adjEdges = [];
                 links.forEach((link, idx) => {
@@ -1276,22 +1283,111 @@
                         clearInterval(window.galaxyFlashInterval); return;
                     }
                     
-                    // 1. 瞬間熄滅 (暗下)
                     charts.corr.dispatchAction({ type: 'downplay' });
                     
-                    // 2. 150毫秒後，針對所有相鄰神經元與突觸，瞬間通電 (閃亮)
                     setTimeout(() => {
                         if (!charts.corr || charts.corr.isDisposed()) return;
-                        // 高亮中心與周圍星球
                         charts.corr.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: adjNodes });
-                        // 高亮相連突觸線條
                         charts.corr.dispatchAction({ type: 'highlight', seriesIndex: 0, dataType: 'edge', dataIndex: adjEdges });
                     }, 150);
                 }, 3000); 
             }
         }
 
-        // ================= 儀表板其他渲染邏輯 =================
+        // ================= 【完美歸位】中控台與報告渲染核心模塊 =================
+        function askClearAllData() { 
+            openConfirmModal("警告", "確定要清空所有真實持股資料嗎？<br><br>這將移除儀表板上的所有紀錄。", "確定清空", () => { 
+                localStorage.removeItem('portfolio_tw'); 
+                localStorage.removeItem('portfolio_us'); 
+                realPortfolio = { tw: [], us: [] }; 
+                globalCombinedList = []; 
+                document.getElementById('label-tw').innerText = '📁 匯入台股'; 
+                document.getElementById('label-us').innerText = '📁 匯入美股'; 
+                exportGlobalSyncData([]); 
+                renderCurrentView(); 
+                showToast('已清空所有資料'); 
+            }); 
+        }
+
+        function togglePrivacy() { 
+            isPrivacyMode = !isPrivacyMode; 
+            document.getElementById('btn-privacy').innerHTML = isPrivacyMode ? '🙈' : '👁️'; 
+            renderCurrentView(); 
+            showToast(isPrivacyMode ? "隱私模式已開啟" : "隱私模式已關閉"); 
+        }
+
+        function switchMarket(market) { 
+            currentMarketView = market; 
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active')); 
+            document.getElementById(`tab-${market}`).classList.add('active'); 
+            renderCurrentView(); 
+            let name = market === 'ALL' ? '全球總覽' : (market === 'TW' ? '台股' : '美股'); 
+            showToast(`已切換至 ${name}`); 
+        }
+        
+        function renderCurrentView() {
+            if (globalCombinedList.length === 0) { renderDashboard([]); return; }
+            let filteredList = currentMarketView !== 'ALL' ? globalCombinedList.filter(item => item.market === currentMarketView) : globalCombinedList;
+            renderDashboard(filteredList);
+        }
+
+        function openReport() {
+            if(compareData.realGlobal === null || compareData.realGlobal.totalVal === 0) { showToast("請先匯入資料"); return; }
+            document.getElementById('report-overlay').style.display = 'block'; 
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => { renderScatterChart(); renderMCCompareChart(); }, 100);
+        }
+        
+        function closeReport() { 
+            document.getElementById('report-overlay').style.display = 'none'; 
+            document.body.style.overflow = ''; 
+        }
+
+        function renderScatterChart() {
+            if (charts.scatter) charts.scatter.destroy(); let d = compareData; let datasets = [];
+            if(d.realGlobal && d.realGlobal.totalVal > 0) datasets.push({ label: '全球總持倉', data: [{x: d.realGlobal.stdev*100, y: d.realGlobal.cagr*100, r: 8}], backgroundColor: '#3498db' });
+            if(d.realTW && d.realTW.totalVal > 0) datasets.push({ label: '🇹🇼 台股部位', data: [{x: d.realTW.stdev*100, y: d.realTW.cagr*100, r: 6}], backgroundColor: '#2ecc71' });
+            if(d.realUS && d.realUS.totalVal > 0) datasets.push({ label: '🇺🇸 美股部位', data: [{x: d.realUS.stdev*100, y: d.realUS.cagr*100, r: 6}], backgroundColor: '#e74c3c' });
+            
+            const scColors = ['#f1c40f', '#9b59b6', '#00cec9', '#e67e22', '#fd79a8'];
+            if(d.sandboxList && d.sandboxList.length > 0) {
+                d.sandboxList.forEach((sc, idx) => { if(sc.metrics && sc.metrics.totalVal > 0) { datasets.push({ label: `🧪 ${sc.name}`, data: [{x: sc.metrics.stdev*100, y: sc.metrics.cagr*100, r: 8}], backgroundColor: scColors[idx % scColors.length], borderColor: '#fff', borderWidth: 1 }); } });
+            }
+
+            let legendHtml = ''; datasets.forEach(ds => { legendHtml += `<div class="legend-item"><div class="dot" style="background:${ds.backgroundColor}"></div>${ds.label}</div>`; }); document.getElementById('scatter-legend').innerHTML = legendHtml;
+            let gX = datasets[0]?.data[0]?.x || 0; let gY = datasets[0]?.data[0]?.y || 0;
+
+            charts.scatter = new Chart(document.getElementById('scatterChart'), { type: 'bubble', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, layout: { padding: 10 }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label} (CAGR: ${c.parsed.y.toFixed(1)}%, 風險: ${c.parsed.x.toFixed(1)}%)` } }, annotation: { annotations: { line1: { type: 'line', yMin: gY, yMax: gY, borderColor: 'rgba(255,255,255,0.2)', borderDash: [5,5], borderWidth: 1 }, line2: { type: 'line', xMin: gX, xMax: gX, borderColor: 'rgba(255,255,255,0.2)', borderDash: [5,5], borderWidth: 1 } } } }, scales: { x: { grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: '風險 (標準差 %)', color: '#95A5A6' }, ticks: { color: '#95A5A6' } }, y: { grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: '報酬 (CAGR %)', color: '#95A5A6' }, ticks: { color: '#95A5A6' } } } } });
+        }
+
+        function switchMCDim(dim) {
+            document.querySelectorAll('.mc-btn').forEach(b => b.classList.remove('active')); document.getElementById('mc-' + dim).classList.add('active'); currentMCDim = dim; renderMCCompareChart();
+            let descMap = { 'P10':'極度悲觀 (抗跌防禦力測試)','P25':'悲觀市況','P50':'最有可能的中位數軌跡','P75':'樂觀市況','P90':'極度樂觀 (牛市爆發力測試)','FULL':'所選組合的完整未來分佈'}; document.getElementById('mc-desc-text').innerText = `目前顯示各組合的【${descMap[dim]}】。`;
+        }
+
+        function renderMCCompareChart() {
+            if (charts.mcCompare) charts.mcCompare.destroy(); let d = compareData; const years = [0, 1, 3, 5, 10];
+            const genTraj = (metrics) => { let p10=[], p25=[], p50=[], p75=[], p90=[]; if(!metrics || metrics.totalVal === 0) return {p10, p25, p50, p75, p90}; let sv = metrics.totalVal / 10000; years.forEach(y => { if(y===0) { [p10,p25,p50,p75,p90].forEach(a => a.push({x:y, y:sv})); }  else { let m = sv * Math.pow(1 + metrics.cagr, y); let diff = metrics.stdev * Math.sqrt(y); p50.push({x:y, y:m}); p90.push({x:y, y:m*(1+1.28*diff)}); p75.push({x:y, y:m*(1+0.67*diff)}); p25.push({x:y, y:m*(1-0.67*diff)}); p10.push({x:y, y:m*(1-1.28*diff)}); } }); return {p10, p25, p50, p75, p90}; };
+            let gData = genTraj(d.realGlobal); let twData = genTraj(d.realTW); let usData = genTraj(d.realUS); let datasets = [];
+            
+            if(currentMCDim === 'FULL') {
+                let target = gData;
+                if (activeScenarioId !== 'real') { let sc = d.sandboxList.find(s => s.id === activeScenarioId); if (sc && sc.metrics) target = genTraj(sc.metrics); }
+                let labelPrefix = activeScenarioId === 'real' ? `🌍 全球:` : `🧪 試算:`;
+                datasets = [ { label: labelPrefix+' P90', data: target.p90, borderColor: 'transparent', fill: 1, backgroundColor: 'rgba(207, 146, 54, 0.05)', pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P10', data: target.p10, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P75', data: target.p75, borderColor: 'transparent', fill: 3, backgroundColor: 'rgba(207, 146, 54, 0.15)', pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P25', data: target.p25, borderColor: 'transparent', fill: false, pointRadius: 0, tension: 0.4 }, { label: labelPrefix+' P50', data: target.p50, borderColor: '#CF9236', borderWidth: 2, fill: false, pointRadius: 0, tension: 0.4 } ];
+            } else {
+                let dimKey = currentMCDim.toLowerCase();
+                if(gData[dimKey].length>0) datasets.push({ label: '全球總持倉', data: gData[dimKey], borderColor: '#3498db', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
+                if(twData[dimKey].length>0) datasets.push({ label: '🇹🇼 台股部位', data: twData[dimKey], borderColor: '#2ecc71', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
+                if(usData[dimKey].length>0) datasets.push({ label: '🇺🇸 美股部位', data: usData[dimKey], borderColor: '#e74c3c', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
+                
+                const scColors = ['#f1c40f', '#9b59b6', '#00cec9', '#e67e22', '#fd79a8'];
+                d.sandboxList.forEach((sc, idx) => { if(sc.metrics){ let scData = genTraj(sc.metrics); if(scData[dimKey].length>0) datasets.push({ label: `🧪 ${sc.name}`, data: scData[dimKey], borderColor: scColors[idx % scColors.length], borderWidth: 3, fill: false, pointRadius: 4, tension: 0.4 }); } });
+            }
+            charts.mcCompare = new Chart(document.getElementById('mcCompareChart'), { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: currentMCDim !== 'FULL', labels: { color: '#E0E6ED', boxWidth: 12, font: {size: 11} }, position: 'bottom' }, tooltip: { callbacks: { title: c => ({'0':'今天','1':'未來 1 年','3':'未來 3 年','5':'未來 5 年','10':'未來 10 年'})[c[0].parsed.x]||'', label: c => c.dataset.label + ': ' + Math.round(c.parsed.y) + 'w' } } }, scales: { x: { type: 'linear', grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 10, ticks: { color: '#95A5A6', stepSize: 1, callback: v => ({'0':'今天','1':'+1年','3':'+3年','5':'+5年','10':'+10年'})[v]||'' } }, y: { position: 'right', border: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#95A5A6', callback: v => Math.round(v)+'w' } } } } });
+        }
+
+        // ================= 主畫面圖表渲染 =================
         function renderDashboard(list) {
             if (list.length === 0) {
                 document.getElementById('val-total').innerText = fmtMoney(0); document.getElementById('val-cost').innerText = fmtMoney(0); document.getElementById('val-profit').innerText = fmtMoney(0); document.getElementById('val-profit').className = 'stat-main num text-muted'; document.getElementById('val-profit-pct').innerText = '0.00%'; document.getElementById('val-profit-pct').className = 'stat-sub num text-muted'; document.getElementById('val-day-change').innerText = fmtMoney(0); document.getElementById('val-day-change').className = 'stat-main num text-muted'; document.getElementById('val-day-change-pct').innerText = '0.00%'; document.getElementById('val-day-change-pct').className = 'stat-sub num text-muted'; document.getElementById('val-ytd').innerText = fmtMoney(0); document.getElementById('val-ytd').className = 'stat-main num text-muted'; document.getElementById('val-ytd-pct').innerText = '0.00%'; document.getElementById('val-ytd-pct').className = 'stat-sub num text-muted'; document.getElementById('val-cagr').innerText = '0.0%'; document.getElementById('val-cagr').className = 'stat-main num text-muted'; document.getElementById('val-stdev').innerText = '--%'; document.getElementById('val-dividend').innerText = fmtMoney(0); document.getElementById('val-yield').innerText = '0.00%';
