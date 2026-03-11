@@ -7,6 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
+    <!-- 若遭廣告阻擋器攔截，系統將啟動優雅降級防禦 -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     
     <style>
@@ -424,6 +425,15 @@
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
     <script>
+        // 【防線三】全域變數補齊
+        let isPrivacyMode = false; let currentRate = 32.5; let latestDataTime = 0; let charts = {}; let currentMarketView = 'ALL'; 
+        let realPortfolio = { tw: [], us: [] }; let sandboxScenarios = []; let activeScenarioId = 'real'; 
+        let stockMapCache = {}; let globalCombinedList = []; 
+        let compareData = { realGlobal: null, realTW: null, realUS: null, sandboxList: [] };
+        let currentMCDim = 'P50'; 
+        let currentPromptPrice = 0;
+        let isReportRendered = false; 
+
         function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
         function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
         function navigateTo(url) { if (window.location.href.includes(url) || (url === 'index.html' && window.location.pathname.endsWith('/'))) { closeDrawer(); return; } closeDrawer(); setTimeout(() => { document.body.classList.add('fade-out'); setTimeout(() => { window.location.href = url; }, 400); }, 250); }
@@ -435,13 +445,6 @@
 
         let toastTimeout;
         function showToast(msg) { const toast = document.getElementById('toast-container'); toast.innerText = msg; toast.classList.add('show'); clearTimeout(toastTimeout); toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500); }
-
-        let isPrivacyMode = false; let currentRate = 32.5; let latestDataTime = 0; let charts = {}; let currentMarketView = 'ALL'; 
-        let realPortfolio = { tw: [], us: [] }; let sandboxScenarios = []; let activeScenarioId = 'real'; 
-        let stockMapCache = {}; let globalCombinedList = []; 
-        let compareData = { realGlobal: null, realTW: null, realUS: null, sandboxList: [] };
-        let currentMCDim = 'P50'; 
-        let currentPromptPrice = 0;
 
         document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('upload-tw').addEventListener('change', (e) => handleFileUpload(e, 'tw'));
@@ -468,7 +471,12 @@
             if (savedScen) try { sandboxScenarios = JSON.parse(savedScen); } catch(e) {}
 
             updateScenarioUI();
-            if (realPortfolio.tw.length > 0 || realPortfolio.us.length > 0) { setLoading(true); try { await updateFinanceData(); } catch(e) {} finally { setLoading(false); } } else { renderCurrentView(); }
+            if (realPortfolio.tw.length > 0 || realPortfolio.us.length > 0) { 
+                setLoading(true); 
+                try { await updateFinanceData(); } catch(e) { console.error("資料更新異常:", e); renderCurrentView(); } finally { setLoading(false); } 
+            } else { 
+                renderCurrentView(); 
+            }
         });
 
         let confirmCallback = null;
@@ -515,6 +523,7 @@
             else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); bar.innerHTML = `🧪 試算中：${sc.name} ▾`; bar.className = "scenario-bar sandbox"; rowUpload.style.display = "none"; btnInv.innerHTML = "✏️ 調整持股"; }
         }
 
+        // 【防線一】矩陣防彈衣：確保 undefined 歷史數據不會引發死當
         function calculateMatrixRisk(list, totalVal) {
             if (!list || list.length === 0 || totalVal <= 0) return 0;
             let validStocks = list.filter(s => stockMapCache[s.symbol]);
@@ -525,23 +534,37 @@
             let commonMonths = null; let returnsMap = {};
             validStocks.forEach(s => {
                 let m = stockMapCache[s.symbol];
-                if(m && m.monthlyReturns) {
+                if(m && m.monthlyReturns && Object.keys(m.monthlyReturns).length > 0) {
                     let months = Object.keys(m.monthlyReturns);
-                    if(commonMonths === null) commonMonths = months; else commonMonths = commonMonths.filter(x => months.includes(x));
+                    if(commonMonths === null) commonMonths = months; 
+                    else commonMonths = commonMonths.filter(x => months.includes(x));
                 }
             });
 
             let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
             if (commonMonths && commonMonths.length >= 3) {
-                validStocks.forEach((s) => { returnsMap[s.symbol] = commonMonths.map(mStr => stockMapCache[s.symbol].monthlyReturns[mStr]); });
+                validStocks.forEach((s) => { 
+                    let m = stockMapCache[s.symbol];
+                    returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns && m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
+                });
                 for(let i=0; i<N; i++) {
                     for(let j=0; j<N; j++) {
-                        let meanI = returnsMap[validStocks[i].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
-                        let meanJ = returnsMap[validStocks[j].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
-                        let cov = 0;
-                        for(let k=0; k<commonMonths.length; k++) { cov += (returnsMap[validStocks[i].symbol][k] - meanI) * (returnsMap[validStocks[j].symbol][k] - meanJ); }
-                        cov = cov / (commonMonths.length - 1);
-                        Sigma[i][j] = cov * 12; 
+                        let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns;
+                        let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns;
+                        
+                        if(hasRetI && hasRetJ) {
+                            let arrI = returnsMap[validStocks[i].symbol];
+                            let arrJ = returnsMap[validStocks[j].symbol];
+                            let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length;
+                            let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
+                            let cov = 0;
+                            for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
+                            cov = cov / (commonMonths.length - 1);
+                            Sigma[i][j] = cov * 12; 
+                        } else {
+                            if (i === j) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][j] = sd * sd; } 
+                            else { Sigma[i][j] = 0; }
+                        }
                     }
                 }
             } else {
@@ -769,26 +792,41 @@
                 let commonMonths = null; let returnsMap = {};
                 validStocks.forEach(s => {
                     let m = stockMapCache[s.symbol];
-                    if(m && m.monthlyReturns) {
+                    if(m && m.monthlyReturns && Object.keys(m.monthlyReturns).length > 0) {
                         let months = Object.keys(m.monthlyReturns);
-                        if(commonMonths === null) commonMonths = months; else commonMonths = commonMonths.filter(x => months.includes(x));
+                        if(commonMonths === null) commonMonths = months; 
+                        else commonMonths = commonMonths.filter(x => months.includes(x));
                     }
                 });
 
+                // 【防線一】矩陣防彈衣
                 let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
                 let expectedCAGR = validStocks.map(s => stockMapCache[s.symbol].cagr || 0);
                 let expectedYield = validStocks.map(s => stockMapCache[s.symbol].dividendYield || 0);
 
                 if (commonMonths && commonMonths.length >= 3) {
-                    validStocks.forEach((s) => { returnsMap[s.symbol] = commonMonths.map(mStr => stockMapCache[s.symbol].monthlyReturns[mStr]); });
+                    validStocks.forEach((s) => { 
+                        let m = stockMapCache[s.symbol];
+                        returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns && m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
+                    });
                     for(let i=0; i<N; i++) {
                         for(let j=0; j<N; j++) {
-                            let meanI = returnsMap[validStocks[i].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
-                            let meanJ = returnsMap[validStocks[j].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
-                            let cov = 0;
-                            for(let k=0; k<commonMonths.length; k++) { cov += (returnsMap[validStocks[i].symbol][k] - meanI) * (returnsMap[validStocks[j].symbol][k] - meanJ); }
-                            cov = cov / (commonMonths.length - 1);
-                            Sigma[i][j] = cov * 12; 
+                            let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns;
+                            let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns;
+                            
+                            if(hasRetI && hasRetJ) {
+                                let arrI = returnsMap[validStocks[i].symbol];
+                                let arrJ = returnsMap[validStocks[j].symbol];
+                                let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length;
+                                let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
+                                let cov = 0;
+                                for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
+                                cov = cov / (commonMonths.length - 1);
+                                Sigma[i][j] = cov * 12; 
+                            } else {
+                                if (i === j) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][j] = sd * sd; } 
+                                else { Sigma[i][j] = 0; }
+                            }
                         }
                     }
                 } else {
@@ -987,7 +1025,6 @@
             updateFinanceData().then(() => { setLoading(false); showToast("✅ 演算配置套用成功！"); });
         }
 
-        // ================= 【史詩進化】活體星系拓樸圖 (ECharts Force-Directed) =================
         // 全域動畫計時器
         let galaxyNodesData = [];
         if(window.galaxyPulseInterval) clearInterval(window.galaxyPulseInterval);
@@ -995,8 +1032,15 @@
 
         function renderCorrelationGraph(list, totalVal) {
             let container = document.getElementById('correlationGraph');
+            
+            // 【防線二】ECharts 引擎防呆
+            if (typeof echarts === 'undefined') {
+                container.innerHTML = '<div style="color: #8b949e; text-align: center; padding-top: 180px; font-size:13px;">⚠️ 視覺化引擎載入失敗<br><span style="font-size:11px;">請檢查網路環境或關閉廣告阻擋器 (AdBlocker)</span></div>';
+                return;
+            }
+
             if (list.length < 2 || totalVal <= 0) {
-                container.innerHTML = '<div style="color: #666; text-align: center; margin-top: 200px; font-size:12px;">🪐 至少需要 2 檔以上標的才能運算引力</div>';
+                container.innerHTML = '<div style="color: #666; text-align: center; padding-top: 200px; font-size:12px;">🪐 至少需要 2 檔以上標的才能運算引力</div>';
                 return;
             }
             container.innerHTML = '';
@@ -1008,23 +1052,38 @@
             let commonMonths = null; let returnsMap = {};
             validStocks.forEach(s => {
                 let m = stockMapCache[s.symbol];
-                if(m && m.monthlyReturns) {
+                if(m && m.monthlyReturns && Object.keys(m.monthlyReturns).length > 0) {
                     let months = Object.keys(m.monthlyReturns);
-                    if(commonMonths === null) commonMonths = months; else commonMonths = commonMonths.filter(x => months.includes(x));
+                    if(commonMonths === null) commonMonths = months; 
+                    else commonMonths = commonMonths.filter(x => months.includes(x));
                 }
             });
 
+            // 【防線一】矩陣防彈衣
             let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
             if (commonMonths && commonMonths.length >= 3) {
-                validStocks.forEach((s) => { returnsMap[s.symbol] = commonMonths.map(mStr => stockMapCache[s.symbol].monthlyReturns[mStr]); });
+                validStocks.forEach((s) => { 
+                    let m = stockMapCache[s.symbol];
+                    returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns && m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
+                });
                 for(let i=0; i<N; i++) {
                     for(let j=0; j<N; j++) {
-                        let meanI = returnsMap[validStocks[i].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
-                        let meanJ = returnsMap[validStocks[j].symbol].reduce((a,b)=>a+b,0) / commonMonths.length;
-                        let cov = 0;
-                        for(let k=0; k<commonMonths.length; k++) { cov += (returnsMap[validStocks[i].symbol][k] - meanI) * (returnsMap[validStocks[j].symbol][k] - meanJ); }
-                        cov = cov / (commonMonths.length - 1);
-                        Sigma[i][j] = cov; 
+                        let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns;
+                        let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns;
+                        
+                        if(hasRetI && hasRetJ) {
+                            let arrI = returnsMap[validStocks[i].symbol];
+                            let arrJ = returnsMap[validStocks[j].symbol];
+                            let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length;
+                            let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
+                            let cov = 0;
+                            for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
+                            cov = cov / (commonMonths.length - 1);
+                            Sigma[i][j] = cov; // 星系圖不需年化
+                        } else {
+                            if (i === j) { let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); Sigma[i][j] = sd * sd; } 
+                            else { Sigma[i][j] = 0; }
+                        }
                     }
                 }
             } else {
@@ -1038,13 +1097,11 @@
             let negCount = Array(N).fill(0);
             let links = [];
 
-            // 1. 建立隱形連線，並統計人氣王 (Hub & Hedge)
             for(let i=0; i<N; i++) {
                 for(let j=i+1; j<N; j++) {
                     if (SD[i] === 0 || SD[j] === 0) continue;
                     let r = Sigma[i][j] / (SD[i] * SD[j]);
                     
-                    // 只建立有意義的關聯 (過濾雜訊)
                     if (r > 0.6 || r < -0.15) {
                         let isNegative = r < 0;
                         if(isNegative) { negCount[i]++; negCount[j]++; } else { posCount[i]++; posCount[j]++; }
@@ -1054,15 +1111,16 @@
                             target: validStocks[j].symbol,
                             value: r.toFixed(2),
                             lineStyle: {
-                                color: isNegative ? '#00e676' : '#ff4757', // 賽博綠 vs 雷射紅
+                                color: isNegative ? '#00e676' : '#ff4757', 
                                 width: isNegative ? 2 : Math.min(8, Math.abs(r) * 6),
                                 type: isNegative ? 'dashed' : 'solid',
                                 curveness: 0.1,
-                                opacity: 0  // 預設完全隱形
+                                opacity: 0  
                             },
+                            silent: true, // 關閉線條觸控
                             emphasis: {
                                 lineStyle: {
-                                    opacity: 1, // 點擊時瞬間高亮
+                                    opacity: 1, 
                                     shadowBlur: 10,
                                     shadowColor: isNegative ? '#00e676' : '#ff4757'
                                 }
@@ -1075,15 +1133,13 @@
             let maxPosIdx = posCount.indexOf(Math.max(...posCount));
             let maxNegIdx = negCount.indexOf(Math.max(...negCount));
 
-            // 2. 建立發光星體
             galaxyNodesData = [];
             validStocks.forEach((s, i) => {
                 let weight = (s.marketValueTWD || 0) / totalVal;
                 let size = Math.max(18, Math.min(65, weight * 100)); 
                 
-                // 盈虧自發光邏輯
                 let isProfit = (s.marketValueTWD - s.costTWD) >= 0;
-                let color = isProfit ? '#d93025' : '#188038'; // 暖紅 vs 冷綠
+                let color = isProfit ? '#d93025' : '#188038'; 
                 let glowColor = isProfit ? 'rgba(217, 48, 37, 0.8)' : 'rgba(24, 128, 56, 0.8)';
 
                 let isHub = (i === maxPosIdx && posCount[i] > 0);
@@ -1091,10 +1147,10 @@
 
                 galaxyNodesData.push({
                     id: s.symbol,
-                    name: s.symbol.replace('.TW', ''), // 文字去冗餘
+                    name: s.symbol.replace('.TW', ''), 
                     value: (weight * 100).toFixed(1) + '%',
                     symbolSize: size, 
-                    _baseSize: size, // 儲存原始大小給心跳動畫用
+                    _baseSize: size, 
                     _isSpecial: isHub || isHedge,
                     itemStyle: { 
                         color: color, 
@@ -1104,7 +1160,7 @@
                         borderWidth: (isHub || isHedge) ? 2 : 0
                     },
                     label: { 
-                        show: size >= 35, // 大星球才直接顯示字，防截斷
+                        show: size >= 35, 
                         position: 'inside', 
                         color: '#fff', 
                         fontSize: 10,
@@ -1120,38 +1176,41 @@
                 series: [{
                     type: 'graph',
                     layout: 'force',
-                    roam: false, // 嚴禁拖曳縮放，防滑動劫持
+                    roam: false, 
                     draggable: false, 
                     data: galaxyNodesData,
                     links: links,
                     force: {
-                        repulsion: 120,    // 調降斥力防飛出
+                        repulsion: 120,    
                         edgeLength: [40, 100],
-                        gravity: 0.1       // 輕微向心力
+                        gravity: 0.1       
                     },
                     emphasis: {
-                        focus: 'adjacency', // 【Tap to Isolate】點擊聚焦
+                        focus: 'adjacency', 
                         itemStyle: { shadowBlur: 25 },
-                        label: { show: true } // 聚焦時強制顯示文字
+                        label: { show: true } 
                     }
                 }]
             };
             
             charts.corr.setOption(option);
 
-            // ================= 注入生命力 (Animations) =================
+            // 【防線三】安全的心跳管理
             clearInterval(window.galaxyPulseInterval);
             let isPulsed = false;
             
-            // 1. 脈衝呼吸燈 (Pulse Ripple)
             window.galaxyPulseInterval = setInterval(() => {
+                if (!charts.corr || charts.corr.isDisposed()) {
+                    clearInterval(window.galaxyPulseInterval);
+                    return;
+                }
                 isPulsed = !isPulsed;
                 let updatedNodes = galaxyNodesData.map(n => {
                     if (n._isSpecial) {
                         return {
                             ...n,
-                            symbolSize: isPulsed ? n._baseSize * 1.15 : n._baseSize, // 放大縮小
-                            itemStyle: { ...n.itemStyle, shadowBlur: isPulsed ? 25 : 10 } // 光暈收放
+                            symbolSize: isPulsed ? n._baseSize * 1.15 : n._baseSize, 
+                            itemStyle: { ...n.itemStyle, shadowBlur: isPulsed ? 25 : 10 } 
                         };
                     }
                     return n;
@@ -1159,7 +1218,6 @@
                 charts.corr.setOption({ series: [{ data: updatedNodes }] });
             }, 1200);
 
-            // 2. 神經突觸閃爍 3秒待機循環 (Synaptic Flash)
             let focusedNodeIndex = null;
             clearInterval(window.galaxyFlashInterval);
 
@@ -1171,10 +1229,12 @@
             });
 
             charts.corr.getZr().on('click', function(e) {
-                if (!e.target) { // 點擊空白太空
+                if (!e.target) { 
                     focusedNodeIndex = null;
                     clearInterval(window.galaxyFlashInterval);
-                    charts.corr.dispatchAction({ type: 'downplay' }); // 熄滅所有連線
+                    if(charts.corr && !charts.corr.isDisposed()) {
+                        charts.corr.dispatchAction({ type: 'downplay' }); 
+                    }
                 }
             });
 
@@ -1183,17 +1243,20 @@
                 if (focusedNodeIndex === null) return;
                 
                 window.galaxyFlashInterval = setInterval(() => {
-                    // 瞬間熄滅 (暗下)
+                    if (!charts.corr || charts.corr.isDisposed()) {
+                        clearInterval(window.galaxyFlashInterval);
+                        return;
+                    }
                     charts.corr.dispatchAction({ type: 'downplay' });
-                    // 150毫秒後瞬間通電高亮 (閃亮)
                     setTimeout(() => {
+                        if (!charts.corr || charts.corr.isDisposed()) return;
                         charts.corr.dispatchAction({
                             type: 'highlight',
                             seriesIndex: 0,
                             dataIndex: focusedNodeIndex
                         });
                     }, 150);
-                }, 3000); // 每 3 秒觸發一次閃爍
+                }, 3000); 
             }
         }
 
