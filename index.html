@@ -661,7 +661,7 @@
             if(portfolio.tw.length === 0 && portfolio.us.length === 0) container.innerHTML = '<div style="text-align:center; padding: 30px 20px; color:#999;">無資料。</div>';
             document.getElementById('inventory-modal-overlay').classList.add('active');
         }
-        
+
         function closeInventoryManager() { document.getElementById('inventory-modal-overlay').classList.remove('active'); }
         
         async function saveInventoryChanges() {
@@ -727,7 +727,7 @@
         function closeAIOptimizer() { document.getElementById('ai-opt-modal').classList.remove('active'); openInventoryManager(); }
         function closeAIResult() { document.getElementById('ai-res-modal').classList.remove('active'); document.getElementById('ai-opt-modal').classList.add('active'); }
 
-        // ================= 【核心升級】二次規劃 QP 求解引擎 =================
+        // ================= 【核心升級】二次規劃 QP 求解與鐵壁防禦 =================
         function executeAIOptimizer() {
             if (typeof numeric === 'undefined') {
                 showInfoModal("系統錯誤", "無法載入矩陣運算引擎 (numeric.js)，請檢查網路連線後重試。", true);
@@ -771,7 +771,6 @@
                     for(let i=0; i<N; i++) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][i] = sd * sd; }
                 }
 
-                // 計算原組合真實風險
                 let origTotalVal = 0;
                 validStocks.forEach(s => { let exRate = s.market === 'US' ? currentRate : 1; origTotalVal += s.shares * stockMapCache[s.symbol].price * exRate; });
                 let origWeights = validStocks.map(s => { if(origTotalVal === 0) return 1/N; let exRate = s.market === 'US' ? currentRate : 1; return (s.shares * stockMapCache[s.symbol].price * exRate) / origTotalVal; });
@@ -782,7 +781,6 @@
                 for(let i=0; i<N; i++) { for(let j=0; j<N; j++) { origVar += origWeights[i] * origWeights[j] * Sigma[i][j]; } }
                 let origRisk = Math.sqrt(Math.max(0, origVar));
 
-                // 取得使用者限制
                 let objType = document.getElementById('ai-opt-objective').value;
                 let userMinCagr = parseFloat(document.getElementById('ai-const-cagr').value) / 100;
                 if(isNaN(userMinCagr)) userMinCagr = -Infinity;
@@ -791,12 +789,23 @@
                 let userMinYield = parseFloat(document.getElementById('ai-const-yield').value) / 100;
                 if(isNaN(userMinYield)) userMinYield = -Infinity;
 
+                // 【防線一：物理極限前置攔截】
+                let maxPossibleCagr = Math.max(...expectedCAGR);
+                let maxPossibleYield = Math.max(...expectedYield);
+                if (userMinCagr > maxPossibleCagr + 1e-4 || userMinYield > maxPossibleYield + 1e-4) {
+                    setLoading(false);
+                    showInfoModal("⚠️ 無法找到最佳解", "您設定的「最低報酬」或「最低殖利率」已經超越了目前資產組合能達到的<b>物理極限</b>。<br><br>請放寬條件後重試！", true, () => {
+                        document.getElementById('ai-opt-modal').classList.add('active'); 
+                    });
+                    return;
+                }
+
                 // 基礎 QP 封裝函數：給定目標回報與殖利率，求最小風險組合
                 const solveQP = (targetC, targetY) => {
                     let D = []; let d = [];
                     for(let i=0; i<N; i++){
                         D[i] = [];
-                        for(let j=0; j<N; j++){ D[i][j] = Sigma[i][j] + (i===j ? 1e-8 : 0); } // 加上微小常數確保正定矩陣
+                        for(let j=0; j<N; j++){ D[i][j] = Sigma[i][j] + (i===j ? 1e-8 : 0); } 
                         d.push(0);
                     }
                     let A = []; for(let i=0; i<N; i++) A.push([]); let b = [];
@@ -811,55 +820,65 @@
                     if(targetY > -Infinity){ for(let i=0; i<N; i++) A[i].push(expectedYield[i]); b.push(targetY); }
 
                     try {
-                        let sol = numeric.solveQP(D, d, A, b, 1).solution;
+                        let qp = numeric.solveQP(D, d, A, b, 1);
+                        
+                        // 【防線二：嚴審引擎留言】
+                        if (qp.message) return { feasible: false };
+                        
+                        let sol = qp.solution;
+                        if (!sol || sol.some(isNaN)) return { feasible: false };
+                        
                         sol = sol.map(v => Math.max(0, v));
                         let sum = sol.reduce((acc, val) => acc + val, 0);
+                        if (sum === 0) return { feasible: false };
                         let w = sol.map(v => v / sum);
                         
                         let c = 0, y = 0, v = 0;
                         for(let i=0; i<N; i++){ c += w[i]*expectedCAGR[i]; y += w[i]*expectedYield[i]; }
                         for(let i=0; i<N; i++){ for(let j=0; j<N; j++){ v += w[i]*w[j]*Sigma[i][j]; } }
-                        return { feasible: true, weights: w, cagr: c, yield: y, risk: Math.sqrt(Math.max(0, v)) };
+                        let rsk = Math.sqrt(Math.max(0, v));
+                        
+                        // 【防線三：無情的人工驗票】容錯率 0.01%
+                        let tol = 1e-4; 
+                        if (c < userMinCagr - tol || y < userMinYield - tol || rsk > userMaxRisk + tol) {
+                            return { feasible: false };
+                        }
+
+                        return { feasible: true, weights: w, cagr: c, yield: y, risk: rsk };
                     } catch(e) { return { feasible: false }; }
                 };
 
                 let bestRes = null;
-                let maxPossibleCagr = Math.max(...expectedCAGR);
-                let maxPossibleYield = Math.max(...expectedYield);
 
-                // 情境二：風險最小化 (直接呼叫一次 QP)
                 if (objType === 'min_risk') {
                     let r = solveQP(userMinCagr, userMinYield);
-                    if (r.feasible && r.risk <= userMaxRisk) bestRes = r;
+                    if (r.feasible) bestRes = r;
                 }
                 
-                // 情境三 & 四：報酬最大化 (使用二分搜尋法逼近風險上限)
                 else if (objType === 'max_cagr') {
                     let low = userMinCagr === -Infinity ? Math.min(...expectedCAGR) : userMinCagr;
                     let high = maxPossibleCagr;
                     for (let step=0; step<30; step++) {
                         let mid = (low + high) / 2;
                         let r = solveQP(mid, userMinYield);
-                        if (r.feasible && r.risk <= userMaxRisk) { bestRes = r; low = mid; } 
+                        if (r.feasible) { bestRes = r; low = mid; } 
                         else { high = mid; }
                     }
-                    if (!bestRes) { let r = solveQP(userMinCagr, userMinYield); if(r.feasible && r.risk <= userMaxRisk) bestRes = r; }
+                    if (!bestRes) { let r = solveQP(userMinCagr, userMinYield); if(r.feasible) bestRes = r; }
                 }
 
-                // 殖利率最大化 (二分搜尋法逼近)
                 else if (objType === 'max_yield') {
-                    let low = userMinYield === -Infinity ? Math.min(...expectedYield) : userMinYield;
+                    let low = userMinYield === -Infinity ? Math.max(0, Math.min(...expectedYield)) : userMinYield;
                     let high = maxPossibleYield;
                     for (let step=0; step<30; step++) {
                         let mid = (low + high) / 2;
                         let r = solveQP(userMinCagr, mid);
-                        if (r.feasible && r.risk <= userMaxRisk) { bestRes = r; low = mid; } 
+                        if (r.feasible) { bestRes = r; low = mid; } 
                         else { high = mid; }
                     }
-                    if (!bestRes) { let r = solveQP(userMinCagr, userMinYield); if(r.feasible && r.risk <= userMaxRisk) bestRes = r; }
+                    if (!bestRes) { let r = solveQP(userMinCagr, userMinYield); if(r.feasible) bestRes = r; }
                 }
 
-                // 情境一：投資效率最大化 (網格掃描法尋找最大夏普)
                 else if (objType === 'efficiency') {
                     let minR = userMinCagr === -Infinity ? Math.min(...expectedCAGR) : userMinCagr;
                     let maxR = maxPossibleCagr;
@@ -868,7 +887,7 @@
                     for (let i=0; i<=steps; i++) {
                         let targetC = minR + (maxR - minR) * (i / steps);
                         let r = solveQP(targetC, userMinYield);
-                        if (r.feasible && r.risk <= userMaxRisk) {
+                        if (r.feasible) {
                             let score = r.risk > 0 ? (r.cagr / r.risk) : (r.cagr > 0 ? Infinity : -Infinity);
                             if (score > bestScore) { bestScore = score; bestRes = r; }
                         }
@@ -877,7 +896,6 @@
 
                 setLoading(false);
 
-                // 數學無情拒絕 (Infeasible)
                 if(!bestRes) {
                     showInfoModal("⚠️ 無法找到最佳解", "在您設定的條件下，數學矩陣運算結果為「無解 (Infeasible)」。<br><br>這代表該資產組合無法同時滿足您的所有限制。請嘗試調降「最低報酬」或調高「最高風險」後重試！", true, () => {
                         document.getElementById('ai-opt-modal').classList.add('active'); 
