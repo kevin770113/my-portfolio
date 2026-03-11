@@ -6,6 +6,7 @@
     <title>個人投資儀表板 (全球資產版)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
     <style>
         :root {
             --bg-color: #f0f2f5; --card-bg: #ffffff; --text-main: #1a1a1a;
@@ -131,7 +132,6 @@
         .btn-ai-magic { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; font-size: 14px; width: 100%; margin-bottom: 15px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 6px; box-shadow: 0 4px 10px rgba(118, 75, 162, 0.3); transition: transform 0.2s; }
         .btn-ai-magic:active { transform: scale(0.98); }
 
-        /* ================= AI 選項卡片設計 ================= */
         .ai-opt-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; margin-bottom: 15px; }
         .ai-opt-card { background: #f8f9fa; border: 2px solid transparent; border-radius: 10px; padding: 14px 16px; font-size: 14px; font-weight: 600; color: #7f8c8d; cursor: pointer; transition: all 0.2s ease; text-align: left; line-height: 1.4; -webkit-tap-highlight-color: transparent; }
         .ai-opt-card.active { background: #e8f4fd; border-color: var(--primary-dark); color: var(--primary-dark); font-weight: 700; box-shadow: 0 4px 12px rgba(44, 62, 80, 0.08); transform: translateY(-1px); }
@@ -281,7 +281,7 @@
     <div id="ai-opt-modal" class="modal-overlay system-top">
         <div class="custom-prompt-box">
             <div class="prompt-title">🪄 AI 智能權重配置</div>
-            <div class="prompt-desc">以現有持股進行馬可維茲矩陣與蒙地卡羅模擬，尋找最佳配置。</div>
+            <div class="prompt-desc">以二次規劃 (QP) 矩陣求解，尋找理論上的絕對極值。</div>
 
             <div style="text-align:left; margin-bottom:15px;">
                 <label style="font-size:12px; font-weight:bold; color:var(--primary-dark);">最佳化目標</label>
@@ -706,7 +706,6 @@
             saveInventoryChanges(); 
         };
 
-        // ================= AI 最佳化卡片點擊事件 =================
         function selectAIOpt(el) {
             document.querySelectorAll('.ai-opt-card').forEach(card => card.classList.remove('active'));
             el.classList.add('active');
@@ -720,9 +719,7 @@
             let sc = sandboxScenarios.find(s => s.id === activeScenarioId);
             let totalStocks = sc.portfolio.tw.length + sc.portfolio.us.length;
             if(totalStocks < 2) { 
-                showInfoModal("⚠️ 資料不足", "AI 智能配置需要利用資產間的相關性來抵銷風險。<br><br>請至少加入 <b>2 檔</b> 不同的股票才能啟動最佳化引擎！", true, () => {
-                    openInventoryManager(); 
-                }); 
+                showInfoModal("⚠️ 資料不足", "AI 智能配置需要利用資產間的相關性來抵銷風險。<br><br>請至少加入 <b>2 檔</b> 不同的股票才能啟動最佳化引擎！", true, () => { openInventoryManager(); }); 
                 return; 
             }
             document.getElementById('ai-opt-modal').classList.add('active');
@@ -730,9 +727,15 @@
         function closeAIOptimizer() { document.getElementById('ai-opt-modal').classList.remove('active'); openInventoryManager(); }
         function closeAIResult() { document.getElementById('ai-res-modal').classList.remove('active'); document.getElementById('ai-opt-modal').classList.add('active'); }
 
+        // ================= 【核心升級】二次規劃 QP 求解引擎 =================
         function executeAIOptimizer() {
+            if (typeof numeric === 'undefined') {
+                showInfoModal("系統錯誤", "無法載入矩陣運算引擎 (numeric.js)，請檢查網路連線後重試。", true);
+                return;
+            }
+
             document.getElementById('ai-opt-modal').classList.remove('active');
-            setLoading(true, "正在計算共變異數與萬次模擬...");
+            setLoading(true, "正在執行二次規劃矩陣求解...");
             
             setTimeout(() => {
                 let sc = sandboxScenarios.find(s => s.id === activeScenarioId);
@@ -768,6 +771,7 @@
                     for(let i=0; i<N; i++) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][i] = sd * sd; }
                 }
 
+                // 計算原組合真實風險
                 let origTotalVal = 0;
                 validStocks.forEach(s => { let exRate = s.market === 'US' ? currentRate : 1; origTotalVal += s.shares * stockMapCache[s.symbol].price * exRate; });
                 let origWeights = validStocks.map(s => { if(origTotalVal === 0) return 1/N; let exRate = s.market === 'US' ? currentRate : 1; return (s.shares * stockMapCache[s.symbol].price * exRate) / origTotalVal; });
@@ -778,73 +782,137 @@
                 for(let i=0; i<N; i++) { for(let j=0; j<N; j++) { origVar += origWeights[i] * origWeights[j] * Sigma[i][j]; } }
                 let origRisk = Math.sqrt(Math.max(0, origVar));
 
+                // 取得使用者限制
                 let objType = document.getElementById('ai-opt-objective').value;
-                let minCagr = parseFloat(document.getElementById('ai-const-cagr').value) / 100 || -Infinity;
-                let maxRisk = parseFloat(document.getElementById('ai-const-risk').value) / 100 || Infinity;
-                let minYield = parseFloat(document.getElementById('ai-const-yield').value) / 100 || -Infinity;
+                let userMinCagr = parseFloat(document.getElementById('ai-const-cagr').value) / 100;
+                if(isNaN(userMinCagr)) userMinCagr = -Infinity;
+                let userMaxRisk = parseFloat(document.getElementById('ai-const-risk').value) / 100;
+                if(isNaN(userMaxRisk)) userMaxRisk = Infinity;
+                let userMinYield = parseFloat(document.getElementById('ai-const-yield').value) / 100;
+                if(isNaN(userMinYield)) userMinYield = -Infinity;
 
-                let bestScore = -Infinity; let bestWeights = null; let bestMetrics = null;
+                // 基礎 QP 封裝函數：給定目標回報與殖利率，求最小風險組合
+                const solveQP = (targetC, targetY) => {
+                    let D = []; let d = [];
+                    for(let i=0; i<N; i++){
+                        D[i] = [];
+                        for(let j=0; j<N; j++){ D[i][j] = Sigma[i][j] + (i===j ? 1e-8 : 0); } // 加上微小常數確保正定矩陣
+                        d.push(0);
+                    }
+                    let A = []; for(let i=0; i<N; i++) A.push([]); let b = [];
+                    
+                    // 等式限制 1：權重和為 1
+                    for(let i=0; i<N; i++) A[i].push(1); b.push(1);
+                    // 不等式限制 1：不允許做空 (x >= 0)
+                    for(let j=0; j<N; j++){ for(let i=0; i<N; i++){ A[i].push(i===j ? 1 : 0); } b.push(0); }
+                    // 不等式限制 2：最低報酬
+                    if(targetC > -Infinity){ for(let i=0; i<N; i++) A[i].push(expectedCAGR[i]); b.push(targetC); }
+                    // 不等式限制 3：最低殖利率
+                    if(targetY > -Infinity){ for(let i=0; i<N; i++) A[i].push(expectedYield[i]); b.push(targetY); }
+
+                    try {
+                        let sol = numeric.solveQP(D, d, A, b, 1).solution;
+                        sol = sol.map(v => Math.max(0, v));
+                        let sum = sol.reduce((acc, val) => acc + val, 0);
+                        let w = sol.map(v => v / sum);
+                        
+                        let c = 0, y = 0, v = 0;
+                        for(let i=0; i<N; i++){ c += w[i]*expectedCAGR[i]; y += w[i]*expectedYield[i]; }
+                        for(let i=0; i<N; i++){ for(let j=0; j<N; j++){ v += w[i]*w[j]*Sigma[i][j]; } }
+                        return { feasible: true, weights: w, cagr: c, yield: y, risk: Math.sqrt(Math.max(0, v)) };
+                    } catch(e) { return { feasible: false }; }
+                };
+
+                let bestRes = null;
+                let maxPossibleCagr = Math.max(...expectedCAGR);
+                let maxPossibleYield = Math.max(...expectedYield);
+
+                // 情境二：風險最小化 (直接呼叫一次 QP)
+                if (objType === 'min_risk') {
+                    let r = solveQP(userMinCagr, userMinYield);
+                    if (r.feasible && r.risk <= userMaxRisk) bestRes = r;
+                }
                 
-                for(let iter=0; iter<10000; iter++) {
-                    let w;
-                    if (iter < N) { w = Array(N).fill(0); w[iter] = 1; } 
-                    else { w = Array(N).fill(0).map(() => Math.random()); let sum = w.reduce((a,b)=>a+b,0); w = w.map(x => x/sum); }
+                // 情境三 & 四：報酬最大化 (使用二分搜尋法逼近風險上限)
+                else if (objType === 'max_cagr') {
+                    let low = userMinCagr === -Infinity ? Math.min(...expectedCAGR) : userMinCagr;
+                    let high = maxPossibleCagr;
+                    for (let step=0; step<30; step++) {
+                        let mid = (low + high) / 2;
+                        let r = solveQP(mid, userMinYield);
+                        if (r.feasible && r.risk <= userMaxRisk) { bestRes = r; low = mid; } 
+                        else { high = mid; }
+                    }
+                    if (!bestRes) { let r = solveQP(userMinCagr, userMinYield); if(r.feasible && r.risk <= userMaxRisk) bestRes = r; }
+                }
 
-                    let portCAGR = 0; let portYield = 0;
-                    for(let i=0; i<N; i++) { portCAGR += w[i] * expectedCAGR[i]; portYield += w[i] * expectedYield[i]; }
+                // 殖利率最大化 (二分搜尋法逼近)
+                else if (objType === 'max_yield') {
+                    let low = userMinYield === -Infinity ? Math.min(...expectedYield) : userMinYield;
+                    let high = maxPossibleYield;
+                    for (let step=0; step<30; step++) {
+                        let mid = (low + high) / 2;
+                        let r = solveQP(userMinCagr, mid);
+                        if (r.feasible && r.risk <= userMaxRisk) { bestRes = r; low = mid; } 
+                        else { high = mid; }
+                    }
+                    if (!bestRes) { let r = solveQP(userMinCagr, userMinYield); if(r.feasible && r.risk <= userMaxRisk) bestRes = r; }
+                }
 
-                    let portVar = 0;
-                    for(let i=0; i<N; i++) { for(let j=0; j<N; j++) { portVar += w[i] * w[j] * Sigma[i][j]; } }
-                    let portRisk = Math.sqrt(Math.max(0, portVar));
-
-                    if(portCAGR < minCagr || portRisk > maxRisk || portYield < minYield) continue;
-
-                    let score = -Infinity;
-                    if(objType === 'efficiency') score = portRisk > 0 ? (portCAGR / portRisk) : 0;
-                    else if(objType === 'max_cagr') score = portCAGR;
-                    else if(objType === 'min_risk') score = -portRisk;
-                    else if(objType === 'max_yield') score = portYield;
-
-                    if(score > bestScore) { bestScore = score; bestWeights = w; bestMetrics = { cagr: portCAGR, risk: portRisk, yield: portYield }; }
+                // 情境一：投資效率最大化 (網格掃描法尋找最大夏普)
+                else if (objType === 'efficiency') {
+                    let minR = userMinCagr === -Infinity ? Math.min(...expectedCAGR) : userMinCagr;
+                    let maxR = maxPossibleCagr;
+                    let steps = 50; 
+                    let bestScore = -Infinity;
+                    for (let i=0; i<=steps; i++) {
+                        let targetC = minR + (maxR - minR) * (i / steps);
+                        let r = solveQP(targetC, userMinYield);
+                        if (r.feasible && r.risk <= userMaxRisk) {
+                            let score = r.risk > 0 ? (r.cagr / r.risk) : (r.cagr > 0 ? Infinity : -Infinity);
+                            if (score > bestScore) { bestScore = score; bestRes = r; }
+                        }
+                    }
                 }
 
                 setLoading(false);
 
-                if(bestWeights === null) {
-                    showInfoModal("⚠️ 無法找到最佳解", "您設定的限制條件過於嚴苛，無法在 10,000 次模擬中找到符合所有條件的配置組合。<br><br>請嘗試調降「最低報酬」或調高「最高風險」後重試！", true, () => {
+                // 數學無情拒絕 (Infeasible)
+                if(!bestRes) {
+                    showInfoModal("⚠️ 無法找到最佳解", "在您設定的條件下，數學矩陣運算結果為「無解 (Infeasible)」。<br><br>這代表該資產組合無法同時滿足您的所有限制。請嘗試調降「最低報酬」或調高「最高風險」後重試！", true, () => {
                         document.getElementById('ai-opt-modal').classList.add('active'); 
                     });
                 } else {
-                    pendingAIWeights = { weights: bestWeights, stocks: validStocks };
+                    pendingAIWeights = { weights: bestRes.weights, stocks: validStocks };
                     
                     let html = `
-                        <div class="prompt-title">📊 AI 配置分析報告</div>
-                        <div class="prompt-desc">基於 ${commonMonths && commonMonths.length >= 3 ? commonMonths.length+' 個月的歷史交集' : '基礎波動率'} 所建立之最佳化結果。</div>
+                        <div class="prompt-title">📊 最佳化矩陣演算報告</div>
+                        <div class="prompt-desc">基於二次規劃 (Quadratic Programming) 矩陣尋找之全局最佳解。</div>
                         
                         <table style="width:100%; font-size:13px; margin-bottom:15px; text-align:center; border-collapse:collapse; background:#f8f9fa; border-radius:8px; overflow:hidden;">
                             <tr style="background:#e0e6ed; color:#2c3e50;">
-                                <th style="padding:8px;">指標</th><th style="padding:8px;">原組合</th><th style="padding:8px;">AI 建議</th>
+                                <th style="padding:8px;">指標</th><th style="padding:8px;">原組合</th><th style="padding:8px;">演算建議</th>
                             </tr>
                             <tr style="border-bottom:1px solid #eee;">
                                 <td style="padding:8px;">CAGR</td><td>${(origCAGR*100).toFixed(1)}%</td>
-                                <td style="color:var(--red-profit); font-weight:bold;">${(bestMetrics.cagr*100).toFixed(1)}%</td>
+                                <td style="color:var(--red-profit); font-weight:bold;">${(bestRes.cagr*100).toFixed(1)}%</td>
                             </tr>
                             <tr style="border-bottom:1px solid #eee;">
                                 <td style="padding:8px;">風險 (波動)</td><td>${(origRisk*100).toFixed(1)}%</td>
-                                <td style="color:var(--primary-dark); font-weight:bold;">${(bestMetrics.risk*100).toFixed(1)}%</td>
+                                <td style="color:var(--primary-dark); font-weight:bold;">${(bestRes.risk*100).toFixed(1)}%</td>
                             </tr>
                             <tr>
                                 <td style="padding:8px;">殖利率</td><td>${(origYield*100).toFixed(1)}%</td>
-                                <td style="color:var(--primary-dark); font-weight:bold;">${(bestMetrics.yield*100).toFixed(1)}%</td>
+                                <td style="color:var(--primary-dark); font-weight:bold;">${(bestRes.yield*100).toFixed(1)}%</td>
                             </tr>
                         </table>
 
-                        <div style="text-align:left; font-size:12px; font-weight:bold; margin-bottom:8px; color:var(--primary-dark);">💡 建議配置權重：</div>
+                        <div style="text-align:left; font-size:12px; font-weight:bold; margin-bottom:8px; color:var(--primary-dark);">💡 最佳配置權重：</div>
                         <div style="max-height:180px; overflow-y:auto; text-align:left; font-size:12px; padding-right:5px; margin-bottom:15px;">
                     `;
 
                     validStocks.forEach((s, i) => {
-                        let oldW = origWeights[i]*100; let newW = bestWeights[i]*100;
+                        let oldW = origWeights[i]*100; let newW = bestRes.weights[i]*100;
                         html += `
                         <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px dashed #eee; padding-bottom:6px;">
                             <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px; font-weight:bold;">${s.name}</span>
@@ -886,7 +954,7 @@
             saveScenarios();
             document.getElementById('ai-res-modal').classList.remove('active');
             setLoading(true);
-            updateFinanceData().then(() => { setLoading(false); showToast("✅ 智能配置套用成功！"); });
+            updateFinanceData().then(() => { setLoading(false); showToast("✅ 演算配置套用成功！"); });
         }
 
         function askClearAllData() { openConfirmModal("警告", "確定要清空所有真實持股資料嗎？<br><br>這將移除儀表板上的所有紀錄。", "確定清空", () => { localStorage.removeItem('portfolio_tw'); localStorage.removeItem('portfolio_us'); realPortfolio = { tw: [], us: [] }; globalCombinedList = []; document.getElementById('label-tw').innerText = '📁 匯入台股'; document.getElementById('label-us').innerText = '📁 匯入美股'; exportGlobalSyncData([]); renderCurrentView(); showToast('已清空所有資料'); }); }
