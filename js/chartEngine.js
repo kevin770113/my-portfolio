@@ -4,7 +4,7 @@
 // ==========================================
 
 // ------------------------------------------
-// 1. 星系拓樸圖 (ECharts - 防彈電影級運鏡版)
+// 1. 星系拓樸圖 (ECharts - 極光視覺升級版)
 // ------------------------------------------
 function renderCorrelationGraph(list, totalVal) {
     let container = document.getElementById('correlationGraph');
@@ -22,7 +22,7 @@ function renderCorrelationGraph(list, totalVal) {
         return;
     }
 
-    // 【修復 1】：使用正規的 dispose 銷毀舊宇宙，絕不使用 innerHTML = '' 刪除畫布實體
+    // 正規的 dispose 銷毀舊宇宙
     if (charts.corr) {
         charts.corr.dispose();
     }
@@ -130,23 +130,42 @@ function renderCorrelationGraph(list, totalVal) {
         let isHub = (i === maxPosIdx && posCount[i] > 0);
         let isHedge = (i === maxNegIdx && negCount[i] > 0);
 
-        let borderColor = (isHub || isHedge) ? '#CF9236' : '#ffffff';
-        let borderWidth = (isHub || isHedge) ? 4 : 0;
+        // 【視覺升級】：設定基礎色與靜態重力光暈 (無邊框)
+        let baseColor = isProfit ? '#d93025' : '#188038';
+        let glowColor = isProfit ? 'rgba(217, 48, 37, 0.8)' : 'rgba(24, 128, 56, 0.8)';
+        let glowBlur = 15;
+
+        if (isHub) {
+            baseColor = '#ff3b2f'; // 霓虹紅核心
+            glowColor = 'rgba(255, 59, 47, 1)';
+            glowBlur = 45; // 3倍光暈
+        } else if (isHedge) {
+            baseColor = '#00e676'; // 霓虹綠核心
+            glowColor = 'rgba(0, 230, 118, 1)';
+            glowBlur = 45; // 3倍光暈
+        }
 
         fullGalaxyNodes.push({
             id: s.symbol,
             name: s.symbol.replace('.TW', ''), 
             value: (weight * 100).toFixed(1) + '%',
             symbolSize: size, 
-            baseNodeSize: size, // 安全變數名稱防沒收
+            baseNodeSize: size, 
             itemStyle: { 
-                color: isProfit ? '#d93025' : '#188038', 
-                shadowBlur: (isHub || isHedge) ? 30 : 15, 
-                shadowColor: isProfit ? 'rgba(217, 48, 37, 0.8)' : 'rgba(24, 128, 56, 0.8)',
-                borderColor: borderColor,
-                borderWidth: borderWidth
+                color: baseColor, 
+                shadowBlur: glowBlur, 
+                shadowColor: glowColor,
+                borderWidth: 0 // 徹底拔除金框白框
             },
-            label: { show: size >= 35, position: 'inside', color: '#fff', fontSize: 10, fontWeight: 'bold' }
+            label: { 
+                show: size >= 35, 
+                position: 'inside', 
+                color: '#fff', 
+                fontSize: 10, 
+                fontWeight: 'bold',
+                textBorderColor: 'rgba(0, 0, 0, 0.8)', // 【視覺升級】：文字深色描邊
+                textBorderWidth: 2
+            }
         });
     });
 
@@ -160,7 +179,7 @@ function renderCorrelationGraph(list, totalVal) {
     charts.corr.setOption({
         ...baseOption,
         series: [{
-            id: 'galaxy-series', // 【修復】：指定唯一 ID，讓 ECharts 認識它
+            id: 'galaxy-series',
             type: 'graph',
             layout: 'force',
             roam: false, 
@@ -172,7 +191,7 @@ function renderCorrelationGraph(list, totalVal) {
         }]
     });
 
-    // 【修復 3】：加入 Try-Catch 防護網
+    // 點擊事件：光學迷彩與純白高光大爆炸
     charts.corr.on('click', function(params) {
         try {
             if(params.dataType === 'edge') return; 
@@ -197,11 +216,16 @@ function renderCorrelationGraph(list, totalVal) {
                         symbolSize: isMain ? n.baseNodeSize * 1.5 : n.baseNodeSize * 1.1,
                         itemStyle: { 
                             ...n.itemStyle, 
-                            borderColor: isMain ? '#ffffff' : n.itemStyle.borderColor,
-                            borderWidth: isMain ? 4 : n.itemStyle.borderWidth,
-                            shadowBlur: isMain ? 35 : n.itemStyle.shadowBlur
+                            shadowColor: isMain ? '#ffffff' : n.itemStyle.shadowColor, // 【視覺升級】：主星純白高光
+                            shadowBlur: isMain ? 50 : n.itemStyle.shadowBlur,
+                            borderWidth: 0
                         },
-                        label: { ...n.label, show: true, fontSize: isMain ? 14 : 11 } 
+                        label: { 
+                            ...n.label, 
+                            show: true, 
+                            fontSize: isMain ? 14 : 11,
+                            textBorderWidth: isMain ? 3 : 2 // 主星描邊稍微加粗，確保在純白光下無比銳利
+                        } 
                     };
                 });
 
@@ -219,7 +243,7 @@ function renderCorrelationGraph(list, totalVal) {
                     };
                 });
 
-                // 【修復 2】：使用 replaceMerge 平滑淡出無關星球，並保留座標進行大爆炸擴張
+                // 使用 replaceMerge 平滑淡出無關星球，並保留座標進行大爆炸擴張
                 charts.corr.setOption({ 
                     series: [{ 
                         id: 'galaxy-series',
