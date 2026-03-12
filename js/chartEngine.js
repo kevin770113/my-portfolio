@@ -151,10 +151,16 @@ function renderCorrelationGraph(list, totalVal) {
     charts.corr.off('click');
     charts.corr.getZr().off('click');
 
-    let option = {
+    // 抽出共用的基礎藍圖設定 (防止強制重繪時失憶)
+    const baseOption = {
         animationDurationUpdate: 800, 
         animationEasingUpdate: 'quinticInOut',
-        tooltip: { show: false }, 
+        tooltip: { show: false }
+    };
+
+    // 初始全景渲染
+    charts.corr.setOption({
+        ...baseOption,
         series: [{
             type: 'graph',
             layout: 'force',
@@ -165,10 +171,9 @@ function renderCorrelationGraph(list, totalVal) {
             force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 },
             emphasis: { focus: 'none' } 
         }]
-    };
-    charts.corr.setOption(option, true); 
+    }, true); 
 
-    // 【修復：強制重繪 (true)】光學迷彩與大爆炸
+    // 【修復：帶有完整藍圖的強制重繪 (true)】
     charts.corr.on('click', function(params) {
         if(params.dataType === 'edge') return; 
 
@@ -210,12 +215,18 @@ function renderCorrelationGraph(list, totalVal) {
                 };
             });
 
-            // 【神聖的 true】拒絕合併，清除隱形路障！
+            // 必須餵給它完整的藍圖 (包含 type: 'graph')，大爆炸才會成功！
             charts.corr.setOption({ 
+                ...baseOption,
                 series: [{ 
+                    type: 'graph',
+                    layout: 'force',
+                    roam: false, 
+                    draggable: false, 
                     data: subsetNodes, 
                     links: subsetLinks,
-                    force: { repulsion: 400, edgeLength: [80, 150], gravity: 0.1 } 
+                    force: { repulsion: 400, edgeLength: [80, 150], gravity: 0.1 },
+                    emphasis: { focus: 'none' }
                 }] 
             }, true);
 
@@ -232,13 +243,20 @@ function renderCorrelationGraph(list, totalVal) {
     charts.corr.getZr().on('click', function(e) {
         if (!e.target) { 
             if(charts.corr && !charts.corr.isDisposed()) {
+                // 同樣必須餵給它完整的藍圖來恢復全景
                 charts.corr.setOption({ 
+                    ...baseOption,
                     series: [{ 
+                        type: 'graph',
+                        layout: 'force',
+                        roam: false, 
+                        draggable: false, 
                         data: fullGalaxyNodes, 
                         links: fullGalaxyLinks,
-                        force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 }
+                        force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 },
+                        emphasis: { focus: 'none' }
                     }] 
-                }, true); // 強制恢復全景
+                }, true); 
                 hud.classList.remove('show');
             }
         }
@@ -246,7 +264,7 @@ function renderCorrelationGraph(list, totalVal) {
 }
 
 // ------------------------------------------
-// 2. 儀表板與基礎圖表渲染 (還原排版)
+// 2. 儀表板與基礎圖表渲染
 // ------------------------------------------
 function renderDashboard(list) {
     if (list.length === 0) {
@@ -345,7 +363,6 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
         legendDiv.innerHTML += `<div style="margin-bottom:6px;"><span style="color:${colors[idx%colors.length]};">■</span> ${lb} (${((data[idx] / totalVal) * 100).toFixed(1)}%)</div>`; 
     });
 
-    // 圓餅圖
     if (charts.alloc) charts.alloc.destroy();
     charts.alloc = new Chart(document.getElementById('allocationChart'), { 
         type: 'doughnut', 
@@ -359,7 +376,6 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
         } 
     });
 
-    // 績效長條圖
     if (charts.perf) charts.perf.destroy();
     charts.perf = new Chart(document.getElementById('performanceChart'), { 
         type: 'bar', 
@@ -377,7 +393,6 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
         } 
     });
 
-    // 蒙地卡羅圖
     if (charts.mc) charts.mc.destroy();
     let startVal = isPrivacyMode ? 0 : totalVal / 10000; 
     const years = [-1, 0, 1, 3, 5, 10]; 
@@ -437,7 +452,6 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
         } 
     });
 
-    // 現金流圖表
     const now = new Date(); const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1); 
     const labelsCF = [], monthKeys = [];
     for (let i = 0; i < 24; i++) { 
