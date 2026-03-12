@@ -4,7 +4,7 @@
 // ==========================================
 
 // ------------------------------------------
-// 1. 星系拓樸圖 (ECharts - 電影級運鏡修復版)
+// 1. 星系拓樸圖 (ECharts - 防彈電影級運鏡版)
 // ------------------------------------------
 function renderCorrelationGraph(list, totalVal) {
     let container = document.getElementById('correlationGraph');
@@ -17,11 +17,16 @@ function renderCorrelationGraph(list, totalVal) {
     }
 
     if (list.length < 2 || totalVal <= 0) {
-        container.innerHTML = '<div style="color: #666; text-align: center; padding-top: 200px; font-size:12px;">🪐 至少需要 2 檔以上標的才能運算引力</div>';
         if (charts.corr) { charts.corr.dispose(); charts.corr = null; }
+        container.innerHTML = '<div style="color: #666; text-align: center; padding-top: 200px; font-size:12px;">🪐 至少需要 2 檔以上標的才能運算引力</div>';
         return;
     }
-    container.innerHTML = '';
+
+    // 【修復 1】：使用正規的 dispose 銷毀舊宇宙，絕不使用 innerHTML = '' 刪除畫布實體
+    if (charts.corr) {
+        charts.corr.dispose();
+    }
+    charts.corr = echarts.init(container);
 
     let validStocks = list.filter(s => stockMapCache[s.symbol]);
     let N = validStocks.length;
@@ -89,7 +94,6 @@ function renderCorrelationGraph(list, totalVal) {
                     
                     rawLinkData.push({ source: validStocks[i].symbol, target: validStocks[j].symbol, r: r, isNegative: isNegative });
 
-                    // 微光星座骨架 (修復：加入明確的 id)
                     fullGalaxyLinks.push({
                         id: validStocks[i].symbol + '-' + validStocks[j].symbol,
                         source: validStocks[i].symbol,
@@ -134,7 +138,7 @@ function renderCorrelationGraph(list, totalVal) {
             name: s.symbol.replace('.TW', ''), 
             value: (weight * 100).toFixed(1) + '%',
             symbolSize: size, 
-            baseNodeSize: size, // 【修復】：更名為 baseNodeSize，避免被引擎沒收
+            baseNodeSize: size, // 安全變數名稱防沒收
             itemStyle: { 
                 color: isProfit ? '#d93025' : '#188038', 
                 shadowBlur: (isHub || isHedge) ? 30 : 15, 
@@ -146,18 +150,17 @@ function renderCorrelationGraph(list, totalVal) {
         });
     });
 
-    if (!charts.corr) { charts.corr = echarts.init(container); }
-    
-    // 斬除幽靈監聽器
-    charts.corr.off('click');
-    charts.corr.getZr().off('click');
-
-    // 初始全景渲染
-    charts.corr.setOption({
+    const baseOption = {
         animationDurationUpdate: 800, 
         animationEasingUpdate: 'quinticInOut',
-        tooltip: { show: false },
+        tooltip: { show: false }
+    };
+
+    // 初始渲染：為 series 加上 id，以啟動後續的平滑過場
+    charts.corr.setOption({
+        ...baseOption,
         series: [{
+            id: 'galaxy-series', // 【修復】：指定唯一 ID，讓 ECharts 認識它
             type: 'graph',
             layout: 'force',
             roam: false, 
@@ -167,88 +170,98 @@ function renderCorrelationGraph(list, totalVal) {
             force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 },
             emphasis: { focus: 'none' } 
         }]
-    }); // 【修復】：移除破壞性的 `true`
+    });
 
-    // 【光學迷彩與大爆炸擴張】
+    // 【修復 3】：加入 Try-Catch 防護網
     charts.corr.on('click', function(params) {
-        if(params.dataType === 'edge') return; 
+        try {
+            if(params.dataType === 'edge') return; 
 
-        if(params.dataType === 'node') {
-            let clickedId = params.data.id;
-            let clickedName = params.data.name;
-            
-            let relatedIds = new Set([clickedId]);
-            rawLinkData.forEach(l => {
-                if(l.source === clickedId) relatedIds.add(l.target);
-                if(l.target === clickedId) relatedIds.add(l.source);
-            });
+            if(params.dataType === 'node') {
+                let clickedId = params.data.id;
+                let clickedName = params.data.name;
+                
+                // 防護：確保節點存在於字典中
+                if (!clickedId || !nodeStatsMap[clickedId]) return;
+                
+                let relatedIds = new Set([clickedId]);
+                rawLinkData.forEach(l => {
+                    if(l.source === clickedId) relatedIds.add(l.target);
+                    if(l.target === clickedId) relatedIds.add(l.source);
+                });
 
-            // 1. 光學迷彩與主星放大 (使用防沒收的 baseNodeSize)
-            let subsetNodes = fullGalaxyNodes.filter(n => relatedIds.has(n.id)).map(n => {
-                let isMain = (n.id === clickedId);
-                return { 
-                    ...n, 
-                    symbolSize: isMain ? n.baseNodeSize * 1.5 : n.baseNodeSize * 1.1, // 正確讀取大小
-                    itemStyle: { 
-                        ...n.itemStyle, 
-                        borderColor: isMain ? '#ffffff' : n.itemStyle.borderColor,
-                        borderWidth: isMain ? 4 : n.itemStyle.borderWidth,
-                        shadowBlur: isMain ? 35 : n.itemStyle.shadowBlur
-                    },
-                    label: { ...n.label, show: true, fontSize: isMain ? 14 : 11 } 
-                };
-            });
+                let subsetNodes = fullGalaxyNodes.filter(n => relatedIds.has(n.id)).map(n => {
+                    let isMain = (n.id === clickedId);
+                    return { 
+                        ...n, 
+                        symbolSize: isMain ? n.baseNodeSize * 1.5 : n.baseNodeSize * 1.1,
+                        itemStyle: { 
+                            ...n.itemStyle, 
+                            borderColor: isMain ? '#ffffff' : n.itemStyle.borderColor,
+                            borderWidth: isMain ? 4 : n.itemStyle.borderWidth,
+                            shadowBlur: isMain ? 35 : n.itemStyle.shadowBlur
+                        },
+                        label: { ...n.label, show: true, fontSize: isMain ? 14 : 11 } 
+                    };
+                });
 
-            // 2. 直屬連線爆亮 (加入明確的 id)
-            let subsetLinks = rawLinkData.filter(l => l.source === clickedId || l.target === clickedId).map(l => {
-                let w = l.isNegative ? 3 : Math.min(8, Math.abs(l.r) * 6);
-                return {
-                    id: l.source + '-' + l.target,
-                    source: l.source, target: l.target,
-                    lineStyle: {
-                        color: l.isNegative ? '#00e676' : '#ff4757', width: w + 2,
-                        type: l.isNegative ? 'dashed' : 'solid', curveness: 0.1,
-                        opacity: 1, shadowBlur: 15, shadowColor: l.isNegative ? '#00e676' : '#ff4757'
-                    },
-                    silent: true, tooltip: { show: false }
-                };
-            });
+                let subsetLinks = rawLinkData.filter(l => l.source === clickedId || l.target === clickedId).map(l => {
+                    let w = l.isNegative ? 3 : Math.min(8, Math.abs(l.r) * 6);
+                    return {
+                        id: l.source + '-' + l.target,
+                        source: l.source, target: l.target,
+                        lineStyle: {
+                            color: l.isNegative ? '#00e676' : '#ff4757', width: w + 2,
+                            type: l.isNegative ? 'dashed' : 'solid', curveness: 0.1,
+                            opacity: 1, shadowBlur: 15, shadowColor: l.isNegative ? '#00e676' : '#ff4757'
+                        },
+                        silent: true, tooltip: { show: false }
+                    };
+                });
 
-            // 3. 原生平滑大爆炸
-            charts.corr.setOption({ 
-                series: [{ 
-                    data: subsetNodes, 
-                    links: subsetLinks,
-                    force: { repulsion: 400, edgeLength: [80, 150], gravity: 0.1 } 
-                }] 
-            }); // 【修復】：拔除 `true`，讓 ECharts 自動平滑淡出無關星球
+                // 【修復 2】：使用 replaceMerge 平滑淡出無關星球，並保留座標進行大爆炸擴張
+                charts.corr.setOption({ 
+                    series: [{ 
+                        id: 'galaxy-series',
+                        data: subsetNodes, 
+                        links: subsetLinks,
+                        force: { repulsion: 400, edgeLength: [80, 150], gravity: 0.1 } 
+                    }] 
+                }, { replaceMerge: ['series'] });
 
-            // 4. 喚醒 HUD
-            if(hud && nodeStatsMap[clickedId]) {
                 let stats = nodeStatsMap[clickedId];
                 let wStr = (stats.weight * 100).toFixed(1) + '%';
                 let cStr = stats.avgCorr > 0 ? '+' + stats.avgCorr.toFixed(2) : stats.avgCorr.toFixed(2);
                 let cColor = stats.avgCorr > 0.4 ? '#ff4757' : (stats.avgCorr < -0.15 ? '#00e676' : '#8b949e');
                 
-                hud.innerHTML = `聚焦：<b>${clickedName}</b> ｜ 資金佔比：<b>${wStr}</b> ｜ 組合連動度：<b style="color:${cColor};">${cStr}</b>`;
-                hud.classList.add('show');
+                if (hud) {
+                    hud.innerHTML = `聚焦：<b>${clickedName}</b> ｜ 資金佔比：<b>${wStr}</b> ｜ 組合連動度：<b style="color:${cColor};">${cStr}</b>`;
+                    hud.classList.add('show');
+                }
             }
+        } catch (err) {
+            console.error("Galaxy Click Error:", err);
         }
     });
 
     charts.corr.getZr().on('click', function(e) {
-        if (!e.target) { 
-            if(charts.corr && !charts.corr.isDisposed()) {
-                // 恢復全景與微光骨架
-                charts.corr.setOption({ 
-                    series: [{ 
-                        data: fullGalaxyNodes, 
-                        links: fullGalaxyLinks,
-                        force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 }
-                    }] 
-                }); // 【修復】：拔除 `true`
-                if(hud) hud.classList.remove('show');
+        try {
+            if (!e.target) { 
+                if(charts.corr && !charts.corr.isDisposed()) {
+                    charts.corr.setOption({ 
+                        series: [{ 
+                            id: 'galaxy-series',
+                            data: fullGalaxyNodes, 
+                            links: fullGalaxyLinks,
+                            force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 }
+                        }] 
+                    }, { replaceMerge: ['series'] }); 
+                    
+                    if(hud) hud.classList.remove('show');
+                }
             }
+        } catch (err) {
+            console.error("Galaxy Background Click Error:", err);
         }
     });
 }
