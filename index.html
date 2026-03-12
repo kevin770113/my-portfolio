@@ -88,6 +88,16 @@
         </div>
     </div>
 
+    <div id="div-detail-overlay" class="modal-overlay" style="align-items: flex-end; background: rgba(0,0,0,0.4); display: none;" onclick="closeDivDetail()"></div>
+    <div id="div-detail-sheet" class="bottom-sheet">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+            <h3 style="font-size: 16px; color: var(--primary-dark); margin: 0;" id="div-detail-title">配息明細</h3>
+            <button onclick="closeDivDetail()" style="background:none; border:none; font-size:22px; color:#999; cursor:pointer; padding: 0 5px;">✕</button>
+        </div>
+        <div id="div-detail-list" style="max-height: 55vh; overflow-y: auto; padding-right: 5px;">
+            </div>
+    </div>
+
     <div id="csv-prompt-overlay" class="modal-overlay">
         <div class="custom-prompt-box" style="padding: 20px; text-align: left; height: auto;">
             <div class="prompt-title" style="text-align: center;">⚠️ 發現新股票：<span id="csv-stock-name" style="color: var(--red-profit);"></span></div>
@@ -252,7 +262,18 @@
     </div>
 
     <div class="card"><div class="card-header"><h2 class="card-title">資產配置 (總現值佔比)</h2></div><div style="display: flex; align-items: center;"><div style="flex: 1;"><div class="chart-container-small"><canvas id="allocationChart"></canvas></div></div><div style="flex: 1.2; padding-left: 10px; font-size: 12px;" class="scrollable-list" id="alloc-legend"><div style="color: #999; text-align: center; margin-top: 50px;">請先匯入資料</div></div></div></div>
-    <div class="card"><div class="card-header"><h2 class="card-title">月度現金流分析</h2><span class="card-subtitle">過去 12 個月 vs 未來推算</span></div><div class="chart-container-large"><canvas id="cashflowChart"></canvas></div><div style="font-size: 11px; color: #999; text-align: center; margin-top: 12px; line-height: 1.4;">* 預估係根據各股過去 12 個月真實配息平移。</div></div>
+    
+    <div class="card">
+        <div class="card-header"><h2 class="card-title">月度現金流分析</h2><span class="card-subtitle">過去 12 個月 vs 未來推算</span></div>
+        <div class="chart-container-large" style="position: relative;">
+            <canvas id="cashflowChart"></canvas>
+        </div>
+        <div style="font-size: 11px; color: #999; text-align: center; margin-top: 12px; line-height: 1.4;">
+            * 👇 點擊長條柱可查看該月詳細配息清單<br>
+            * 透明虛線柱體為系統預估之未來配息。
+        </div>
+    </div>
+    
     <div class="card"><div class="card-header"><h2 class="card-title">全球持股現值排行</h2><span class="card-subtitle">集中度與市值排序</span></div><div class="chart-container-bar"><canvas id="performanceChart"></canvas></div></div>
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">市值排序 ＆ 組合連動度</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
