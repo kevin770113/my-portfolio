@@ -4,12 +4,12 @@
 // ==========================================
 
 // ------------------------------------------
-// 1. 星系拓樸圖 (ECharts - 電影級運鏡版)
+// 1. 星系拓樸圖 (ECharts - 電影級運鏡修復版)
 // ------------------------------------------
 function renderCorrelationGraph(list, totalVal) {
     let container = document.getElementById('correlationGraph');
     let hud = document.getElementById('galaxy-hud');
-    hud.classList.remove('show'); 
+    if (hud) hud.classList.remove('show'); 
     
     if (typeof echarts === 'undefined') {
         container.innerHTML = '<div style="color: #8b949e; text-align: center; padding-top: 180px; font-size:13px;">⚠️ 視覺化引擎載入失敗<br><span style="font-size:11px;">請檢查網路環境或關閉廣告阻擋器 (AdBlocker)</span></div>';
@@ -89,8 +89,9 @@ function renderCorrelationGraph(list, totalVal) {
                     
                     rawLinkData.push({ source: validStocks[i].symbol, target: validStocks[j].symbol, r: r, isNegative: isNegative });
 
-                    // 微光星座骨架
+                    // 微光星座骨架 (修復：加入明確的 id)
                     fullGalaxyLinks.push({
+                        id: validStocks[i].symbol + '-' + validStocks[j].symbol,
                         source: validStocks[i].symbol,
                         target: validStocks[j].symbol,
                         lineStyle: {
@@ -133,7 +134,7 @@ function renderCorrelationGraph(list, totalVal) {
             name: s.symbol.replace('.TW', ''), 
             value: (weight * 100).toFixed(1) + '%',
             symbolSize: size, 
-            _baseSize: size, 
+            baseNodeSize: size, // 【修復】：更名為 baseNodeSize，避免被引擎沒收
             itemStyle: { 
                 color: isProfit ? '#d93025' : '#188038', 
                 shadowBlur: (isHub || isHedge) ? 30 : 15, 
@@ -151,16 +152,11 @@ function renderCorrelationGraph(list, totalVal) {
     charts.corr.off('click');
     charts.corr.getZr().off('click');
 
-    // 抽出共用的基礎藍圖設定 (防止強制重繪時失憶)
-    const baseOption = {
-        animationDurationUpdate: 800, 
-        animationEasingUpdate: 'quinticInOut',
-        tooltip: { show: false }
-    };
-
     // 初始全景渲染
     charts.corr.setOption({
-        ...baseOption,
+        animationDurationUpdate: 800, 
+        animationEasingUpdate: 'quinticInOut',
+        tooltip: { show: false },
         series: [{
             type: 'graph',
             layout: 'force',
@@ -171,9 +167,9 @@ function renderCorrelationGraph(list, totalVal) {
             force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 },
             emphasis: { focus: 'none' } 
         }]
-    }, true); 
+    }); // 【修復】：移除破壞性的 `true`
 
-    // 【修復：帶有完整藍圖的強制重繪 (true)】
+    // 【光學迷彩與大爆炸擴張】
     charts.corr.on('click', function(params) {
         if(params.dataType === 'edge') return; 
 
@@ -187,11 +183,12 @@ function renderCorrelationGraph(list, totalVal) {
                 if(l.target === clickedId) relatedIds.add(l.source);
             });
 
+            // 1. 光學迷彩與主星放大 (使用防沒收的 baseNodeSize)
             let subsetNodes = fullGalaxyNodes.filter(n => relatedIds.has(n.id)).map(n => {
                 let isMain = (n.id === clickedId);
                 return { 
                     ...n, 
-                    symbolSize: isMain ? n._baseSize * 1.5 : n._baseSize * 1.1,
+                    symbolSize: isMain ? n.baseNodeSize * 1.5 : n.baseNodeSize * 1.1, // 正確讀取大小
                     itemStyle: { 
                         ...n.itemStyle, 
                         borderColor: isMain ? '#ffffff' : n.itemStyle.borderColor,
@@ -202,9 +199,11 @@ function renderCorrelationGraph(list, totalVal) {
                 };
             });
 
+            // 2. 直屬連線爆亮 (加入明確的 id)
             let subsetLinks = rawLinkData.filter(l => l.source === clickedId || l.target === clickedId).map(l => {
                 let w = l.isNegative ? 3 : Math.min(8, Math.abs(l.r) * 6);
                 return {
+                    id: l.source + '-' + l.target,
                     source: l.source, target: l.target,
                     lineStyle: {
                         color: l.isNegative ? '#00e676' : '#ff4757', width: w + 2,
@@ -215,49 +214,40 @@ function renderCorrelationGraph(list, totalVal) {
                 };
             });
 
-            // 必須餵給它完整的藍圖 (包含 type: 'graph')，大爆炸才會成功！
+            // 3. 原生平滑大爆炸
             charts.corr.setOption({ 
-                ...baseOption,
                 series: [{ 
-                    type: 'graph',
-                    layout: 'force',
-                    roam: false, 
-                    draggable: false, 
                     data: subsetNodes, 
                     links: subsetLinks,
-                    force: { repulsion: 400, edgeLength: [80, 150], gravity: 0.1 },
-                    emphasis: { focus: 'none' }
+                    force: { repulsion: 400, edgeLength: [80, 150], gravity: 0.1 } 
                 }] 
-            }, true);
+            }); // 【修復】：拔除 `true`，讓 ECharts 自動平滑淡出無關星球
 
-            let stats = nodeStatsMap[clickedId];
-            let wStr = (stats.weight * 100).toFixed(1) + '%';
-            let cStr = stats.avgCorr > 0 ? '+' + stats.avgCorr.toFixed(2) : stats.avgCorr.toFixed(2);
-            let cColor = stats.avgCorr > 0.4 ? '#ff4757' : (stats.avgCorr < -0.15 ? '#00e676' : '#8b949e');
-            
-            hud.innerHTML = `聚焦：<b>${clickedName}</b> ｜ 資金佔比：<b>${wStr}</b> ｜ 組合連動度：<b style="color:${cColor};">${cStr}</b>`;
-            hud.classList.add('show');
+            // 4. 喚醒 HUD
+            if(hud && nodeStatsMap[clickedId]) {
+                let stats = nodeStatsMap[clickedId];
+                let wStr = (stats.weight * 100).toFixed(1) + '%';
+                let cStr = stats.avgCorr > 0 ? '+' + stats.avgCorr.toFixed(2) : stats.avgCorr.toFixed(2);
+                let cColor = stats.avgCorr > 0.4 ? '#ff4757' : (stats.avgCorr < -0.15 ? '#00e676' : '#8b949e');
+                
+                hud.innerHTML = `聚焦：<b>${clickedName}</b> ｜ 資金佔比：<b>${wStr}</b> ｜ 組合連動度：<b style="color:${cColor};">${cStr}</b>`;
+                hud.classList.add('show');
+            }
         }
     });
 
     charts.corr.getZr().on('click', function(e) {
         if (!e.target) { 
             if(charts.corr && !charts.corr.isDisposed()) {
-                // 同樣必須餵給它完整的藍圖來恢復全景
+                // 恢復全景與微光骨架
                 charts.corr.setOption({ 
-                    ...baseOption,
                     series: [{ 
-                        type: 'graph',
-                        layout: 'force',
-                        roam: false, 
-                        draggable: false, 
                         data: fullGalaxyNodes, 
                         links: fullGalaxyLinks,
-                        force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 },
-                        emphasis: { focus: 'none' }
+                        force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 }
                     }] 
-                }, true); 
-                hud.classList.remove('show');
+                }); // 【修復】：拔除 `true`
+                if(hud) hud.classList.remove('show');
             }
         }
     });
