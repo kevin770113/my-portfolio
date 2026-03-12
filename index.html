@@ -85,7 +85,6 @@
         .scen-btn { background: none; border: none; font-size: 18px; color: var(--text-muted); cursor: pointer; padding: 5px; }
         .scen-add-btn { width: 100%; padding: 14px; background: var(--primary-dark); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; margin-top: 15px; cursor: pointer; }
 
-        /* 【版面壓縮優化】只鎖定頂部核心切換列 */
         .sticky-header { position: sticky; top: 0; z-index: 100; background-color: var(--bg-color); padding-bottom: 4px; display: flex; flex-direction: column; margin-bottom: 8px; }
         .top-bar { display: flex; justify-content: space-between; align-items: center; }
         .btn-menu { background: none; border: none; font-size: 24px; color: var(--primary-dark); cursor: pointer; padding: 4px 8px; border-radius: 6px; }
@@ -95,7 +94,6 @@
         .scenario-bar { background-color: #E2E8F0; color: var(--primary-dark); padding: 10px; text-align: center; font-size: 13px; font-weight: bold; border-radius: 8px; margin-top: 8px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05); }
         .scenario-bar.sandbox { background-color: #FFF3CD; color: #856404; border: 1px dashed #FFEEBA; }
         
-        /* 動作列不再鎖定，自然隨頁面滑動釋放空間 */
         .action-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
         .action-row { display: flex; gap: 8px; justify-content: space-between; align-items: stretch; }
         .btn-upload { background-color: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; flex: 1; text-align: center; padding: 12px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
@@ -154,11 +152,23 @@
         .legend-item { display: flex; align-items: center; gap: 4px; }
         .dot { width: 10px; height: 10px; border-radius: 50%; }
         
-        /* 活體宇宙深色卡片 */
-        .galaxy-card { background-color: #0d1117; border: 1px solid #30363d; }
+        /* 活體宇宙深色卡片與 HUD 樣式 */
+        .galaxy-card { background-color: #0d1117; border: 1px solid #30363d; position: relative; overflow: hidden; }
         .galaxy-card .card-title { color: #e6edf3; }
         .galaxy-card .card-subtitle { color: #8b949e; }
         .galaxy-header { border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; margin-bottom: 10px; }
+        
+        /* 抬頭顯示器 (HUD) 不斷行設計 */
+        .galaxy-hud {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            background: rgba(26, 37, 47, 0.95); backdrop-filter: blur(5px);
+            padding: 12px 10px; color: #fff; font-size: 12px; text-align: center;
+            transform: translateY(100%); transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100; white-space: nowrap; overflow-x: auto;
+            border-radius: 0 0 12px 12px; box-shadow: 0 -4px 15px rgba(0,0,0,0.3);
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .galaxy-hud.show { transform: translateY(0); }
     </style>
 </head>
 <body>
@@ -404,9 +414,12 @@
     <div class="card galaxy-card">
         <div class="galaxy-header">
             <h2 class="card-title">🪐 資產連動星系圖</h2>
-            <span class="card-subtitle">引力星座骨架，點擊平滑聚焦神經網絡</span>
+            <span class="card-subtitle">引力星座骨架，點擊平滑推進神經網路</span>
         </div>
         <div id="correlationGraph" style="width: 100%; height: 450px; position: relative;"></div>
+        
+        <div id="galaxy-hud" class="galaxy-hud"></div>
+        
         <div style="display:flex; justify-content:center; gap:15px; font-size:11px; color:#8b949e; margin-top:8px;">
             <span><b style="color:#ff4757; font-size:14px; vertical-align:middle;">━</b> 系統風險 (正相關)</span>
             <span><b style="color:#00e676; font-size:14px; vertical-align:middle;">┅</b> 完美避震 (負相關)</span>
@@ -419,7 +432,6 @@
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">CAGR vs 波動率</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
     <script>
-        // 全域變數宣告
         let isPrivacyMode = false; let currentRate = 32.5; let latestDataTime = 0; let charts = {}; let currentMarketView = 'ALL'; 
         let realPortfolio = { tw: [], us: [] }; let sandboxScenarios = []; let activeScenarioId = 'real'; 
         let stockMapCache = {}; let globalCombinedList = []; 
@@ -428,7 +440,6 @@
         let currentPromptPrice = 0;
         let isReportRendered = false; 
 
-        // 導航與共用函數
         function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
         function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
         function navigateTo(url) { if (window.location.href.includes(url) || (url === 'index.html' && window.location.pathname.endsWith('/'))) { closeDrawer(); return; } closeDrawer(); setTimeout(() => { document.body.classList.add('fade-out'); setTimeout(() => { window.location.href = url; }, 400); }, 250); }
@@ -441,7 +452,6 @@
         let toastTimeout;
         function showToast(msg) { const toast = document.getElementById('toast-container'); toast.innerText = msg; toast.classList.add('show'); clearTimeout(toastTimeout); toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500); }
 
-        // 初始化監聽
         document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('upload-tw').addEventListener('change', (e) => handleFileUpload(e, 'tw'));
             document.getElementById('upload-us').addEventListener('change', (e) => handleFileUpload(e, 'us'));
@@ -471,7 +481,6 @@
             } else { renderCurrentView(); }
         });
 
-        // 彈窗系統
         let confirmCallback = null;
         function openConfirmModal(title, desc, btnText, callback) { document.getElementById('confirm-modal-title').innerText = title; document.getElementById('confirm-modal-desc').innerHTML = desc; document.getElementById('btn-confirm-danger').innerText = btnText; confirmCallback = callback; document.getElementById('confirm-modal-overlay').classList.add('active'); }
         function closeConfirmModal() { document.getElementById('confirm-modal-overlay').classList.remove('active'); }
@@ -492,7 +501,6 @@
         }
         function closeInfoModal() { document.getElementById('info-modal-overlay').classList.remove('active'); if (infoCallback) { let cb = infoCallback; infoCallback = null; cb(); } }
 
-        // 劇本切換系統
         function openScenModal() {
             document.getElementById('scen-list').innerHTML = '';
             let html = `<div class="scen-item" style="${activeScenarioId === 'real' ? 'background:rgba(0,86,179,0.05); font-weight:bold;' : ''}"><div class="scen-name" onclick="switchScenario('real')">🌍 真實持股 (鎖定) ${activeScenarioId === 'real' ? '✅' : ''}</div></div>`;
@@ -511,7 +519,6 @@
             else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); bar.innerHTML = `🧪 試算中：${sc.name} ▾`; bar.className = "scenario-bar sandbox"; rowUpload.style.display = "none"; btnInv.innerHTML = "✏️ 調整持股"; }
         }
 
-        // 核心計算
         function calculateMatrixRisk(list, totalVal) {
             if (!list || list.length === 0 || totalVal <= 0) return 0;
             let validStocks = list.filter(s => stockMapCache[s.symbol]);
@@ -761,13 +768,16 @@
             saveScenarios(); document.getElementById('ai-res-modal').classList.remove('active'); setLoading(true); updateFinanceData().then(() => { setLoading(false); showToast("✅ 配置套用成功！"); });
         }
 
-        // ================= 【電影級運鏡】光學迷彩與動態下鑽星系圖 =================
+        // ================= 【電影級運鏡】星系拓樸圖與 HUD 抬頭顯示器 =================
         let fullGalaxyNodes = [];
         let fullGalaxyLinks = []; 
         let rawLinkData = [];
+        let nodeStatsMap = {}; // 儲存量化連動度
 
         function renderCorrelationGraph(list, totalVal) {
             let container = document.getElementById('correlationGraph');
+            let hud = document.getElementById('galaxy-hud');
+            hud.classList.remove('show'); // 初始隱藏 HUD
             
             if (typeof echarts === 'undefined') {
                 container.innerHTML = '<div style="color: #8b949e; text-align: center; padding-top: 180px; font-size:13px;">⚠️ 視覺化引擎載入失敗<br><span style="font-size:11px;">請檢查網路環境或關閉廣告阻擋器 (AdBlocker)</span></div>';
@@ -823,39 +833,55 @@
             let SD = [];
             for(let i=0; i<N; i++) SD[i] = Math.sqrt(Math.max(0, Sigma[i][i]));
 
-            let posCount = Array(N).fill(0);
-            let negCount = Array(N).fill(0);
-            
+            // 2. 結算 HUD 所需的【組合連動度】與微光骨架
+            let weights = validStocks.map(s => (s.marketValueTWD || 0) / totalVal);
+            nodeStatsMap = {};
             fullGalaxyLinks = []; 
             rawLinkData = [];
+            let posCount = Array(N).fill(0);
+            let negCount = Array(N).fill(0);
 
-            // 2. 建構微光星座骨架 (15% 透明度)
             for(let i=0; i<N; i++) {
-                for(let j=i+1; j<N; j++) {
+                let weightedCorrSum = 0;
+                let weightSumOthers = 0;
+                
+                for(let j=0; j<N; j++) {
                     if (SD[i] === 0 || SD[j] === 0) continue;
                     let r = Sigma[i][j] / (SD[i] * SD[j]);
                     
-                    if (r > 0.6 || r < -0.15) {
-                        let isNegative = r < 0;
-                        if(isNegative) { negCount[i]++; negCount[j]++; } else { posCount[i]++; posCount[j]++; }
+                    if(i !== j) {
+                        weightedCorrSum += r * weights[j];
+                        weightSumOthers += weights[j];
                         
-                        rawLinkData.push({ source: validStocks[i].symbol, target: validStocks[j].symbol, r: r, isNegative: isNegative });
+                        // 紀錄微光連線與實體資料
+                        if (j > i && (r > 0.6 || r < -0.15)) {
+                            let isNegative = r < 0;
+                            if(isNegative) { negCount[i]++; negCount[j]++; } else { posCount[i]++; posCount[j]++; }
+                            
+                            rawLinkData.push({ source: validStocks[i].symbol, target: validStocks[j].symbol, r: r, isNegative: isNegative });
 
-                        fullGalaxyLinks.push({
-                            source: validStocks[i].symbol,
-                            target: validStocks[j].symbol,
-                            value: r > 0 ? '+'+r.toFixed(2) : r.toFixed(2),
-                            lineStyle: {
-                                color: isNegative ? '#00e676' : '#ff4757', 
-                                width: 1, 
-                                type: isNegative ? 'dashed' : 'solid',
-                                curveness: 0.1,
-                                opacity: 0.15 // 微光骨架，不干擾視線
-                            },
-                            silent: true 
-                        });
+                            fullGalaxyLinks.push({
+                                source: validStocks[i].symbol,
+                                target: validStocks[j].symbol,
+                                lineStyle: {
+                                    color: isNegative ? '#00e676' : '#ff4757', 
+                                    width: 1, 
+                                    type: isNegative ? 'dashed' : 'solid',
+                                    curveness: 0.1,
+                                    opacity: 0.15 // 平時為不干擾視線的骨架
+                                },
+                                silent: true, // 絕對禁止線條點擊
+                                tooltip: { show: false } // 【情報靜默】禁止跳出黑框
+                            });
+                        }
                     }
                 }
+                
+                // 儲存 HUD 連動度數據
+                nodeStatsMap[validStocks[i].symbol] = {
+                    weight: weights[i],
+                    avgCorr: weightSumOthers > 0 ? (weightedCorrSum / weightSumOthers) : 0
+                };
             }
 
             let maxPosIdx = posCount.indexOf(Math.max(...posCount));
@@ -864,7 +890,7 @@
             // 3. 建構星體 (靜態高級感加冕)
             fullGalaxyNodes = [];
             validStocks.forEach((s, i) => {
-                let weight = (s.marketValueTWD || 0) / totalVal;
+                let weight = weights[i];
                 let size = Math.max(18, Math.min(65, weight * 100)); 
                 let isProfit = (s.marketValueTWD - s.costTWD) >= 0;
                 
@@ -879,6 +905,7 @@
                     name: s.symbol.replace('.TW', ''), 
                     value: (weight * 100).toFixed(1) + '%',
                     symbolSize: size, 
+                    _baseSize: size, 
                     itemStyle: { 
                         color: isProfit ? '#d93025' : '#188038', 
                         shadowBlur: (isHub || isHedge) ? 30 : 15, 
@@ -892,11 +919,11 @@
 
             if (!charts.corr) { charts.corr = echarts.init(container); }
             
-            // 4. ECharts 渲染配置 (加入平滑過場動畫)
+            // 4. ECharts 初始渲染配置 (拔除全局 Tooltip)
             let option = {
-                animationDurationUpdate: 800, // 點擊時的電影級推進時間
+                animationDurationUpdate: 800, // 電影級平滑推進時間
                 animationEasingUpdate: 'quinticInOut',
-                tooltip: { formatter: '{b}: 佔比 {c}' },
+                tooltip: { show: false }, // 【徹底拔除】全域浮動黑框，改用 HUD
                 series: [{
                     type: 'graph',
                     layout: 'force',
@@ -905,57 +932,92 @@
                     data: fullGalaxyNodes,
                     links: fullGalaxyLinks, 
                     force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 },
-                    emphasis: { focus: 'none' } // 關閉原生 focus，交給下方的電影級引擎處理
+                    emphasis: { focus: 'none' } // 關閉原生 hover 聚焦，防止干擾
                 }]
             };
             charts.corr.setOption(option, true); 
 
-            // ================= 【電影級】光學迷彩與動態推進 (Cloak & Zoom) =================
+            // ================= 【電影級運鏡】光學迷彩與大爆炸擴張 (Cloak & Zoom) =================
             
-            // 點擊星球 ➔ 過濾無關雜訊，自動推進
+            // 點擊星球 ➔ 過濾無關雜訊，啟動大爆炸與 HUD
             charts.corr.on('click', function(params) {
-                if(params.dataType === 'edge') return; 
+                if(params.dataType === 'edge') return; // 防誤觸保險
 
                 if(params.dataType === 'node') {
                     let clickedId = params.data.id;
+                    let clickedName = params.data.name;
                     
-                    // 找出相關的神經元
+                    // 找出直屬關聯的神經元 (絕對星狀拓樸，不抓朋友的朋友)
                     let relatedIds = new Set([clickedId]);
                     rawLinkData.forEach(l => {
                         if(l.source === clickedId) relatedIds.add(l.target);
                         if(l.target === clickedId) relatedIds.add(l.source);
                     });
 
-                    // 1. 光學迷彩：只保留相關星球，其餘完全剔除
+                    // 1. 光學迷彩 ＆ 主星加冕：只保留相關星球
                     let subsetNodes = fullGalaxyNodes.filter(n => relatedIds.has(n.id)).map(n => {
-                        return { ...n, label: { ...n.label, show: true, fontSize: 13 } }; // 放大時強制顯示名字
+                        let isMain = (n.id === clickedId);
+                        return { 
+                            ...n, 
+                            // 主星爆發至 1.5 倍，伴星微幅放大 1.1 倍
+                            symbolSize: isMain ? n._baseSize * 1.5 : n._baseSize * 1.1,
+                            itemStyle: { 
+                                ...n.itemStyle, 
+                                borderColor: isMain ? '#ffffff' : n.itemStyle.borderColor,
+                                borderWidth: isMain ? 4 : n.itemStyle.borderWidth,
+                                shadowBlur: isMain ? 35 : n.itemStyle.shadowBlur
+                            },
+                            label: { ...n.label, show: true, fontSize: isMain ? 14 : 11 } // 推進時強制顯示名字
+                        };
                     });
 
-                    // 2. 點亮神經：只提取相關連線，瞬間 100% 爆亮通電
-                    let subsetLinks = rawLinkData.filter(l => relatedIds.has(l.source) && relatedIds.has(l.target)).map(l => {
+                    // 2. 絕對放射連線：剔除伴星私下連線，瞬間 100% 爆亮
+                    let subsetLinks = rawLinkData.filter(l => l.source === clickedId || l.target === clickedId).map(l => {
                         let w = l.isNegative ? 3 : Math.min(8, Math.abs(l.r) * 6);
                         return {
-                            source: l.source, target: l.target, value: l.r > 0 ? '+'+l.r.toFixed(2) : l.r.toFixed(2),
+                            source: l.source, target: l.target,
                             lineStyle: {
                                 color: l.isNegative ? '#00e676' : '#ff4757', width: w + 2,
                                 type: l.isNegative ? 'dashed' : 'solid', curveness: 0.1,
                                 opacity: 1, shadowBlur: 15, shadowColor: l.isNegative ? '#00e676' : '#ff4757'
                             },
-                            silent: true
+                            silent: true, tooltip: { show: false }
                         };
                     });
 
-                    // 【核心魔法】將縮減後的資料交給 ECharts，它會自然平滑地將剩下的星球擴張填滿整個畫布！
-                    charts.corr.setOption({ series: [{ data: subsetNodes, links: subsetLinks }] });
+                    // 3. 微型大爆炸：調高斥力與彈簧長度，霸佔畫布
+                    charts.corr.setOption({ 
+                        series: [{ 
+                            data: subsetNodes, 
+                            links: subsetLinks,
+                            force: { repulsion: 400, edgeLength: [80, 150], gravity: 0.1 } // 擴張
+                        }] 
+                    });
+
+                    // 4. 喚醒 HUD 抬頭顯示器
+                    let stats = nodeStatsMap[clickedId];
+                    let wStr = (stats.weight * 100).toFixed(1) + '%';
+                    let cStr = stats.avgCorr > 0 ? '+' + stats.avgCorr.toFixed(2) : stats.avgCorr.toFixed(2);
+                    let tag = stats.avgCorr > 0.4 ? '<span style="color:#ff4757;">(高度重疊 🔴)</span>' : (stats.avgCorr < -0.15 ? '<span style="color:#00e676;">(核心避震 🟢)</span>' : '<span style="color:#8b949e;">(獨立防波堤 ⚪)</span>');
+                    
+                    hud.innerHTML = `🎯 聚焦：<b>${clickedName}</b> ｜ 資金佔比：<b>${wStr}</b> ｜ 組合連動度：<b>${cStr}</b> ${tag}`;
+                    hud.classList.add('show');
                 }
             });
 
-            // 點擊空白太空 ➔ 解除迷彩，鏡頭拉遠復原
+            // 點擊空白太空 ➔ 解除迷彩，鏡頭拉遠復原，收起 HUD
             charts.corr.getZr().on('click', function(e) {
                 if (!e.target) { 
                     if(charts.corr && !charts.corr.isDisposed()) {
-                        // 平滑地將所有星球放回宇宙，並恢復微光骨架
-                        charts.corr.setOption({ series: [{ data: fullGalaxyNodes, links: fullGalaxyLinks }] });
+                        // 恢復原狀，引力縮小聚攏
+                        charts.corr.setOption({ 
+                            series: [{ 
+                                data: fullGalaxyNodes, 
+                                links: fullGalaxyLinks,
+                                force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 }
+                            }] 
+                        });
+                        hud.classList.remove('show');
                     }
                 }
             });
