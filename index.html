@@ -95,6 +95,7 @@
         .scenario-bar { background-color: #E2E8F0; color: var(--primary-dark); padding: 10px; text-align: center; font-size: 13px; font-weight: bold; border-radius: 8px; margin-top: 8px; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05); }
         .scenario-bar.sandbox { background-color: #FFF3CD; color: #856404; border: 1px dashed #FFEEBA; }
         
+        /* 動作列不再鎖定，自然隨頁面滑動釋放空間 */
         .action-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
         .action-row { display: flex; gap: 8px; justify-content: space-between; align-items: stretch; }
         .btn-upload { background-color: var(--card-bg); border: 1px solid #ccc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; flex: 1; text-align: center; padding: 12px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
@@ -760,7 +761,11 @@
             saveScenarios(); document.getElementById('ai-res-modal').classList.remove('active'); setLoading(true); updateFinanceData().then(() => { setLoading(false); showToast("✅ 配置套用成功！"); });
         }
 
-        // ================= 【原生高質感】平滑過場星系圖 (無 JS 計時器) =================
+        // ================= 【電影級運鏡】光學迷彩與動態下鑽星系圖 =================
+        let fullGalaxyNodes = [];
+        let fullGalaxyLinks = []; 
+        let rawLinkData = [];
+
         function renderCorrelationGraph(list, totalVal) {
             let container = document.getElementById('correlationGraph');
             
@@ -780,7 +785,7 @@
             let N = validStocks.length;
             if (N < 2) return;
 
-            // 1. 共變異數與標準差計算
+            // 1. 共變異數計算
             let commonMonths = null; let returnsMap = {};
             validStocks.forEach(s => {
                 let m = stockMapCache[s.symbol];
@@ -818,11 +823,13 @@
             let SD = [];
             for(let i=0; i<N; i++) SD[i] = Math.sqrt(Math.max(0, Sigma[i][i]));
 
-            // 2. 建構微光星座骨架 (微弱連線)
             let posCount = Array(N).fill(0);
             let negCount = Array(N).fill(0);
-            let links = []; 
+            
+            fullGalaxyLinks = []; 
+            rawLinkData = [];
 
+            // 2. 建構微光星座骨架 (15% 透明度)
             for(let i=0; i<N; i++) {
                 for(let j=i+1; j<N; j++) {
                     if (SD[i] === 0 || SD[j] === 0) continue;
@@ -832,27 +839,20 @@
                         let isNegative = r < 0;
                         if(isNegative) { negCount[i]++; negCount[j]++; } else { posCount[i]++; posCount[j]++; }
                         
-                        // 【關鍵優化】微光骨架：平時極淡，點擊時依賴 emphasis 原生高亮
-                        links.push({
+                        rawLinkData.push({ source: validStocks[i].symbol, target: validStocks[j].symbol, r: r, isNegative: isNegative });
+
+                        fullGalaxyLinks.push({
                             source: validStocks[i].symbol,
                             target: validStocks[j].symbol,
                             value: r > 0 ? '+'+r.toFixed(2) : r.toFixed(2),
                             lineStyle: {
-                                color: isNegative ? '#00e676' : '#ff4757', // 預留顏色基因
-                                width: 1, // 平時極細
+                                color: isNegative ? '#00e676' : '#ff4757', 
+                                width: 1, 
                                 type: isNegative ? 'dashed' : 'solid',
                                 curveness: 0.1,
-                                opacity: 0.15 // 平時為微弱的星光骨架
+                                opacity: 0.15 // 微光骨架，不干擾視線
                             },
-                            silent: true, // 關閉線條觸控
-                            emphasis: {
-                                lineStyle: {
-                                    width: isNegative ? 3 : Math.min(8, Math.abs(r) * 6), // 聚焦時變粗
-                                    opacity: 1, // 聚焦時全亮通電
-                                    shadowBlur: 10,
-                                    shadowColor: isNegative ? '#00e676' : '#ff4757'
-                                }
-                            }
+                            silent: true 
                         });
                     }
                 }
@@ -861,8 +861,8 @@
             let maxPosIdx = posCount.indexOf(Math.max(...posCount));
             let maxNegIdx = negCount.indexOf(Math.max(...negCount));
 
-            // 3. 建構星體
-            let nodes = [];
+            // 3. 建構星體 (靜態高級感加冕)
+            fullGalaxyNodes = [];
             validStocks.forEach((s, i) => {
                 let weight = (s.marketValueTWD || 0) / totalVal;
                 let size = Math.max(18, Math.min(65, weight * 100)); 
@@ -871,18 +871,17 @@
                 let isHub = (i === maxPosIdx && posCount[i] > 0);
                 let isHedge = (i === maxNegIdx && negCount[i] > 0);
 
-                // 【關鍵優化】靜態加冕：不再使用 JS 強制抽搐放大，改用高級靜態金邊
                 let borderColor = (isHub || isHedge) ? '#CF9236' : '#ffffff';
-                let borderWidth = (isHub || isHedge) ? 3 : 0;
+                let borderWidth = (isHub || isHedge) ? 4 : 0;
 
-                nodes.push({
+                fullGalaxyNodes.push({
                     id: s.symbol,
                     name: s.symbol.replace('.TW', ''), 
                     value: (weight * 100).toFixed(1) + '%',
                     symbolSize: size, 
                     itemStyle: { 
                         color: isProfit ? '#d93025' : '#188038', 
-                        shadowBlur: (isHub || isHedge) ? 25 : 15, 
+                        shadowBlur: (isHub || isHedge) ? 30 : 15, 
                         shadowColor: isProfit ? 'rgba(217, 48, 37, 0.8)' : 'rgba(24, 128, 56, 0.8)',
                         borderColor: borderColor,
                         borderWidth: borderWidth
@@ -893,31 +892,73 @@
 
             if (!charts.corr) { charts.corr = echarts.init(container); }
             
-            // 4. ECharts 原生配置 (完全拔除 JS 動畫)
+            // 4. ECharts 渲染配置 (加入平滑過場動畫)
             let option = {
+                animationDurationUpdate: 800, // 點擊時的電影級推進時間
+                animationEasingUpdate: 'quinticInOut',
                 tooltip: { formatter: '{b}: 佔比 {c}' },
                 series: [{
                     type: 'graph',
                     layout: 'force',
                     roam: false, 
                     draggable: false, 
-                    data: nodes,
-                    links: links, // 放入微光骨架
-                    force: { 
-                        repulsion: 120, 
-                        edgeLength: [40, 100], 
-                        gravity: 0.1 
-                    },
-                    // 【原生高質感】點擊星球時，周圍星球與連線平滑通電發光
-                    emphasis: { 
-                        focus: 'adjacency', 
-                        itemStyle: { shadowBlur: 25 }, 
-                        label: { show: true } 
-                    }
+                    data: fullGalaxyNodes,
+                    links: fullGalaxyLinks, 
+                    force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 },
+                    emphasis: { focus: 'none' } // 關閉原生 focus，交給下方的電影級引擎處理
                 }]
             };
-            
             charts.corr.setOption(option, true); 
+
+            // ================= 【電影級】光學迷彩與動態推進 (Cloak & Zoom) =================
+            
+            // 點擊星球 ➔ 過濾無關雜訊，自動推進
+            charts.corr.on('click', function(params) {
+                if(params.dataType === 'edge') return; 
+
+                if(params.dataType === 'node') {
+                    let clickedId = params.data.id;
+                    
+                    // 找出相關的神經元
+                    let relatedIds = new Set([clickedId]);
+                    rawLinkData.forEach(l => {
+                        if(l.source === clickedId) relatedIds.add(l.target);
+                        if(l.target === clickedId) relatedIds.add(l.source);
+                    });
+
+                    // 1. 光學迷彩：只保留相關星球，其餘完全剔除
+                    let subsetNodes = fullGalaxyNodes.filter(n => relatedIds.has(n.id)).map(n => {
+                        return { ...n, label: { ...n.label, show: true, fontSize: 13 } }; // 放大時強制顯示名字
+                    });
+
+                    // 2. 點亮神經：只提取相關連線，瞬間 100% 爆亮通電
+                    let subsetLinks = rawLinkData.filter(l => relatedIds.has(l.source) && relatedIds.has(l.target)).map(l => {
+                        let w = l.isNegative ? 3 : Math.min(8, Math.abs(l.r) * 6);
+                        return {
+                            source: l.source, target: l.target, value: l.r > 0 ? '+'+l.r.toFixed(2) : l.r.toFixed(2),
+                            lineStyle: {
+                                color: l.isNegative ? '#00e676' : '#ff4757', width: w + 2,
+                                type: l.isNegative ? 'dashed' : 'solid', curveness: 0.1,
+                                opacity: 1, shadowBlur: 15, shadowColor: l.isNegative ? '#00e676' : '#ff4757'
+                            },
+                            silent: true
+                        };
+                    });
+
+                    // 【核心魔法】將縮減後的資料交給 ECharts，它會自然平滑地將剩下的星球擴張填滿整個畫布！
+                    charts.corr.setOption({ series: [{ data: subsetNodes, links: subsetLinks }] });
+                }
+            });
+
+            // 點擊空白太空 ➔ 解除迷彩，鏡頭拉遠復原
+            charts.corr.getZr().on('click', function(e) {
+                if (!e.target) { 
+                    if(charts.corr && !charts.corr.isDisposed()) {
+                        // 平滑地將所有星球放回宇宙，並恢復微光骨架
+                        charts.corr.setOption({ series: [{ data: fullGalaxyNodes, links: fullGalaxyLinks }] });
+                    }
+                }
+            });
         }
 
         // ================= 中控台與報告渲染 =================
