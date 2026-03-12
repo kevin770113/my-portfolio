@@ -3,6 +3,44 @@
 // 負責所有 ECharts 與 Chart.js 的繪圖邏輯
 // ==========================================
 
+// ==========================================
+// 現金流明細面板 (Bottom Sheet) 控制函數
+// ==========================================
+window.showDivDetail = function(monthData) {
+    if (!monthData || monthData.total === 0) return;
+    
+    let titleEl = document.getElementById('div-detail-title');
+    let listEl = document.getElementById('div-detail-list');
+    
+    // 標題顯示總金額
+    let totalStr = isPrivacyMode ? '****' : '$' + Math.round(monthData.total).toLocaleString();
+    titleEl.innerText = `${monthData.label.replace(' (預估)', '')} 配息明細 (共 ${totalStr})`;
+    
+    // 排序：金額由高到低
+    let sortedDetails = [...monthData.details].sort((a, b) => b.amount - a.amount);
+    
+    let html = '';
+    sortedDetails.forEach(item => {
+        let amtStr = isPrivacyMode ? '****' : '$' + Math.round(item.amount).toLocaleString();
+        html += `
+            <div style="display:flex; justify-content:space-between; padding: 12px 0; border-bottom: 1px dashed #eee; font-size: 14px;">
+                <span style="font-weight: bold; color: #2c3e50; max-width: 65%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.name}</span>
+                <span style="font-weight: bold; color: #20C997;">${amtStr}</span>
+            </div>
+        `;
+    });
+    listEl.innerHTML = html;
+    
+    // 滑出面板
+    document.getElementById('div-detail-overlay').style.display = 'flex';
+    setTimeout(() => document.getElementById('div-detail-sheet').classList.add('show'), 10);
+};
+
+window.closeDivDetail = function() {
+    document.getElementById('div-detail-sheet').classList.remove('show');
+    setTimeout(() => document.getElementById('div-detail-overlay').style.display = 'none', 300);
+};
+
 // ------------------------------------------
 // 1. 星系拓樸圖 (ECharts - 極光視覺升級版)
 // ------------------------------------------
@@ -22,7 +60,6 @@ function renderCorrelationGraph(list, totalVal) {
         return;
     }
 
-    // 正規的 dispose 銷毀舊宇宙
     if (charts.corr) {
         charts.corr.dispose();
     }
@@ -130,19 +167,18 @@ function renderCorrelationGraph(list, totalVal) {
         let isHub = (i === maxPosIdx && posCount[i] > 0);
         let isHedge = (i === maxNegIdx && negCount[i] > 0);
 
-        // 【視覺升級】：設定基礎色與靜態重力光暈 (無邊框)
         let baseColor = isProfit ? '#d93025' : '#188038';
         let glowColor = isProfit ? 'rgba(217, 48, 37, 0.8)' : 'rgba(24, 128, 56, 0.8)';
         let glowBlur = 15;
 
         if (isHub) {
-            baseColor = '#ff3b2f'; // 霓虹紅核心
+            baseColor = '#ff3b2f'; 
             glowColor = 'rgba(255, 59, 47, 1)';
-            glowBlur = 45; // 3倍光暈
+            glowBlur = 45; 
         } else if (isHedge) {
-            baseColor = '#00e676'; // 霓虹綠核心
+            baseColor = '#00e676'; 
             glowColor = 'rgba(0, 230, 118, 1)';
-            glowBlur = 45; // 3倍光暈
+            glowBlur = 45; 
         }
 
         fullGalaxyNodes.push({
@@ -155,7 +191,7 @@ function renderCorrelationGraph(list, totalVal) {
                 color: baseColor, 
                 shadowBlur: glowBlur, 
                 shadowColor: glowColor,
-                borderWidth: 0 // 徹底拔除金框白框
+                borderWidth: 0 
             },
             label: { 
                 show: size >= 35, 
@@ -163,7 +199,7 @@ function renderCorrelationGraph(list, totalVal) {
                 color: '#fff', 
                 fontSize: 10, 
                 fontWeight: 'bold',
-                textBorderColor: 'rgba(0, 0, 0, 0.8)', // 【視覺升級】：文字深色描邊
+                textBorderColor: 'rgba(0, 0, 0, 0.8)', 
                 textBorderWidth: 2
             }
         });
@@ -175,7 +211,6 @@ function renderCorrelationGraph(list, totalVal) {
         tooltip: { show: false }
     };
 
-    // 初始渲染：為 series 加上 id，以啟動後續的平滑過場
     charts.corr.setOption({
         ...baseOption,
         series: [{
@@ -191,7 +226,6 @@ function renderCorrelationGraph(list, totalVal) {
         }]
     });
 
-    // 點擊事件：光學迷彩與純白高光大爆炸
     charts.corr.on('click', function(params) {
         try {
             if(params.dataType === 'edge') return; 
@@ -200,7 +234,6 @@ function renderCorrelationGraph(list, totalVal) {
                 let clickedId = params.data.id;
                 let clickedName = params.data.name;
                 
-                // 防護：確保節點存在於字典中
                 if (!clickedId || !nodeStatsMap[clickedId]) return;
                 
                 let relatedIds = new Set([clickedId]);
@@ -216,7 +249,7 @@ function renderCorrelationGraph(list, totalVal) {
                         symbolSize: isMain ? n.baseNodeSize * 1.5 : n.baseNodeSize * 1.1,
                         itemStyle: { 
                             ...n.itemStyle, 
-                            shadowColor: isMain ? '#ffffff' : n.itemStyle.shadowColor, // 【視覺升級】：主星純白高光
+                            shadowColor: isMain ? '#ffffff' : n.itemStyle.shadowColor, 
                             shadowBlur: isMain ? 50 : n.itemStyle.shadowBlur,
                             borderWidth: 0
                         },
@@ -224,7 +257,7 @@ function renderCorrelationGraph(list, totalVal) {
                             ...n.label, 
                             show: true, 
                             fontSize: isMain ? 14 : 11,
-                            textBorderWidth: isMain ? 3 : 2 // 主星描邊稍微加粗，確保在純白光下無比銳利
+                            textBorderWidth: isMain ? 3 : 2 
                         } 
                     };
                 });
@@ -243,7 +276,6 @@ function renderCorrelationGraph(list, totalVal) {
                     };
                 });
 
-                // 使用 replaceMerge 平滑淡出無關星球，並保留座標進行大爆炸擴張
                 charts.corr.setOption({ 
                     series: [{ 
                         id: 'galaxy-series',
@@ -372,6 +404,7 @@ function updateRiskList(list) {
 }
 
 function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
+    // 圓餅圖
     const sortedByVal = [...list].sort((a,b) => b.marketValueTWD - a.marketValueTWD); 
     const top5 = sortedByVal.slice(0, 5); 
     const othersVal = sortedByVal.slice(5).reduce((a,b) => a + b.marketValueTWD, 0);
@@ -403,6 +436,7 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
         } 
     });
 
+    // 績效條圖
     if (charts.perf) charts.perf.destroy();
     charts.perf = new Chart(document.getElementById('performanceChart'), { 
         type: 'bar', 
@@ -420,6 +454,7 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
         } 
     });
 
+    // 蒙地卡羅
     if (charts.mc) charts.mc.destroy();
     let startVal = isPrivacyMode ? 0 : totalVal / 10000; 
     const years = [-1, 0, 1, 3, 5, 10]; 
@@ -479,55 +514,107 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
         } 
     });
 
-    const now = new Date(); const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1); 
+    // ==========================================
+    // 【全新升級】現金流圖表 (極簡聚合 + 下鑽明細)
+    // ==========================================
+    const now = new Date(); 
+    const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1); 
     const labelsCF = [], monthKeys = [];
+    
+    // 建立月份字典
+    let cfDict = {};
     for (let i = 0; i < 24; i++) { 
         const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1); 
-        labelsCF.push(i < 12 ? `${d.getFullYear().toString().slice(-2)}/${(d.getMonth()+1).toString().padStart(2,'0')}` : `${d.getFullYear().toString().slice(-2)}/${(d.getMonth()+1).toString().padStart(2,'0')} (預估)`); 
-        monthKeys.push(`${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}`); 
+        let isFuture = i >= 12;
+        let labelStr = isFuture ? `${d.getFullYear().toString().slice(-2)}/${(d.getMonth()+1).toString().padStart(2,'0')} (預估)` : `${d.getFullYear().toString().slice(-2)}/${(d.getMonth()+1).toString().padStart(2,'0')}`;
+        let key = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}`;
+        
+        labelsCF.push(labelStr); 
+        monthKeys.push(key); 
+        cfDict[key] = { label: labelStr, total: 0, isFuture: isFuture, details: [] };
     }
     
-    const datasetsCF = []; let totalExpectedDividend = 0; 
-    const cfColors = ['217,48,37', '24,128,56', '253,188,4', '26,115,232', '242,139,130', '129,201,149', '253,226,147', '138,180,248'];
+    let totalExpectedDividend = 0; 
     
-    list.forEach((stock, sIdx) => {
-        const dataArr = new Array(24).fill(0); 
-        const bgColors = []; const rgb = cfColors[sIdx % cfColors.length];
-        for(let i=0; i<24; i++) bgColors.push(i < 12 ? `rgba(${rgb}, 0.9)` : `rgba(${rgb}, 0.35)`);
-        
+    list.forEach(stock => {
         if (stock.historicalDividends && stock.historicalDividends.length > 0) {
             stock.historicalDividends.forEach(div => {
                 const dDate = new Date(div.date * 1000); 
-                const key = `${dDate.getFullYear()}-${(dDate.getMonth()+1).toString().padStart(2,'0')}`;
+                const pKey = `${dDate.getFullYear()}-${(dDate.getMonth()+1).toString().padStart(2,'0')}`;
+                const fKey = `${dDate.getFullYear() + 1}-${(dDate.getMonth() + 1).toString().padStart(2, '0')}`;
                 const totalDivTWD = div.amount * stock.shares * (stock.market === 'US' ? currentRate : 1);
                 
-                let pIdx = monthKeys.indexOf(key); 
-                if (pIdx >= 0 && pIdx < 12) dataArr[pIdx] += totalDivTWD;
+                // 過去 12 個月
+                if (cfDict[pKey] && !cfDict[pKey].isFuture) {
+                    cfDict[pKey].total += totalDivTWD;
+                    // 合併同月發放多次的同一檔股票
+                    let existing = cfDict[pKey].details.find(d => d.name === stock.name);
+                    if (existing) existing.amount += totalDivTWD;
+                    else cfDict[pKey].details.push({ name: stock.name, amount: totalDivTWD });
+                }
                 
-                let fKey = `${dDate.getFullYear() + 1}-${(dDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                let fIdx = monthKeys.indexOf(fKey); 
-                if (fIdx >= 12 && fIdx < 24) { dataArr[fIdx] += totalDivTWD; totalExpectedDividend += totalDivTWD; }
+                // 未來 12 個月預估
+                if (cfDict[fKey] && cfDict[fKey].isFuture) {
+                    cfDict[fKey].total += totalDivTWD;
+                    let existing = cfDict[fKey].details.find(d => d.name === stock.name);
+                    if (existing) existing.amount += totalDivTWD;
+                    else cfDict[fKey].details.push({ name: stock.name, amount: totalDivTWD });
+                    totalExpectedDividend += totalDivTWD;
+                }
             });
         }
-        if (dataArr.some(v => v > 0)) datasetsCF.push({ label: stock.name, data: dataArr, backgroundColor: bgColors, borderWidth: 0 });
     });
-    
+
+    // 準備圖表繪製用的陣列
+    const dataCF = monthKeys.map(k => cfDict[k].total);
+    const bgColorsCF = monthKeys.map(k => cfDict[k].isFuture ? 'rgba(32, 201, 151, 0.25)' : 'rgba(32, 201, 151, 1)'); // 獲利綠，未來半透明
+    const borderColorsCF = monthKeys.map(k => cfDict[k].isFuture ? 'rgba(32, 201, 151, 1)' : 'transparent');
+    const borderWidthsCF = monthKeys.map(k => cfDict[k].isFuture ? {top: 2, right: 2, left: 2, bottom: 0} : 0);
+
     document.getElementById('val-dividend').innerText = fmtMoney(totalExpectedDividend); 
     document.getElementById('val-yield').innerText = (totalVal > 0 ? (totalExpectedDividend/totalVal*100).toFixed(2) : 0) + '%';
     
+    // 把字典存進 window，供點擊事件抓取
+    window.currentCFDict = cfDict;
+    window.currentCFKeys = monthKeys;
+
     if (charts.cf) charts.cf.destroy();
     charts.cf = new Chart(document.getElementById('cashflowChart'), { 
         type: 'bar', 
-        data: { labels: labelsCF, datasets: datasetsCF }, 
+        data: { 
+            labels: labelsCF, 
+            datasets: [{ 
+                label: '總配息', 
+                data: dataCF, 
+                backgroundColor: bgColorsCF, 
+                borderColor: borderColorsCF,
+                borderWidth: borderWidthsCF,
+                borderDash: [4, 4], // 預估區域加上虛線
+                barPercentage: 1.0, // 柱子撐到最滿
+                categoryPercentage: 0.95 // 縫隙縮到最小
+            }] 
+        }, 
         options: { 
             responsive: true, maintainAspectRatio: false, 
+            onClick: (e, elements) => {
+                if (elements.length > 0) {
+                    const idx = elements[0].index;
+                    const key = window.currentCFKeys[idx];
+                    window.showDivDetail(window.currentCFDict[key]);
+                }
+            },
             plugins: { 
                 legend: { display: false }, 
-                tooltip: { mode: 'index', intersect: false, filter: p => p.raw > 0, itemSort: (a,b) => b.raw - a.raw, callbacks: { label: c => (c.dataset.label ? c.dataset.label+': ' : '') + (isPrivacyMode ? '****' : '$' + Math.round(c.raw).toLocaleString()), footer: items => '\n當月總計: ' + (isPrivacyMode ? '****' : '$' + Math.round(items.reduce((s,i)=>s+i.parsed.y,0)).toLocaleString()) } } 
+                tooltip: { 
+                    callbacks: { 
+                        label: c => (isPrivacyMode ? '****' : '$' + Math.round(c.raw).toLocaleString()),
+                        footer: () => '\n👇 點擊長條柱查看配息明細'
+                    } 
+                } 
             }, 
             scales: { 
-                x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12 } }, 
-                y: { stacked: true, position: 'right', border: { display: false }, ticks: { callback: v => isPrivacyMode ? '***' : Math.round(v/1000)+'k' } } 
+                x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12 } }, 
+                y: { position: 'right', border: { display: false }, ticks: { callback: v => isPrivacyMode ? '***' : Math.round(v/1000)+'k' } } 
             } 
         } 
     });
