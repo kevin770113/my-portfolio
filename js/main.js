@@ -16,10 +16,14 @@ let currentMCDim = 'P50';
 let currentPromptPrice = 0;
 let isReportRendered = false; 
 let pendingAIWeights = null;
-let nodeStatsMap = {}; // 儲存星系圖 HUD 量化連動度
-let fullGalaxyNodes = []; // 星系圖節點快取
-let fullGalaxyLinks = []; // 星系圖連線快取
-let rawLinkData = []; // 原始連線快取
+let nodeStatsMap = {}; 
+let fullGalaxyNodes = []; 
+let fullGalaxyLinks = []; 
+let rawLinkData = []; 
+
+// PBI 恐慌抄底雷達專屬狀態
+let pbiResults = [];
+let isPbiRunning = false;
 
 // ==========================================
 // 基礎工具與導航 (Utilities & Navigation)
@@ -142,7 +146,135 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else { 
         if(typeof renderCurrentView === 'function') renderCurrentView(); 
     }
+
+    // 當基礎資料處理完畢，延遲 1 秒後在背景啟動 PBI 雷達掃描
+    setTimeout(() => {
+        startPbiScan();
+    }, 1000);
 });
+
+// ==========================================
+// 🚀 PBI 恐慌抄底雷達 (背景非同步佇列)
+// ==========================================
+async function startPbiScan() {
+    if (isPbiRunning) return;
+    
+    // 收集所有真實持股與試算持股的代號 (去重複)
+    let symbolsToFetch = new Set();
+    realPortfolio.tw.forEach(i => symbolsToFetch.add(i.symbol)); 
+    realPortfolio.us.forEach(i => symbolsToFetch.add(i.symbol));
+    sandboxScenarios.forEach(sc => { sc.portfolio.tw.forEach(i => symbolsToFetch.add(i.symbol)); sc.portfolio.us.forEach(i => symbolsToFetch.add(i.symbol)); });
+    symbolsToFetch.delete(null); symbolsToFetch.delete(undefined); symbolsToFetch.delete('SKIP'); symbolsToFetch.delete('');
+    
+    let allSymbols = Array.from(symbolsToFetch);
+    if (allSymbols.length === 0) return;
+
+    isPbiRunning = true;
+    pbiResults = [];
+    
+    const btn = document.getElementById('btn-pbi-signal');
+    if (btn) {
+        btn.className = 'btn-pbi loading';
+        btn.innerHTML = `⏳ 評估中 (0/${allSymbols.length})...`;
+        btn.disabled = true;
+    }
+
+    // 啟動背景佇列：逐一請求 API，避免被鎖 IP
+    for (let i = 0; i < allSymbols.length; i++) {
+        const symbol = allSymbols[i];
+        try {
+            // 呼叫我們自己寫的 Vercel 歷史 K 線 API
+            const res = await fetch(`/api/history?symbol=${symbol}`);
+            if (res.ok) {
+                const json = await res.json();
+                if (json.data && json.data.length > 0) {
+                    // 把標的代號塞進去，並丟給純數學左腦運算
+                    json.data.symbol = symbol; 
+                    if (window.pbiEngine) {
+                        const result = window.pbiEngine.evaluate(json.data);
+                        // 只有分數 >= 60 (小買以上) 才記錄
+                        if (result && result.score >= 60) {
+                            pbiResults.push(result);
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            console.error(`PBI Scan Error on ${symbol}:`, err);
+        }
+
+        // 更新 UI 進度條
+        if (btn) {
+            btn.innerHTML = `⏳ 評估中 (${i + 1}/${allSymbols.length})...`;
+        }
+
+        // 重要！延遲 600ms，讓手機瀏覽器有喘息空間，且避開 API Rate Limit
+        await new Promise(resolve => setTimeout(resolve, 600));
+    }
+
+    isPbiRunning = false;
+    finishPbiScan();
+}
+
+function finishPbiScan() {
+    const btn = document.getElementById('btn-pbi-signal');
+    if (!btn) return;
+
+    // 將結果依照分數由高到低排序
+    pbiResults.sort((a, b) => b.score - a.score);
+
+    if (pbiResults.length > 0) {
+        // 狀態三：觸發抄底 (解鎖並閃爍呼吸燈)
+        btn.className = 'btn-pbi trigger';
+        btn.innerHTML = '🚨 建議買入...';
+        btn.disabled = false;
+        renderPbiModalContent();
+    } else {
+        // 狀態二：無訊號觀望 (鎖定按鈕)
+        btn.className = 'btn-pbi wait';
+        btn.innerHTML = '👀 建議觀望';
+        btn.disabled = true;
+    }
+}
+
+function renderPbiModalContent() {
+    const listEl = document.getElementById('pbi-signal-list');
+    if (!listEl) return;
+    
+    let html = '';
+    pbiResults.forEach((res, idx) => {
+        let badgeClass = res.badge === '🔴' ? 'red' : (res.badge === '🟡' ? 'yellow' : 'green');
+        html += `
+        <div class="pbi-item">
+            <div class="pbi-header" onclick="togglePbiAccordion(${idx})">
+                <span class="pbi-symbol">${res.symbol.replace('.TW', '')} <span style="font-size: 11px; color: #999; font-weight: normal; margin-left: 5px;">今收: $${res.details.closePrice}</span></span>
+                <span class="pbi-badge ${badgeClass}">${res.badge} ${res.action}</span>
+            </div>
+            <div class="pbi-details" id="pbi-details-${idx}">
+                <div class="pbi-factor"><span>⚡ KDJ 深度</span><span class="pbi-factor-val">+${res.details.kdj} 分</span></div>
+                <div class="pbi-factor"><span>🔥 AMT 量能</span><span class="pbi-factor-val">+${res.details.amt} 分</span></div>
+                <div class="pbi-factor"><span>📉 MACD 動能</span><span class="pbi-factor-val">+${res.details.macd} 分</span></div>
+                <div class="pbi-factor"><span>🛡️ 240MA 防護</span><span class="pbi-factor-val">乖離 ${res.details.biasPct}% (倍數 x${res.details.biasMultiplier})</span></div>
+                <div class="pbi-factor" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #eee;"><span>🏆 總結算</span><span class="pbi-factor-val ${res.colorClass}" style="font-size: 14px;">${res.score} 分</span></div>
+            </div>
+        </div>
+        `;
+    });
+    listEl.innerHTML = html;
+}
+
+window.openPbiModal = function() { document.getElementById('pbi-modal-overlay').style.display = 'flex'; };
+window.closePbiModal = function() { document.getElementById('pbi-modal-overlay').style.display = 'none'; };
+window.togglePbiAccordion = function(idx) {
+    const detailEl = document.getElementById(`pbi-details-${idx}`);
+    // 手風琴效果：關閉其他，只開目前點擊的
+    if (detailEl.classList.contains('open')) {
+        detailEl.classList.remove('open');
+    } else {
+        document.querySelectorAll('.pbi-details').forEach(el => el.classList.remove('open'));
+        detailEl.classList.add('open');
+    }
+};
 
 // ==========================================
 // 彈窗系統 (Modals)
@@ -364,6 +496,11 @@ async function handleFileUpload(event, market) {
                 document.getElementById(`label-${market}`).innerText = `✅ 匯入 (${normalized.length})`; 
                 showToast(`成功讀取並記憶 ${market === 'tw' ? '台股' : '美股'} CSV`);
                 if (market === 'tw') await processDictionary(normalized); await updateFinanceData();
+                
+                // 匯入新資料後，重置並重新觸發背景掃描
+                isPbiRunning = false;
+                startPbiScan();
+
             } catch (err) { showInfoModal('處理失敗', err.message, true); } finally { setLoading(false); }
         }
     });
