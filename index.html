@@ -88,6 +88,23 @@
         </div>
     </div>
 
+    <div id="pbi-modal-overlay" class="modal-overlay system-top" style="display:none;" onclick="closePbiModal()">
+        <div class="custom-prompt-box" style="padding: 20px; width: 90%; max-width: 400px; max-height: 80vh; overflow-y: auto;" onclick="event.stopPropagation()">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
+                <div class="prompt-title" style="margin: 0; text-align: left;">🚨 恐慌抄底決策雷達</div>
+                <button onclick="closePbiModal()" style="background:none; border:none; font-size:22px; color:#999; cursor:pointer; padding: 0 5px;">✕</button>
+            </div>
+            <div class="prompt-desc" style="font-size: 12px; margin-bottom: 15px; text-align: left;">
+                系統已針對您的庫存完成 PBI 模型掃描，以下為觸發買入訊號之標的。點擊可展開因子得分細節：
+            </div>
+            <div id="pbi-signal-list">
+                </div>
+            <div class="prompt-actions" style="margin-top: 15px;">
+                <button class="btn-confirm" style="width: 100%;" onclick="closePbiModal()">我知道了</button>
+            </div>
+        </div>
+    </div>
+
     <div id="div-detail-overlay" class="modal-overlay" style="align-items: flex-end; background: rgba(0,0,0,0.4); display: none;" onclick="closeDivDetail()"></div>
     <div id="div-detail-sheet" class="bottom-sheet">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
@@ -221,6 +238,7 @@
         <div class="action-row" id="row-upload">
             <label for="upload-tw" id="label-tw" class="btn-upload">📁 匯入台股</label><input type="file" id="upload-tw" accept=".csv">
             <label for="upload-us" id="label-us" class="btn-upload">📁 匯入美股</label><input type="file" id="upload-us" accept=".csv">
+            <button id="btn-pbi-signal" class="btn-pbi loading" disabled onclick="openPbiModal()">⏳ 評估中...</button>
         </div>
         <div class="action-row">
             <button id="btn-inventory" class="btn-tool" onclick="openInventoryManager()">⚙️ 校正</button>
@@ -252,9 +270,7 @@
             <span class="card-subtitle">引力星座骨架，點擊平滑推進神經網路</span>
         </div>
         <div id="correlationGraph" style="width: 100%; height: 450px; position: relative;"></div>
-        
         <div id="galaxy-hud" class="galaxy-hud"></div>
-        
         <div style="display:flex; justify-content:center; gap:15px; font-size:11px; color:#8b949e; margin-top:8px;">
             <span><b style="color:#ff4757; font-size:14px; vertical-align:middle;">━</b> 系統風險 (正相關)</span>
             <span><b style="color:#00e676; font-size:14px; vertical-align:middle;">┅</b> 完美避震 (負相關)</span>
@@ -277,6 +293,7 @@
     <div class="card"><div class="card-header"><h2 class="card-title">全球持股現值排行</h2><span class="card-subtitle">集中度與市值排序</span></div><div class="chart-container-bar"><canvas id="performanceChart"></canvas></div></div>
     <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">市值排序 ＆ 組合連動度</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
 
+    <script src="js/pbiEngine.js"></script>
     <script src="js/main.js"></script>
     <script src="js/mathCore.js"></script>
     <script src="js/chartEngine.js"></script>
