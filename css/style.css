@@ -164,7 +164,7 @@ input[type="file"] { display: none; }
    PBI 恐慌抄底雷達專屬樣式 (獨立寬版與手風琴)
    ========================================== */
 .btn-pbi {
-    width: 100%; /* 霸佔整行VIP空間 */
+    width: 100%; 
     padding: 12px;
     border-radius: 8px;
     font-size: 14px;
@@ -177,14 +177,14 @@ input[type="file"] { display: none; }
     white-space: nowrap;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
-/* 狀態一：評估中 */
+
 .btn-pbi.loading {
     background-color: #E8F4FD;
     color: #0056B3;
     cursor: not-allowed;
 }
 
-/* 狀態二：建議觀望 (已解除鎖定，改為可點擊查看分數) */
+/* 【關鍵修復】解除觀望狀態的鎖定，增加互動感 */
 .btn-pbi.wait {
     background-color: #F0F2F5;
     color: #7F8C8D;
@@ -197,7 +197,6 @@ input[type="file"] { display: none; }
     transform: translateY(1px);
 }
 
-/* 狀態三：建議買入 (脈衝呼吸燈) */
 .btn-pbi.trigger {
     background-color: #D9534F;
     color: white;
@@ -212,7 +211,6 @@ input[type="file"] { display: none; }
     100% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0); }
 }
 
-/* PBI 決策彈窗：手風琴清單 */
 .pbi-item {
     border: 1px solid var(--border-light);
     border-radius: 8px;
@@ -234,7 +232,6 @@ input[type="file"] { display: none; }
 .pbi-badge {
     font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 6px; color: white;
 }
-/* 評級色票 */
 .pbi-badge.red { background: #D9534F; }
 .pbi-badge.yellow { background: #F5A623; }
 .pbi-badge.green { background: #20C997; }
