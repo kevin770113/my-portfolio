@@ -10,8 +10,26 @@ window.pbiEngine = {
      * @returns {Object} 判定結果與詳細因子得分
      */
     evaluate: function(marketData) {
+        const sym = marketData.symbol || 'Unknown';
+        
+        // 【關鍵修復】：如果資料長度不足 (例如新上市 ETF)，依然回傳完整的結構，防止 UI 崩潰
         if (!marketData || marketData.length < 30) {
-            return { action: 'Wait', score: 0, error: '資料長度不足' };
+            return {
+                symbol: sym,
+                score: 0,
+                action: '資料不足',
+                badge: '⚪',
+                colorClass: 'text-muted',
+                error: true, // 標記為錯誤/資料不足
+                details: {
+                    kdj: 0,
+                    amt: 0,
+                    macd: 0,
+                    biasMultiplier: 1,
+                    biasPct: '0.00',
+                    closePrice: marketData.length > 0 ? (marketData[marketData.length - 1].close || 0).toFixed(2) : '0.00'
+                }
+            };
         }
 
         const len = marketData.length;
@@ -138,9 +156,9 @@ window.pbiEngine = {
         let baseScore = scoreKDJ + scoreAMT + scoreMACD;
         let finalScore = Math.round(baseScore * multiplierBIAS);
 
-        let action = 'Wait';
+        let action = '觀望';
         let badge = '⚪';
-        let colorClass = 'text-muted'; // 用於 UI 樣式
+        let colorClass = 'text-muted'; 
 
         if (finalScore >= 90) { 
             action = '大買'; 
@@ -149,7 +167,7 @@ window.pbiEngine = {
         } else if (finalScore >= 75) { 
             action = '買入'; 
             badge = '🟡'; 
-            colorClass = 'text-warning'; // 假設我們 css 有 .text-warning
+            colorClass = 'text-warning'; 
         } else if (finalScore >= 60) { 
             action = '小買'; 
             badge = '🟢'; 
@@ -157,11 +175,12 @@ window.pbiEngine = {
         }
 
         return {
-            symbol: marketData.symbol || 'Unknown',
+            symbol: sym,
             score: finalScore,
             action: action,
             badge: badge,
             colorClass: colorClass,
+            error: false,
             details: {
                 kdj: scoreKDJ,
                 amt: scoreAMT,
