@@ -2,7 +2,7 @@
     --bg-color: #f0f2f5; --card-bg: #ffffff; --text-main: #1a1a1a;
     --text-muted: #666666; --border-color: #eaeaea;
     --red-profit: #d93025; --green-loss: #188038; --primary-dark: #2c3e50;
-    --border-light: #DEE2E6; /* 新增 PBI 邊框變數 */
+    --border-light: #DEE2E6;
 }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -183,13 +183,20 @@ input[type="file"] { display: none; }
     color: #0056B3;
     cursor: not-allowed;
 }
-/* 狀態二：建議觀望 */
+
+/* 狀態二：建議觀望 (已解除鎖定，改為可點擊查看分數) */
 .btn-pbi.wait {
     background-color: #F0F2F5;
-    color: #95A5A6;
-    cursor: not-allowed;
+    color: #7F8C8D;
+    cursor: pointer;
     box-shadow: none;
+    border: 1px solid #D1D5DB;
 }
+.btn-pbi.wait:active {
+    background-color: #E5E7EB;
+    transform: translateY(1px);
+}
+
 /* 狀態三：建議買入 (脈衝呼吸燈) */
 .btn-pbi.trigger {
     background-color: #D9534F;
