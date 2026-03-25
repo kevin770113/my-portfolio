@@ -184,7 +184,7 @@ async function startPbiScan() {
             const res = await fetch(`/api/history?symbol=${symbol}`);
             if (res.ok) {
                 const json = await res.json();
-                if (json.data && json.data.length > 0) {
+                if (json.data && Array.isArray(json.data)) {
                     json.data.symbol = symbol; 
                     if (window.pbiEngine) {
                         const result = window.pbiEngine.evaluate(json.data);
@@ -202,7 +202,7 @@ async function startPbiScan() {
             btn.innerHTML = `⏳ 評估中 (${i + 1}/${allSymbols.length})...`;
         }
 
-        // 延遲 600ms 讓手機喘息並避免 API Rate Limit
+        // 延遲 600ms 避免 API Rate Limit
         await new Promise(resolve => setTimeout(resolve, 600));
     }
 
@@ -217,7 +217,6 @@ function finishPbiScan() {
     // 將結果依照分數由高到低排序
     pbiResults.sort((a, b) => b.score - a.score);
 
-    // 檢查是否有任何標的達到買入標準
     const hasBuySignal = pbiResults.some(r => r.score >= 60);
 
     if (hasBuySignal) {
@@ -240,9 +239,22 @@ function renderPbiModalContent() {
     let html = '';
     pbiResults.forEach((res, idx) => {
         let badgeClass = res.badge === '🔴' ? 'red' : (res.badge === '🟡' ? 'yellow' : (res.badge === '🟢' ? 'green' : ''));
-        // 判斷是否達標 (>= 60)，賦予不同的外層 CSS 類別以改變底色
         let highlightClass = res.score >= 60 ? 'pbi-highlight' : 'pbi-dimmed';
         
+        let detailsHtml = '';
+        if (res.error) {
+            // 【修復】資料不足時的安全顯示
+            detailsHtml = `<div style="text-align:center; padding: 15px 0; color: #95A5A6;">⚠️ 此標的歷史資料不足 (上市未滿 30 天)，暫無法進行運算。</div>`;
+        } else {
+            detailsHtml = `
+                <div class="pbi-factor"><span>⚡ KDJ 深度</span><span class="pbi-factor-val">+${res.details.kdj} 分</span></div>
+                <div class="pbi-factor"><span>🔥 AMT 量能</span><span class="pbi-factor-val">+${res.details.amt} 分</span></div>
+                <div class="pbi-factor"><span>📉 MACD 動能</span><span class="pbi-factor-val">+${res.details.macd} 分</span></div>
+                <div class="pbi-factor"><span>🛡️ 240MA 防護</span><span class="pbi-factor-val">乖離 ${res.details.biasPct}% (倍數 x${res.details.biasMultiplier})</span></div>
+                <div class="pbi-factor" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #eee;"><span>🏆 總結算</span><span class="pbi-factor-val ${res.colorClass}" style="font-size: 14px;">${res.score} 分</span></div>
+            `;
+        }
+
         html += `
         <div class="pbi-item ${highlightClass}">
             <div class="pbi-header" onclick="togglePbiAccordion(${idx})">
@@ -250,11 +262,7 @@ function renderPbiModalContent() {
                 <span class="pbi-badge ${badgeClass}" style="${res.badge === '⚪' ? 'background:#AAB7B8;' : ''}">${res.badge} ${res.action}</span>
             </div>
             <div class="pbi-details" id="pbi-details-${idx}">
-                <div class="pbi-factor"><span>⚡ KDJ 深度</span><span class="pbi-factor-val">+${res.details.kdj} 分</span></div>
-                <div class="pbi-factor"><span>🔥 AMT 量能</span><span class="pbi-factor-val">+${res.details.amt} 分</span></div>
-                <div class="pbi-factor"><span>📉 MACD 動能</span><span class="pbi-factor-val">+${res.details.macd} 分</span></div>
-                <div class="pbi-factor"><span>🛡️ 240MA 防護</span><span class="pbi-factor-val">乖離 ${res.details.biasPct}% (倍數 x${res.details.biasMultiplier})</span></div>
-                <div class="pbi-factor" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #eee;"><span>🏆 總結算</span><span class="pbi-factor-val ${res.colorClass}" style="font-size: 14px;">${res.score} 分</span></div>
+                ${detailsHtml}
             </div>
         </div>
         `;
