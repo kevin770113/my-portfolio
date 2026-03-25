@@ -192,8 +192,8 @@ async function startPbiScan() {
                     json.data.symbol = symbol; 
                     if (window.pbiEngine) {
                         const result = window.pbiEngine.evaluate(json.data);
-                        // 只有分數 >= 60 (小買以上) 才記錄
-                        if (result && result.score >= 60) {
+                        // 【關鍵修改】：不再過濾分數，讓所有結果都存入陣列，方便觀望時也能查看
+                        if (result) {
                             pbiResults.push(result);
                         }
                     }
@@ -208,7 +208,7 @@ async function startPbiScan() {
             btn.innerHTML = `⏳ 評估中 (${i + 1}/${allSymbols.length})...`;
         }
 
-        // 重要！延遲 600ms，讓手機瀏覽器有喘息空間，且避開 API Rate Limit
+        // 延遲 600ms 讓手機喘息並避免 API Rate Limit
         await new Promise(resolve => setTimeout(resolve, 600));
     }
 
@@ -223,18 +223,23 @@ function finishPbiScan() {
     // 將結果依照分數由高到低排序
     pbiResults.sort((a, b) => b.score - a.score);
 
-    if (pbiResults.length > 0) {
+    // 檢查是否有任何標的達到「買入」標準 ( >= 60分 )
+    const hasBuySignal = pbiResults.some(r => r.score >= 60);
+
+    if (hasBuySignal) {
         // 狀態三：觸發抄底 (解鎖並閃爍呼吸燈)
         btn.className = 'btn-pbi trigger';
         btn.innerHTML = '🚨 建議買入...';
         btn.disabled = false;
-        renderPbiModalContent();
     } else {
-        // 狀態二：無訊號觀望 (鎖定按鈕)
+        // 狀態二：無訊號觀望 (解鎖按鈕，讓使用者可以點擊查看所有分數)
         btn.className = 'btn-pbi wait';
-        btn.innerHTML = '👀 建議觀望';
-        btn.disabled = true;
+        btn.innerHTML = '⚖️ 建議觀望 (查看分數)';
+        btn.disabled = false; 
     }
+    
+    // 無論是買入還是觀望，都渲染彈窗內容備用
+    renderPbiModalContent();
 }
 
 function renderPbiModalContent() {
@@ -243,12 +248,12 @@ function renderPbiModalContent() {
     
     let html = '';
     pbiResults.forEach((res, idx) => {
-        let badgeClass = res.badge === '🔴' ? 'red' : (res.badge === '🟡' ? 'yellow' : 'green');
+        let badgeClass = res.badge === '🔴' ? 'red' : (res.badge === '🟡' ? 'yellow' : (res.badge === '🟢' ? 'green' : ''));
         html += `
         <div class="pbi-item">
             <div class="pbi-header" onclick="togglePbiAccordion(${idx})">
                 <span class="pbi-symbol">${res.symbol.replace('.TW', '')} <span style="font-size: 11px; color: #999; font-weight: normal; margin-left: 5px;">今收: $${res.details.closePrice}</span></span>
-                <span class="pbi-badge ${badgeClass}">${res.badge} ${res.action}</span>
+                <span class="pbi-badge ${badgeClass}" style="${res.badge === '⚪' ? 'background:#ccc;' : ''}">${res.badge} ${res.action}</span>
             </div>
             <div class="pbi-details" id="pbi-details-${idx}">
                 <div class="pbi-factor"><span>⚡ KDJ 深度</span><span class="pbi-factor-val">+${res.details.kdj} 分</span></div>
@@ -267,7 +272,6 @@ window.openPbiModal = function() { document.getElementById('pbi-modal-overlay').
 window.closePbiModal = function() { document.getElementById('pbi-modal-overlay').style.display = 'none'; };
 window.togglePbiAccordion = function(idx) {
     const detailEl = document.getElementById(`pbi-details-${idx}`);
-    // 手風琴效果：關閉其他，只開目前點擊的
     if (detailEl.classList.contains('open')) {
         detailEl.classList.remove('open');
     } else {
