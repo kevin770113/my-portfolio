@@ -184,7 +184,6 @@ input[type="file"] { display: none; }
     cursor: not-allowed;
 }
 
-/* 【關鍵修復】解除觀望狀態的鎖定，增加互動感 */
 .btn-pbi.wait {
     background-color: #F0F2F5;
     color: #7F8C8D;
@@ -211,6 +210,7 @@ input[type="file"] { display: none; }
     100% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0); }
 }
 
+/* PBI 決策彈窗：手風琴清單基礎樣式 */
 .pbi-item {
     border: 1px solid var(--border-light);
     border-radius: 8px;
@@ -224,10 +224,29 @@ input[type="file"] { display: none; }
     justify-content: space-between;
     align-items: center;
     cursor: pointer;
-    background: #fafafa;
     transition: background 0.2s;
 }
-.pbi-header:active { background: #f0f0f0; }
+
+/* 🎯 達標標的：淡紅色高亮 */
+.pbi-item.pbi-highlight {
+    border-color: #F8D7DA;
+}
+.pbi-item.pbi-highlight .pbi-header {
+    background-color: #FFF3F3;
+}
+
+/* 🎯 未達標標的：灰色弱化 */
+.pbi-item.pbi-dimmed {
+    border-color: var(--border-light);
+}
+.pbi-item.pbi-dimmed .pbi-header {
+    background-color: #F0F2F5;
+}
+.pbi-item.pbi-dimmed .pbi-symbol {
+    color: #7F8C8D;
+}
+
+.pbi-header:active { filter: brightness(0.95); }
 .pbi-symbol { font-weight: bold; font-size: 15px; color: var(--text-main); }
 .pbi-badge {
     font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 6px; color: white;
