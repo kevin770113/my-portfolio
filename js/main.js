@@ -188,7 +188,6 @@ async function startPbiScan() {
                     json.data.symbol = symbol; 
                     if (window.pbiEngine) {
                         const result = window.pbiEngine.evaluate(json.data);
-                        // 【關鍵修復】：無差別保留所有分數，讓觀望狀態也能點開看細節
                         if (result) {
                             pbiResults.push(result);
                         }
@@ -226,7 +225,6 @@ function finishPbiScan() {
         btn.innerHTML = '🚨 建議買入...';
         btn.disabled = false;
     } else {
-        // 【關鍵修復】：解除 disabled，讓觀望按鈕可以點擊
         btn.className = 'btn-pbi wait';
         btn.innerHTML = '⚖️ 建議觀望 (點擊看分數)';
         btn.disabled = false; 
@@ -242,11 +240,14 @@ function renderPbiModalContent() {
     let html = '';
     pbiResults.forEach((res, idx) => {
         let badgeClass = res.badge === '🔴' ? 'red' : (res.badge === '🟡' ? 'yellow' : (res.badge === '🟢' ? 'green' : ''));
+        // 判斷是否達標 (>= 60)，賦予不同的外層 CSS 類別以改變底色
+        let highlightClass = res.score >= 60 ? 'pbi-highlight' : 'pbi-dimmed';
+        
         html += `
-        <div class="pbi-item">
+        <div class="pbi-item ${highlightClass}">
             <div class="pbi-header" onclick="togglePbiAccordion(${idx})">
                 <span class="pbi-symbol">${res.symbol.replace('.TW', '')} <span style="font-size: 11px; color: #999; font-weight: normal; margin-left: 5px;">今收: $${res.details.closePrice}</span></span>
-                <span class="pbi-badge ${badgeClass}" style="${res.badge === '⚪' ? 'background:#ccc;' : ''}">${res.badge} ${res.action}</span>
+                <span class="pbi-badge ${badgeClass}" style="${res.badge === '⚪' ? 'background:#AAB7B8;' : ''}">${res.badge} ${res.action}</span>
             </div>
             <div class="pbi-details" id="pbi-details-${idx}">
                 <div class="pbi-factor"><span>⚡ KDJ 深度</span><span class="pbi-factor-val">+${res.details.kdj} 分</span></div>
@@ -261,20 +262,19 @@ function renderPbiModalContent() {
     listEl.innerHTML = html;
 }
 
-// 【關鍵修復】：解決 display: none 造成的 CSS 動畫衝突無法顯示問題
 window.openPbiModal = function() { 
     const el = document.getElementById('pbi-modal-overlay');
-    el.style.display = 'flex'; // 先把元素的實體喚醒
+    el.style.display = 'flex'; 
     setTimeout(() => {
-        el.classList.add('active'); // 微小延遲後加上透明度過渡動畫
+        el.classList.add('active'); 
     }, 10);
 };
 
 window.closePbiModal = function() { 
     const el = document.getElementById('pbi-modal-overlay');
-    el.classList.remove('active'); // 先褪去透明度動畫
+    el.classList.remove('active'); 
     setTimeout(() => {
-        el.style.display = 'none'; // 等動畫跑完再把實體藏起來
+        el.style.display = 'none'; 
     }, 300);
 };
 
