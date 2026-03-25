@@ -243,7 +243,6 @@ function renderPbiModalContent() {
         
         let detailsHtml = '';
         if (res.error) {
-            // 【修復】資料不足時的安全顯示
             detailsHtml = `<div style="text-align:center; padding: 15px 0; color: #95A5A6;">⚠️ 此標的歷史資料不足 (上市未滿 30 天)，暫無法進行運算。</div>`;
         } else {
             detailsHtml = `
@@ -255,11 +254,18 @@ function renderPbiModalContent() {
             `;
         }
 
+        // 【關鍵優化】在 header 右側增加「總分數」的顯示區塊，並與 Badge 對齊
+        let scoreDisplay = res.error ? '--' : res.score;
+        let scoreColor = res.score >= 60 ? 'var(--red-profit)' : '#95A5A6';
+
         html += `
         <div class="pbi-item ${highlightClass}">
             <div class="pbi-header" onclick="togglePbiAccordion(${idx})">
                 <span class="pbi-symbol">${res.symbol.replace('.TW', '')} <span style="font-size: 11px; color: #999; font-weight: normal; margin-left: 5px;">今收: $${res.details.closePrice}</span></span>
-                <span class="pbi-badge ${badgeClass}" style="${res.badge === '⚪' ? 'background:#AAB7B8;' : ''}">${res.badge} ${res.action}</span>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size: 13px; font-weight: 800; color: ${scoreColor};">${scoreDisplay} 分</span>
+                    <span class="pbi-badge ${badgeClass}" style="${res.badge === '⚪' ? 'background:#AAB7B8;' : ''}">${res.badge} ${res.action}</span>
+                </div>
             </div>
             <div class="pbi-details" id="pbi-details-${idx}">
                 ${detailsHtml}
