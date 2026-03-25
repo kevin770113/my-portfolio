@@ -159,7 +159,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function startPbiScan() {
     if (isPbiRunning) return;
     
-    // 收集所有真實持股與試算持股的代號 (去重複)
     let symbolsToFetch = new Set();
     realPortfolio.tw.forEach(i => symbolsToFetch.add(i.symbol)); 
     realPortfolio.us.forEach(i => symbolsToFetch.add(i.symbol));
@@ -179,20 +178,17 @@ async function startPbiScan() {
         btn.disabled = true;
     }
 
-    // 啟動背景佇列：逐一請求 API，避免被鎖 IP
     for (let i = 0; i < allSymbols.length; i++) {
         const symbol = allSymbols[i];
         try {
-            // 呼叫我們自己寫的 Vercel 歷史 K 線 API
             const res = await fetch(`/api/history?symbol=${symbol}`);
             if (res.ok) {
                 const json = await res.json();
                 if (json.data && json.data.length > 0) {
-                    // 把標的代號塞進去，並丟給純數學左腦運算
                     json.data.symbol = symbol; 
                     if (window.pbiEngine) {
                         const result = window.pbiEngine.evaluate(json.data);
-                        // 【關鍵修改】：不再過濾分數，讓所有結果都存入陣列，方便觀望時也能查看
+                        // 【關鍵修復】：無差別保留所有分數，讓觀望狀態也能點開看細節
                         if (result) {
                             pbiResults.push(result);
                         }
@@ -203,7 +199,6 @@ async function startPbiScan() {
             console.error(`PBI Scan Error on ${symbol}:`, err);
         }
 
-        // 更新 UI 進度條
         if (btn) {
             btn.innerHTML = `⏳ 評估中 (${i + 1}/${allSymbols.length})...`;
         }
@@ -223,22 +218,20 @@ function finishPbiScan() {
     // 將結果依照分數由高到低排序
     pbiResults.sort((a, b) => b.score - a.score);
 
-    // 檢查是否有任何標的達到「買入」標準 ( >= 60分 )
+    // 檢查是否有任何標的達到買入標準
     const hasBuySignal = pbiResults.some(r => r.score >= 60);
 
     if (hasBuySignal) {
-        // 狀態三：觸發抄底 (解鎖並閃爍呼吸燈)
         btn.className = 'btn-pbi trigger';
         btn.innerHTML = '🚨 建議買入...';
         btn.disabled = false;
     } else {
-        // 狀態二：無訊號觀望 (解鎖按鈕，讓使用者可以點擊查看所有分數)
+        // 【關鍵修復】：解除 disabled，讓觀望按鈕可以點擊
         btn.className = 'btn-pbi wait';
-        btn.innerHTML = '⚖️ 建議觀望 (查看分數)';
+        btn.innerHTML = '⚖️ 建議觀望 (點擊看分數)';
         btn.disabled = false; 
     }
     
-    // 無論是買入還是觀望，都渲染彈窗內容備用
     renderPbiModalContent();
 }
 
@@ -268,8 +261,23 @@ function renderPbiModalContent() {
     listEl.innerHTML = html;
 }
 
-window.openPbiModal = function() { document.getElementById('pbi-modal-overlay').style.display = 'flex'; };
-window.closePbiModal = function() { document.getElementById('pbi-modal-overlay').style.display = 'none'; };
+// 【關鍵修復】：解決 display: none 造成的 CSS 動畫衝突無法顯示問題
+window.openPbiModal = function() { 
+    const el = document.getElementById('pbi-modal-overlay');
+    el.style.display = 'flex'; // 先把元素的實體喚醒
+    setTimeout(() => {
+        el.classList.add('active'); // 微小延遲後加上透明度過渡動畫
+    }, 10);
+};
+
+window.closePbiModal = function() { 
+    const el = document.getElementById('pbi-modal-overlay');
+    el.classList.remove('active'); // 先褪去透明度動畫
+    setTimeout(() => {
+        el.style.display = 'none'; // 等動畫跑完再把實體藏起來
+    }, 300);
+};
+
 window.togglePbiAccordion = function(idx) {
     const detailEl = document.getElementById(`pbi-details-${idx}`);
     if (detailEl.classList.contains('open')) {
