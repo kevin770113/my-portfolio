@@ -21,6 +21,9 @@ let fullGalaxyNodes = [];
 let fullGalaxyLinks = []; 
 let rawLinkData = []; 
 
+// ⭐️ 新增：全域歷史資料快取，供「資產波動回測圖」與 PBI 共用
+window.historicalDataCache = {};
+
 // PBI 恐慌抄底雷達專屬狀態
 let pbiResults = [];
 let isPbiRunning = false;
@@ -62,7 +65,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('upload-us').addEventListener('change', (e) => handleFileUpload(e, 'us'));
 
     // 圖表響應式縮放
-    window.addEventListener('resize', () => { if (charts.corr) charts.corr.resize(); });
+    window.addEventListener('resize', () => { 
+        if (charts.corr) charts.corr.resize(); 
+        if (charts.historyPnL) charts.historyPnL.resize(); // ⭐️ 綁定新圖表的 RWD
+    });
 
     // 報表 Resize 監聽
     const reportOverlay = document.getElementById('report-overlay');
@@ -166,7 +172,11 @@ async function startPbiScan() {
     symbolsToFetch.delete(null); symbolsToFetch.delete(undefined); symbolsToFetch.delete('SKIP'); symbolsToFetch.delete('');
     
     let allSymbols = Array.from(symbolsToFetch);
-    if (allSymbols.length === 0) return;
+    if (allSymbols.length === 0) {
+        // 如果沒有標的，把回測圖表顯示為空
+        document.getElementById('historyPnLChart').innerHTML = '<div style="text-align: center; color: #999; padding-top: 160px; font-size: 12px;">無庫存資料，無法回測</div>';
+        return;
+    }
 
     isPbiRunning = true;
     pbiResults = [];
@@ -185,6 +195,10 @@ async function startPbiScan() {
             if (res.ok) {
                 const json = await res.json();
                 if (json.data && Array.isArray(json.data)) {
+                    
+                    // ⭐️ 【關鍵修改】：順手把這 1 年的歷史 K 線存入全域快取
+                    window.historicalDataCache[symbol] = json.data;
+
                     json.data.symbol = symbol; 
                     if (window.pbiEngine) {
                         const result = window.pbiEngine.evaluate(json.data);
@@ -230,6 +244,11 @@ function finishPbiScan() {
     }
     
     renderPbiModalContent();
+
+    // ⭐️ 【關鍵修改】：PBI 掃描結束代表我們已經拿齊了所有股票的快取，立刻觸發繪製回測圖表
+    if (typeof window.renderHistoryPnLChart === 'function') {
+        window.renderHistoryPnLChart();
+    }
 }
 
 function renderPbiModalContent() {
@@ -254,7 +273,6 @@ function renderPbiModalContent() {
             `;
         }
 
-        // 【關鍵優化】在 header 右側增加「總分數」的顯示區塊，並與 Badge 對齊
         let scoreDisplay = res.error ? '--' : res.score;
         let scoreColor = res.score >= 60 ? 'var(--red-profit)' : '#95A5A6';
 
@@ -659,6 +677,11 @@ function renderCurrentView() {
     }
     let filteredList = currentMarketView !== 'ALL' ? globalCombinedList.filter(item => item.market === currentMarketView) : globalCombinedList;
     if(typeof renderDashboard === 'function') renderDashboard(filteredList);
+    
+    // 當切換不同市場的 Tab 時，也重新渲染歷史回測圖
+    if(typeof window.renderHistoryPnLChart === 'function') {
+        window.renderHistoryPnLChart();
+    }
 }
 
 // ==========================================
