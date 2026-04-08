@@ -515,13 +515,12 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
     });
 
     // ==========================================
-    // 【全新升級】現金流圖表 (極簡聚合 + 下鑽明細)
+    // 現金流圖表 (極簡聚合 + 下鑽明細)
     // ==========================================
     const now = new Date(); 
     const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1); 
     const labelsCF = [], monthKeys = [];
     
-    // 建立月份字典
     let cfDict = {};
     for (let i = 0; i < 24; i++) { 
         const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1); 
@@ -544,16 +543,13 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
                 const fKey = `${dDate.getFullYear() + 1}-${(dDate.getMonth() + 1).toString().padStart(2, '0')}`;
                 const totalDivTWD = div.amount * stock.shares * (stock.market === 'US' ? currentRate : 1);
                 
-                // 過去 12 個月
                 if (cfDict[pKey] && !cfDict[pKey].isFuture) {
                     cfDict[pKey].total += totalDivTWD;
-                    // 合併同月發放多次的同一檔股票
                     let existing = cfDict[pKey].details.find(d => d.name === stock.name);
                     if (existing) existing.amount += totalDivTWD;
                     else cfDict[pKey].details.push({ name: stock.name, amount: totalDivTWD });
                 }
                 
-                // 未來 12 個月預估
                 if (cfDict[fKey] && cfDict[fKey].isFuture) {
                     cfDict[fKey].total += totalDivTWD;
                     let existing = cfDict[fKey].details.find(d => d.name === stock.name);
@@ -565,16 +561,14 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
         }
     });
 
-    // 準備圖表繪製用的陣列
     const dataCF = monthKeys.map(k => cfDict[k].total);
-    const bgColorsCF = monthKeys.map(k => cfDict[k].isFuture ? 'rgba(32, 201, 151, 0.25)' : 'rgba(32, 201, 151, 1)'); // 獲利綠，未來半透明
+    const bgColorsCF = monthKeys.map(k => cfDict[k].isFuture ? 'rgba(32, 201, 151, 0.25)' : 'rgba(32, 201, 151, 1)'); 
     const borderColorsCF = monthKeys.map(k => cfDict[k].isFuture ? 'rgba(32, 201, 151, 1)' : 'transparent');
     const borderWidthsCF = monthKeys.map(k => cfDict[k].isFuture ? {top: 2, right: 2, left: 2, bottom: 0} : 0);
 
     document.getElementById('val-dividend').innerText = fmtMoney(totalExpectedDividend); 
     document.getElementById('val-yield').innerText = (totalVal > 0 ? (totalExpectedDividend/totalVal*100).toFixed(2) : 0) + '%';
     
-    // 把字典存進 window，供點擊事件抓取
     window.currentCFDict = cfDict;
     window.currentCFKeys = monthKeys;
 
@@ -589,9 +583,9 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
                 backgroundColor: bgColorsCF, 
                 borderColor: borderColorsCF,
                 borderWidth: borderWidthsCF,
-                borderDash: [4, 4], // 預估區域加上虛線
-                barPercentage: 1.0, // 柱子撐到最滿
-                categoryPercentage: 0.95 // 縫隙縮到最小
+                borderDash: [4, 4], 
+                barPercentage: 1.0, 
+                categoryPercentage: 0.95 
             }] 
         }, 
         options: { 
@@ -759,3 +753,229 @@ function renderMCCompareChart() {
         } 
     });
 }
+
+// ------------------------------------------
+// 4. 【全新】歷史資產波動回測圖 (ECharts)
+// ------------------------------------------
+window.renderHistoryPnLChart = function() {
+    let container = document.getElementById('historyPnLChart');
+    if (!container) return;
+
+    if (typeof echarts === 'undefined') {
+        container.innerHTML = '<div style="color: #999; text-align: center; padding-top: 160px; font-size:12px;">⚠️ 視覺化引擎載入失敗</div>';
+        return;
+    }
+
+    // 1. 過濾出有歷史資料快取的持股
+    let validHoldings = globalCombinedList.filter(item => window.historicalDataCache && window.historicalDataCache[item.symbol]);
+    
+    if (validHoldings.length === 0) {
+        if (charts.historyPnL) { charts.historyPnL.dispose(); charts.historyPnL = null; }
+        container.innerHTML = '<div style="color: #999; text-align: center; padding-top: 160px; font-size:12px;">歷史資料準備中... (請確保 PBI 雷達掃描完畢)</div>';
+        return;
+    }
+
+    // 清空載入提示
+    container.innerHTML = '';
+    
+    if (charts.historyPnL) {
+        charts.historyPnL.dispose();
+    }
+    charts.historyPnL = echarts.init(container);
+
+    // 2. 萃取所有交易日期並排序 (解決各國休市不同的聯集對齊問題)
+    let dateSet = new Set();
+    validHoldings.forEach(item => {
+        window.historicalDataCache[item.symbol].forEach(d => {
+            // 取 YYYY-MM-DD
+            dateSet.add(d.date.split('T')[0]);
+        });
+    });
+    let sortedDates = Array.from(dateSet).sort();
+
+    // 3. 建立各股票的快速查表 (Date -> ClosePrice)
+    let stockPrices = {};
+    validHoldings.forEach(item => {
+        stockPrices[item.symbol] = {};
+        window.historicalDataCache[item.symbol].forEach(d => {
+            stockPrices[item.symbol][d.date.split('T')[0]] = d.close;
+        });
+    });
+
+    // 4. 計算每日總市值與盈虧
+    let dailyTotalValues = [];
+    let totalCost = validHoldings.reduce((sum, item) => sum + (item.costTWD || 0), 0);
+    let lastKnownPrice = {};
+
+    sortedDates.forEach(date => {
+        let dailySum = 0;
+        validHoldings.forEach(item => {
+            let price = stockPrices[item.symbol][date];
+            if (price !== undefined) {
+                lastKnownPrice[item.symbol] = price; // 更新最後已知價格
+            } else {
+                price = lastKnownPrice[item.symbol] || 0; // 若遇休市，沿用前一天價格
+            }
+            let exRate = item.market === 'US' ? currentRate : 1;
+            dailySum += price * item.shares * exRate;
+        });
+        dailyTotalValues.push(dailySum);
+    });
+
+    let lineData = []; // 累積總盈虧
+    let barData = [];  // 單日漲跌
+    let barColors = [];
+
+    for (let i = 0; i < sortedDates.length; i++) {
+        let currentVal = dailyTotalValues[i];
+        let cumPnL = currentVal - totalCost; // 當天總市值減去原始總成本
+        lineData.push(cumPnL);
+
+        if (i === 0) {
+            barData.push(0);
+            barColors.push('#999');
+        } else {
+            let prevVal = dailyTotalValues[i - 1];
+            let diff = currentVal - prevVal;
+            barData.push(diff);
+            // 台灣習慣：大於等於 0 為紅，小於 0 為綠
+            barColors.push(diff >= 0 ? '#d93025' : '#188038'); 
+        }
+    }
+
+    // 5. 設定 ECharts 參數
+    let option = {
+        animationDuration: 800,
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'cross', label: { backgroundColor: '#2c3e50' } },
+            formatter: function (params) {
+                let date = params[0].axisValue;
+                let html = `<div style="font-size:12px; border-bottom:1px solid #eee; padding-bottom:4px; margin-bottom:6px; font-weight:bold; color:#333;">📅 ${date}</div>`;
+                params.forEach(p => {
+                    let valStr = isPrivacyMode ? '****' : '$' + Math.round(p.value).toLocaleString();
+                    let color = p.seriesType === 'bar' ? (p.value >= 0 ? '#d93025' : '#188038') : p.color;
+                    let marker = `<span style="display:inline-block;margin-right:6px;border-radius:50%;width:10px;height:10px;background-color:${color};"></span>`;
+                    html += `<div style="display:flex; justify-content:space-between; width:160px; font-size:13px; margin-bottom:4px;">
+                                <span style="color:#666">${marker} ${p.seriesName}</span>
+                                <span style="font-weight:bold; color:${color};">${valStr}</span>
+                             </div>`;
+                });
+                return html;
+            }
+        },
+        grid: { left: '2%', right: '2%', top: '10%', bottom: '15%', containLabel: true },
+        xAxis: {
+            type: 'category',
+            data: sortedDates,
+            axisLine: { lineStyle: { color: '#ccc' } },
+            axisTick: { alignWithLabel: true },
+            axisLabel: { 
+                formatter: function (value) {
+                    // 只顯示 MM-DD
+                    return value.substring(5);
+                },
+                color: '#999'
+            }
+        },
+        yAxis: [
+            {
+                type: 'value',
+                name: '累積盈虧 (TWD)',
+                nameTextStyle: { color: '#999', fontSize: 10, padding: [0, 0, 0, 20] },
+                position: 'left',
+                splitLine: { lineStyle: { type: 'dashed', color: '#eee' } },
+                axisLabel: { 
+                    formatter: (value) => isPrivacyMode ? '***' : Math.round(value/1000) + 'k',
+                    color: '#999'
+                }
+            },
+            {
+                type: 'value',
+                name: '單日漲跌',
+                nameTextStyle: { color: '#999', fontSize: 10, padding: [0, 20, 0, 0] },
+                position: 'right',
+                splitLine: { show: false }, // 避免格線混亂
+                axisLabel: { 
+                    formatter: (value) => isPrivacyMode ? '***' : Math.round(value/1000) + 'k',
+                    color: '#999'
+                }
+            }
+        ],
+        dataZoom: [
+            {
+                type: 'slider',
+                show: true,
+                bottom: 0,
+                height: 20,
+                start: 0,
+                end: 100,
+                borderColor: '#eee',
+                fillerColor: 'rgba(44, 62, 80, 0.1)',
+                handleStyle: { color: '#2c3e50' },
+                textStyle: { color: '#999', fontSize: 10 }
+            }
+        ],
+        series: [
+            {
+                name: '單日漲跌',
+                type: 'bar',
+                yAxisIndex: 1,
+                data: barData,
+                itemStyle: {
+                    color: function(params) {
+                        return barColors[params.dataIndex];
+                    },
+                    borderRadius: [2, 2, 0, 0]
+                }
+            },
+            {
+                name: '累積總盈虧',
+                type: 'line',
+                yAxisIndex: 0,
+                data: lineData,
+                smooth: true,
+                showSymbol: false,
+                lineStyle: { width: 2.5, color: '#2c3e50' },
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: 'rgba(44, 62, 80, 0.3)' },
+                        { offset: 1, color: 'rgba(44, 62, 80, 0.0)' }
+                    ])
+                },
+                itemStyle: { color: '#2c3e50' }
+            }
+        ]
+    };
+
+    charts.historyPnL.setOption(option);
+};
+
+// 控制回測圖表的快速縮放 (1週/1個月/3個月/1年)
+window.setHistoryZoom = function(days, btnElement) {
+    if (!charts.historyPnL) return;
+
+    // UI 切換
+    if (btnElement) {
+        // 找到同層的所有按鈕並移除 active
+        const siblings = btnElement.parentElement.querySelectorAll('.mc-btn');
+        siblings.forEach(b => b.classList.remove('active'));
+        btnElement.classList.add('active');
+    }
+
+    let option = charts.historyPnL.getOption();
+    let totalLen = option.xAxis[0].data.length;
+    
+    // 計算百分比
+    let startPct = 0;
+    if (totalLen > days) {
+        startPct = 100 - (days / totalLen * 100);
+    }
+
+    // 觸發 ECharts 行為
+    charts.historyPnL.dispatchAction({
+        type: 'dataZoom',
+        start: startPct,
+        end: 100
+    });
+};
