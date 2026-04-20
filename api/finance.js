@@ -55,8 +55,10 @@ export default async function handler(req, res) {
                         currentPrice = meta.regularMarketPrice || 0;
                         stockName = meta.shortName || meta.longName || sym;
 
-                        prevClose = meta.chartPreviousClose;
+                        // ⭐️ 雙重官方欄位防護
+                        prevClose = meta.previousClose || meta.chartPreviousClose;
 
+                        // 備用陣列推算機制
                         if (!prevClose || prevClose === 0) {
                             const validRawCloses = rawCloses.filter(p => p !== null && p > 0);
                             if (validRawCloses.length > 1) {
@@ -66,7 +68,8 @@ export default async function handler(req, res) {
                                     prevClose = validRawCloses[validRawCloses.length - 2];
                                 }
                             } else {
-                                prevClose = 0;
+                                // ⭐️ 【關鍵防呆】若歷史 K 線不足，強制讓昨收等於現價，阻絕 100% 暴漲假象
+                                prevClose = currentPrice;
                             }
                         }
 
@@ -145,7 +148,7 @@ export default async function handler(req, res) {
                         if (quoteData.quoteResponse && quoteData.quoteResponse.result && quoteData.quoteResponse.result.length > 0) {
                             const q = quoteData.quoteResponse.result[0];
                             currentPrice = q.regularMarketPrice || 0;
-                            prevClose = q.regularMarketPreviousClose || 0;
+                            prevClose = q.regularMarketPreviousClose || currentPrice; // ⭐️ 備用 API 也加上防呆
                             stockName = q.shortName || q.longName || sym;
                             dividendYield = (q.trailingAnnualDividendYield / 100) || 0;
                             ytd = q.ytdReturn ? (q.ytdReturn / 100) : 0;
