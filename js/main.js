@@ -3,6 +3,7 @@
 // ==========================================
 let isPrivacyMode = false; 
 let currentRate = 32.5; 
+let prevRate = 32.5; // ⭐️ 新增：昨日匯率變數，用於計算本金匯差
 let latestDataTime = 0; 
 let charts = {}; 
 let currentMarketView = 'ALL'; 
@@ -173,7 +174,6 @@ async function startPbiScan() {
     
     let allSymbols = Array.from(symbolsToFetch);
     if (allSymbols.length === 0) {
-        // 如果沒有標的，把回測圖表顯示為空
         document.getElementById('historyPnLChart').innerHTML = '<div style="text-align: center; color: #999; padding-top: 160px; font-size: 12px;">無庫存資料，無法回測</div>';
         return;
     }
@@ -195,10 +195,7 @@ async function startPbiScan() {
             if (res.ok) {
                 const json = await res.json();
                 if (json.data && Array.isArray(json.data)) {
-                    
-                    // ⭐️ 【關鍵修改】：順手把這 1 年的歷史 K 線存入全域快取
                     window.historicalDataCache[symbol] = json.data;
-
                     json.data.symbol = symbol; 
                     if (window.pbiEngine) {
                         const result = window.pbiEngine.evaluate(json.data);
@@ -215,8 +212,6 @@ async function startPbiScan() {
         if (btn) {
             btn.innerHTML = `⏳ 評估中 (${i + 1}/${allSymbols.length})...`;
         }
-
-        // 延遲 600ms 避免 API Rate Limit
         await new Promise(resolve => setTimeout(resolve, 600));
     }
 
@@ -228,9 +223,7 @@ function finishPbiScan() {
     const btn = document.getElementById('btn-pbi-signal');
     if (!btn) return;
 
-    // 將結果依照分數由高到低排序
     pbiResults.sort((a, b) => b.score - a.score);
-
     const hasBuySignal = pbiResults.some(r => r.score >= 60);
 
     if (hasBuySignal) {
@@ -245,7 +238,6 @@ function finishPbiScan() {
     
     renderPbiModalContent();
 
-    // ⭐️ 【關鍵修改】：PBI 掃描結束代表我們已經拿齊了所有股票的快取，立刻觸發繪製回測圖表
     if (typeof window.renderHistoryPnLChart === 'function') {
         window.renderHistoryPnLChart();
     }
@@ -297,17 +289,13 @@ function renderPbiModalContent() {
 window.openPbiModal = function() { 
     const el = document.getElementById('pbi-modal-overlay');
     el.style.display = 'flex'; 
-    setTimeout(() => {
-        el.classList.add('active'); 
-    }, 10);
+    setTimeout(() => { el.classList.add('active'); }, 10);
 };
 
 window.closePbiModal = function() { 
     const el = document.getElementById('pbi-modal-overlay');
     el.classList.remove('active'); 
-    setTimeout(() => {
-        el.style.display = 'none'; 
-    }, 300);
+    setTimeout(() => { el.style.display = 'none'; }, 300);
 };
 
 window.togglePbiAccordion = function(idx) {
@@ -451,7 +439,12 @@ async function updateFinanceData() {
             const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: allSymbols }) });
             if (!res.ok) throw new Error('API 連線失敗');
             const json = await res.json();
-            if (json.status === 'success') { stockMapCache = Object.assign(stockMapCache, json.data); if(json.exchangeRate) currentRate = json.exchangeRate; }
+            if (json.status === 'success') { 
+                stockMapCache = Object.assign(stockMapCache, json.data); 
+                if(json.exchangeRate) currentRate = json.exchangeRate; 
+                if(json.prevExchangeRate) prevRate = json.prevExchangeRate; // ⭐️ 讀取剛剛加入的昨日匯率
+                else prevRate = currentRate; 
+            }
         } catch(e) { 
             console.error('Fetch error:', e); 
             showToast("⚠️ 報價伺服器連線異常或超時，目前使用快取資料"); 
@@ -464,12 +457,39 @@ async function updateFinanceData() {
     const mapToCombined = (portfolio) => {
         let list = [...portfolio.tw, ...portfolio.us];
         return list.filter(item => item.symbol && item.symbol !== 'SKIP').map(item => {
-            const m = stockMapCache[item.symbol]; if (!m) return { ...item, marketValueTWD: 0, costTWD: 0, cagr: 0 }; 
+            const m = stockMapCache[item.symbol]; 
+            if (!m) return { ...item, marketValueTWD: 0, costTWD: 0, cagr: 0 }; 
             if (m.regularMarketTime && m.regularMarketTime > latestDataTime) latestDataTime = m.regularMarketTime;
+            
+            // ⭐️ 【關鍵修改】：抓取雙重匯率
             const exRate = item.market === 'US' ? currentRate : 1; 
+            const pastExRate = item.market === 'US' ? prevRate : 1;
+            
+            // 計算今日的市值與成本
             const marketValTWD = m.price * item.shares * exRate; 
             const costTWD = item.cost * exRate; 
-            return { ...item, currentPrice: m.price, marketValueTWD: marketValTWD, costTWD: costTWD, profitTWD: marketValTWD - costTWD, roi: costTWD > 0 ? (marketValTWD - costTWD) / costTWD : 0, dayChangeTWD: m.change * item.shares * exRate, ytd: m.ytd || 0, cagr: m.cagr, stdev: m.stdev, dividendTWD: (m.dividendYield * (m.price * item.shares)) * exRate, yield: m.dividendYield, historicalDividends: m.historicalDividends || [], market: item.market };
+            
+            // ⭐️ 【關鍵修改】：以「今日總現值 - 昨日總現值」計算單日損益，徹底包含本金的匯率波動
+            const prevPrice = m.price - m.change;
+            const prevMarketValTWD = prevPrice * item.shares * pastExRate;
+            const trueDayChangeTWD = marketValTWD - prevMarketValTWD;
+
+            return { 
+                ...item, 
+                currentPrice: m.price, 
+                marketValueTWD: marketValTWD, 
+                costTWD: costTWD, 
+                profitTWD: marketValTWD - costTWD, 
+                roi: costTWD > 0 ? (marketValTWD - costTWD) / costTWD : 0, 
+                dayChangeTWD: trueDayChangeTWD, // 替換為精確修正的台幣損益
+                ytd: m.ytd || 0, 
+                cagr: m.cagr, 
+                stdev: m.stdev, 
+                dividendTWD: (m.dividendYield * (m.price * item.shares)) * exRate, 
+                yield: m.dividendYield, 
+                historicalDividends: m.historicalDividends || [], 
+                market: item.market 
+            };
         }).filter(i => i.marketValueTWD > 0);
     };
 
@@ -541,7 +561,6 @@ async function handleFileUpload(event, market) {
                 showToast(`成功讀取並記憶 ${market === 'tw' ? '台股' : '美股'} CSV`);
                 if (market === 'tw') await processDictionary(normalized); await updateFinanceData();
                 
-                // 匯入新資料後，重置並重新觸發背景掃描
                 isPbiRunning = false;
                 startPbiScan();
 
@@ -678,7 +697,6 @@ function renderCurrentView() {
     let filteredList = currentMarketView !== 'ALL' ? globalCombinedList.filter(item => item.market === currentMarketView) : globalCombinedList;
     if(typeof renderDashboard === 'function') renderDashboard(filteredList);
     
-    // 當切換不同市場的 Tab 時，也重新渲染歷史回測圖
     if(typeof window.renderHistoryPnLChart === 'function') {
         window.renderHistoryPnLChart();
     }
