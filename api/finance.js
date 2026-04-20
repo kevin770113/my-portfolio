@@ -29,8 +29,21 @@ export default async function handler(req, res) {
 
         const fetchOptions = { headers: { 'User-Agent': userAgent, 'Accept': 'application/json', ...(cookie ? { 'Cookie': cookie } : {}) } };
 
+        // ⭐️ 核心修正：批次抓取所有標的 Quote，直接取得官方算好的單日漲跌！
+        const allSymbols = ['TWD=X', ...symbols];
+        let quoteMap = {};
+        try {
+            const quoteUrlBatch = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${allSymbols.join(',')}${crumb ? '&crumb='+crumb : ''}`;
+            const quoteRes = await fetch(quoteUrlBatch, fetchOptions);
+            if (quoteRes.ok) {
+                const quoteJson = await quoteRes.json();
+                if (quoteJson.quoteResponse && quoteJson.quoteResponse.result) {
+                    quoteJson.quoteResponse.result.forEach(q => { quoteMap[q.symbol] = q; });
+                }
+            }
+        } catch(e) { console.warn('Batch quote fetch failed', e); }
+
         const chartUrl = (sym) => `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?range=10y&interval=1d&events=div${crumb ? '&crumb='+crumb : ''}`;
-        const quoteUrl = (sym) => `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${sym}${crumb ? '&crumb='+crumb : ''}`;
 
         const safeFetch = async (sym) => {
             let currentPrice = 0; let prevClose = 0; let stockName = sym;
@@ -40,54 +53,34 @@ export default async function handler(req, res) {
             let historicalDividends = []; 
             let monthlyReturns = {}; 
 
+            // 1. 優先使用 Quote Map 中的官方即時數據
+            const q = quoteMap[sym];
+            if (q) {
+                currentPrice = q.regularMarketPrice || 0;
+                prevClose = q.regularMarketPreviousClose || currentPrice;
+                stockName = q.shortName || q.longName || sym;
+                change = q.regularMarketChange || 0; 
+                changePercent = (q.regularMarketChangePercent / 100) || 0;
+                dividendYield = (q.trailingAnnualDividendYield / 100) || 0;
+                ytd = q.ytdReturn ? (q.ytdReturn / 100) : 0;
+            }
+
             try {
+                // 2. 抓取 Chart 歷史資料純粹用來算回測 (CAGR / Stdev)
                 const chartRes = await fetch(chartUrl(sym), fetchOptions);
                 if (chartRes.ok) {
                     const data = await chartRes.json();
                     if (data.chart && data.chart.result && data.chart.result[0]) {
                         const result = data.chart.result[0];
-                        const meta = result.meta;
                         const timestamps = result.timestamp || [];
-                        
                         const adjPrices = result.indicators.adjclose?.[0]?.adjclose || result.indicators.quote[0].close || [];
-                        const rawCloses = result.indicators.quote[0].close || [];
-
-                        currentPrice = meta.regularMarketPrice || 0;
-                        stockName = meta.shortName || meta.longName || sym;
-
-                        // ⭐️ 修正：絕對不能用 chartPreviousClose (在 10y 區間下它代表 10 年前的價格)
-                        prevClose = meta.previousClose || meta.regularMarketPreviousClose;
-
-                        // ⭐️ 最新備用機制：若 API 漏給，利用時間戳記精準判斷昨天的 K 線
-                        if (!prevClose || prevClose === 0) {
-                            const validData = [];
-                            for (let k = 0; k < timestamps.length; k++) {
-                                if (rawCloses[k] !== null && rawCloses[k] > 0) {
-                                    validData.push({ time: timestamps[k], price: rawCloses[k] });
-                                }
-                            }
-                            
-                            if (validData.length > 1) {
-                                const lastBar = validData[validData.length - 1];
-                                let isLastBarToday = false;
-                                
-                                if (meta.regularMarketTime) {
-                                    const d1 = new Date(lastBar.time * 1000);
-                                    const d2 = new Date(meta.regularMarketTime * 1000);
-                                    if (d1.getUTCFullYear() === d2.getUTCFullYear() && 
-                                        d1.getUTCMonth() === d2.getUTCMonth() && 
-                                        d1.getUTCDate() === d2.getUTCDate()) {
-                                        isLastBarToday = true;
-                                    }
-                                }
-                                
-                                // 若最後一根是今天，昨收就是倒數第二根；若不是，那最後一根就是昨收
-                                prevClose = isLastBarToday ? validData[validData.length - 2].price : lastBar.price;
-                            } else if (validData.length === 1) {
-                                prevClose = validData[0].price;
-                            } else {
-                                prevClose = currentPrice; // 極端防呆
-                            }
+                        
+                        // 若剛好 Quote 沒抓到，才退回使用 Chart 的 Meta
+                        if (currentPrice === 0) {
+                            currentPrice = result.meta.regularMarketPrice || 0;
+                            stockName = result.meta.shortName || result.meta.longName || sym;
+                            prevClose = result.meta.chartPreviousClose || currentPrice;
+                            change = currentPrice - prevClose;
                         }
 
                         const history = [];
@@ -98,14 +91,16 @@ export default async function handler(req, res) {
                         if (history.length > 0) {
                             const cleanPrices = history.map(h => h.price);
                             
-                            const currentYear = new Date().getFullYear();
-                            let lastYearEndPrice = null;
-                            for (let j = history.length - 1; j >= 0; j--) {
-                                if (new Date(history[j].time * 1000).getFullYear() < currentYear) {
-                                    lastYearEndPrice = history[j].price; break;
+                            if (ytd === 0) {
+                                const currentYear = new Date().getFullYear();
+                                let lastYearEndPrice = null;
+                                for (let j = history.length - 1; j >= 0; j--) {
+                                    if (new Date(history[j].time * 1000).getFullYear() < currentYear) {
+                                        lastYearEndPrice = history[j].price; break;
+                                    }
                                 }
+                                ytd = lastYearEndPrice ? (currentPrice - lastYearEndPrice) / lastYearEndPrice : (currentPrice - cleanPrices[0]) / cleanPrices[0];
                             }
-                            ytd = lastYearEndPrice ? (currentPrice - lastYearEndPrice) / lastYearEndPrice : (currentPrice - cleanPrices[0]) / cleanPrices[0];
 
                             if (cleanPrices.length > 20) {
                                 const firstPrice = cleanPrices[0]; const lastPrice = cleanPrices[cleanPrices.length - 1];
@@ -140,9 +135,7 @@ export default async function handler(req, res) {
                                         monthlyReturns[sortedMonths[i]] = (currPrice - prevPrice) / prevPrice;
                                     }
                                 }
-                            } catch (mathErr) {
-                                console.warn(`計算 ${sym} 月報酬率時發生錯誤:`, mathErr.message);
-                            }
+                            } catch (mathErr) { }
                         }
 
                         let trailingDiv = 0;
@@ -156,27 +149,13 @@ export default async function handler(req, res) {
                             });
                             historicalDividends.sort((a, b) => a.date - b.date);
                         }
-                        dividendYield = currentPrice ? (trailingDiv / currentPrice) : 0;
+                        if (dividendYield === 0 && currentPrice > 0) {
+                            dividendYield = trailingDiv / currentPrice;
+                        }
                     }
-                } else {
-                    const quoteRes = await fetch(quoteUrl(sym), fetchOptions);
-                    if (quoteRes.ok) {
-                        const quoteData = await quoteRes.json();
-                        if (quoteData.quoteResponse && quoteData.quoteResponse.result && quoteData.quoteResponse.result.length > 0) {
-                            const q = quoteData.quoteResponse.result[0];
-                            currentPrice = q.regularMarketPrice || 0;
-                            prevClose = q.regularMarketPreviousClose || currentPrice;
-                            stockName = q.shortName || q.longName || sym;
-                            dividendYield = (q.trailingAnnualDividendYield / 100) || 0;
-                            ytd = q.ytdReturn ? (q.ytdReturn / 100) : 0;
-                        } else { return { symbol: sym, error: true, message: '查無代號' }; }
-                    } else { return { symbol: sym, error: true, message: '被擋' }; }
                 }
 
                 if (currentPrice === 0) return { symbol: sym, error: true, message: '無效報價' };
-
-                change = prevClose ? (currentPrice - prevClose) : 0;
-                changePercent = prevClose ? (change / prevClose) : 0;
 
                 return {
                     symbol: sym, error: false,
@@ -192,18 +171,19 @@ export default async function handler(req, res) {
             } catch (err) { return { symbol: sym, error: true, message: '異常' }; }
         };
 
-        const allRequests = ['TWD=X', ...symbols].map(sym => safeFetch(sym));
-        const results = await Promise.all(allRequests);
-
+        const results = await Promise.all(allSymbols.slice(1).map(sym => safeFetch(sym)));
+        
+        // 匯率一樣拿 Quote Map 裡最準確的變動去算
         let exchangeRate = 32.5; 
         let prevExchangeRate = 32.5;
-        if (!results[0].error && results[0].data?.price) {
-            exchangeRate = results[0].data.price;
-            prevExchangeRate = results[0].data.price - results[0].data.change; 
+        const twdQuote = quoteMap['TWD=X'];
+        if (twdQuote && twdQuote.regularMarketPrice) {
+            exchangeRate = twdQuote.regularMarketPrice;
+            prevExchangeRate = twdQuote.regularMarketPrice - (twdQuote.regularMarketChange || 0);
         }
 
         const stockData = {};
-        for (let i = 1; i < results.length; i++) { if (!results[i].error) stockData[results[i].symbol] = results[i].data; }
+        for (let i = 0; i < results.length; i++) { if (!results[i].error) stockData[results[i].symbol] = results[i].data; }
 
         res.status(200).json({ status: 'success', exchangeRate: exchangeRate, prevExchangeRate: prevExchangeRate, data: stockData });
 
