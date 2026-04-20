@@ -31,22 +31,6 @@ export default async function handler(req, res) {
 
         const fetchOptions = { headers: { 'User-Agent': userAgent, 'Accept': 'application/json', ...(cookie ? { 'Cookie': cookie } : {}) } };
 
-        // 1. 恢復 Yahoo 批次查詢：解決 Vercel 連線限制與美股報價失真
-        const allSymbols = ['TWD=X', ...symbols];
-        let yahooQuoteMap = {};
-        try {
-            const quoteUrlBatch = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${allSymbols.join(',')}${crumb ? '&crumb='+crumb : ''}`;
-            const quoteRes = await fetch(quoteUrlBatch, fetchOptions);
-            if (quoteRes.ok) {
-                const quoteJson = await quoteRes.json();
-                if (quoteJson.quoteResponse && quoteJson.quoteResponse.result) {
-                    quoteJson.quoteResponse.result.forEach(q => { yahooQuoteMap[q.symbol] = q; });
-                }
-            }
-        } catch(e) {}
-
-        const chartUrl = (sym) => `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?range=10y&interval=1d&events=div${crumb ? '&crumb='+crumb : ''}`;
-
         const safeFetch = async (sym) => {
             let currentPrice = 0, prevClose = 0, stockName = sym;
             let cagr = 0, stdev = 0, historyYears = 0, dividendYield = 0, ytd = 0;
@@ -55,7 +39,7 @@ export default async function handler(req, res) {
             const isTW = sym.endsWith('.TW') || sym.endsWith('.TWO');
             let hasPrimaryQuote = false;
 
-            // 2. 台股分流：獨立呼叫 Fugle API 確保除權息與平盤價精準
+            // 1. 【台股專屬】精準呼叫 Fugle API
             if (isTW && FUGLE_API_KEY) {
                 const cleanSym = sym.replace('.TW', '').replace('.TWO', '');
                 try {
@@ -66,48 +50,60 @@ export default async function handler(req, res) {
                         const fJson = await fRes.json();
                         if (fJson.data && fJson.data.quote) {
                             const q = fJson.data.quote;
-                            currentPrice = q.closePrice || q.lastPrice || q.referencePrice || 0;
+                            // ⭐️ 修正富果資料結構，正確讀取 trade.price
+                            currentPrice = (q.trade && q.trade.price) || q.previousClose || 0;
+                            
                             if (currentPrice > 0) {
                                 change = q.change !== undefined ? q.change : 0;
                                 changePercent = q.changePercent !== undefined ? (q.changePercent / 100) : 0;
                                 stockName = fJson.data.info?.name || sym;
-                                prevClose = q.previousClose || q.referencePrice || (currentPrice - change);
+                                prevClose = q.previousClose || (currentPrice - change);
                                 hasPrimaryQuote = true;
                             }
                         }
                     }
-                } catch (e) {}
+                } catch (e) { console.warn(`Fugle API 連線失敗 (${sym})`); }
             }
 
-            // 3. 美股與匯率：直接從安全的 Yahoo 批次資料庫中提取
-            if (!hasPrimaryQuote && yahooQuoteMap[sym]) {
-                const q = yahooQuoteMap[sym];
-                currentPrice = q.regularMarketPrice || 0;
-                if (currentPrice > 0) {
-                    change = q.regularMarketChange || 0;
-                    changePercent = q.regularMarketChangePercent !== undefined ? (q.regularMarketChangePercent / 100) : 0;
-                    prevClose = q.regularMarketPreviousClose || currentPrice;
-                    stockName = q.shortName || q.longName || sym;
-                    dividendYield = q.trailingAnnualDividendYield !== undefined ? (q.trailingAnnualDividendYield / 100) : 0;
-                    ytd = q.ytdReturn !== undefined ? (q.ytdReturn / 100) : 0;
-                    hasPrimaryQuote = true;
-                }
+            // 2. 【美股與匯率】單獨呼叫 Yahoo Quote (防止批次查詢被擋)
+            if (!hasPrimaryQuote) {
+                try {
+                    const qRes = await fetch(`https://query2.finance.yahoo.com/v7/finance/quote?symbols=${sym}${crumb ? '&crumb='+crumb : ''}`, fetchOptions);
+                    if (qRes.ok) {
+                        const qData = await qRes.json();
+                        if (qData.quoteResponse && qData.quoteResponse.result && qData.quoteResponse.result.length > 0) {
+                            const q = qData.quoteResponse.result[0];
+                            currentPrice = q.regularMarketPrice || 0;
+                            if (currentPrice > 0) {
+                                change = q.regularMarketChange || 0;
+                                changePercent = q.regularMarketChangePercent !== undefined ? (q.regularMarketChangePercent / 100) : 0;
+                                prevClose = q.regularMarketPreviousClose || currentPrice;
+                                stockName = q.shortName || q.longName || sym;
+                                dividendYield = q.trailingAnnualDividendYield !== undefined ? (q.trailingAnnualDividendYield / 100) : 0;
+                                ytd = q.ytdReturn !== undefined ? (q.ytdReturn / 100) : 0;
+                                hasPrimaryQuote = true;
+                            }
+                        }
+                    }
+                } catch (e) { console.warn(`Yahoo Quote 失敗 (${sym})`); }
             }
 
-            // 4. 歷史 K 線：嚴格限制僅用於計算 CAGR 與 Stdev
+            // 3. 【歷史 K 線與圖表數據】計算 CAGR 與波動率
             try {
-                const chartRes = await fetch(chartUrl(sym), fetchOptions);
+                const chartUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?range=10y&interval=1d&events=div${crumb ? '&crumb='+crumb : ''}`;
+                const chartRes = await fetch(chartUrl, fetchOptions);
+                
                 if (chartRes.ok) {
                     const chartData = await chartRes.json();
                     if (chartData.chart && chartData.chart.result && chartData.chart.result[0]) {
                         const result = chartData.chart.result[0];
                         
-                        // 僅在雙重報價源皆失效時啟動兜底
+                        // 【極端防禦兜底】：只有在富果和 Yahoo Quote 都當機時才觸發
                         if (!hasPrimaryQuote) {
                             currentPrice = result.meta.regularMarketPrice || 0;
                             prevClose = result.meta.regularMarketPreviousClose || result.meta.previousClose || currentPrice;
                             change = currentPrice - prevClose;
-                            changePercent = prevClose ? change / prevClose : 0;
+                            changePercent = prevClose ? (change / prevClose) : 0;
                             stockName = result.meta.shortName || result.meta.longName || sym;
                         }
 
@@ -198,19 +194,20 @@ export default async function handler(req, res) {
             };
         };
 
-        const resList = await Promise.all(symbols.map(sym => safeFetch(sym)));
+        // 加入 TWD=X 讓匯率也透過單獨的 Yahoo Quote 抓取
+        const allRequests = ['TWD=X', ...symbols].map(sym => safeFetch(sym));
+        const resList = await Promise.all(allRequests);
 
         let exchangeRate = 32.5; 
         let prevExchangeRate = 32.5;
-        const twdQuote = yahooQuoteMap['TWD=X'];
-        if (twdQuote && twdQuote.regularMarketPrice) {
-            exchangeRate = twdQuote.regularMarketPrice;
-            prevExchangeRate = twdQuote.regularMarketPrice - (twdQuote.regularMarketChange || 0);
+        if (!resList[0].error && resList[0].data?.price) {
+            exchangeRate = resList[0].data.price;
+            prevExchangeRate = resList[0].data.price - resList[0].data.change; 
         }
 
         const stockData = {};
-        for (let i = 0; i < resList.length; i++) { 
-            if (!resList[i].error) stockData[symbols[i]] = resList[i].data; 
+        for (let i = 1; i < resList.length; i++) { 
+            if (!resList[i].error) stockData[symbols[i - 1]] = resList[i].data; 
         }
 
         res.status(200).json({ status: 'success', exchangeRate, prevExchangeRate, data: stockData });
