@@ -55,21 +55,38 @@ export default async function handler(req, res) {
                         currentPrice = meta.regularMarketPrice || 0;
                         stockName = meta.shortName || meta.longName || sym;
 
-                        // ⭐️ 雙重官方欄位防護
-                        prevClose = meta.previousClose || meta.chartPreviousClose;
+                        // ⭐️ 修正：絕對不能用 chartPreviousClose (在 10y 區間下它代表 10 年前的價格)
+                        prevClose = meta.previousClose || meta.regularMarketPreviousClose;
 
-                        // 備用陣列推算機制
+                        // ⭐️ 最新備用機制：若 API 漏給，利用時間戳記精準判斷昨天的 K 線
                         if (!prevClose || prevClose === 0) {
-                            const validRawCloses = rawCloses.filter(p => p !== null && p > 0);
-                            if (validRawCloses.length > 1) {
-                                if (currentPrice !== validRawCloses[validRawCloses.length - 1]) {
-                                    prevClose = validRawCloses[validRawCloses.length - 1];
-                                } else {
-                                    prevClose = validRawCloses[validRawCloses.length - 2];
+                            const validData = [];
+                            for (let k = 0; k < timestamps.length; k++) {
+                                if (rawCloses[k] !== null && rawCloses[k] > 0) {
+                                    validData.push({ time: timestamps[k], price: rawCloses[k] });
                                 }
+                            }
+                            
+                            if (validData.length > 1) {
+                                const lastBar = validData[validData.length - 1];
+                                let isLastBarToday = false;
+                                
+                                if (meta.regularMarketTime) {
+                                    const d1 = new Date(lastBar.time * 1000);
+                                    const d2 = new Date(meta.regularMarketTime * 1000);
+                                    if (d1.getUTCFullYear() === d2.getUTCFullYear() && 
+                                        d1.getUTCMonth() === d2.getUTCMonth() && 
+                                        d1.getUTCDate() === d2.getUTCDate()) {
+                                        isLastBarToday = true;
+                                    }
+                                }
+                                
+                                // 若最後一根是今天，昨收就是倒數第二根；若不是，那最後一根就是昨收
+                                prevClose = isLastBarToday ? validData[validData.length - 2].price : lastBar.price;
+                            } else if (validData.length === 1) {
+                                prevClose = validData[0].price;
                             } else {
-                                // ⭐️ 【關鍵防呆】若歷史 K 線不足，強制讓昨收等於現價，阻絕 100% 暴漲假象
-                                prevClose = currentPrice;
+                                prevClose = currentPrice; // 極端防呆
                             }
                         }
 
@@ -148,7 +165,7 @@ export default async function handler(req, res) {
                         if (quoteData.quoteResponse && quoteData.quoteResponse.result && quoteData.quoteResponse.result.length > 0) {
                             const q = quoteData.quoteResponse.result[0];
                             currentPrice = q.regularMarketPrice || 0;
-                            prevClose = q.regularMarketPreviousClose || currentPrice; // ⭐️ 備用 API 也加上防呆
+                            prevClose = q.regularMarketPreviousClose || currentPrice;
                             stockName = q.shortName || q.longName || sym;
                             dividendYield = (q.trailingAnnualDividendYield / 100) || 0;
                             ytd = q.ytdReturn ? (q.ytdReturn / 100) : 0;
