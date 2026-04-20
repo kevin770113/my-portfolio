@@ -55,8 +55,20 @@ export default async function handler(req, res) {
                         currentPrice = meta.regularMarketPrice || 0;
                         stockName = meta.shortName || meta.longName || sym;
 
-                        const validRawCloses = rawCloses.filter(p => p !== null && p > 0);
-                        prevClose = meta.previousClose || (validRawCloses.length > 1 ? validRawCloses[validRawCloses.length - 2] : 0);
+                        prevClose = meta.chartPreviousClose;
+
+                        if (!prevClose || prevClose === 0) {
+                            const validRawCloses = rawCloses.filter(p => p !== null && p > 0);
+                            if (validRawCloses.length > 1) {
+                                if (currentPrice !== validRawCloses[validRawCloses.length - 1]) {
+                                    prevClose = validRawCloses[validRawCloses.length - 1];
+                                } else {
+                                    prevClose = validRawCloses[validRawCloses.length - 2];
+                                }
+                            } else {
+                                prevClose = 0;
+                            }
+                        }
 
                         const history = [];
                         for (let k = 0; k < timestamps.length; k++) {
@@ -90,7 +102,6 @@ export default async function handler(req, res) {
                                 stdev = Math.sqrt(variance) * Math.sqrt(252);
                             }
 
-                            // 【防彈機制】包裝 try-catch 並加入空值檢查
                             try {
                                 const monthEndPrices = {};
                                 for (let h of history) {
@@ -105,7 +116,6 @@ export default async function handler(req, res) {
                                 for (let i = 1; i < sortedMonths.length; i++) {
                                     const prevPrice = monthEndPrices[sortedMonths[i - 1]];
                                     const currPrice = monthEndPrices[sortedMonths[i]];
-                                    // 確保價格存在且大於0，避免除以零的致命錯誤
                                     if (prevPrice && prevPrice > 0 && currPrice !== undefined) {
                                         monthlyReturns[sortedMonths[i]] = (currPrice - prevPrice) / prevPrice;
                                     }
@@ -166,12 +176,16 @@ export default async function handler(req, res) {
         const results = await Promise.all(allRequests);
 
         let exchangeRate = 32.5; 
-        if (!results[0].error && results[0].data?.price) exchangeRate = results[0].data.price;
+        let prevExchangeRate = 32.5;
+        if (!results[0].error && results[0].data?.price) {
+            exchangeRate = results[0].data.price;
+            prevExchangeRate = results[0].data.price - results[0].data.change; 
+        }
 
         const stockData = {};
         for (let i = 1; i < results.length; i++) { if (!results[i].error) stockData[results[i].symbol] = results[i].data; }
 
-        res.status(200).json({ status: 'success', exchangeRate: exchangeRate, data: stockData });
+        res.status(200).json({ status: 'success', exchangeRate: exchangeRate, prevExchangeRate: prevExchangeRate, data: stockData });
 
     } catch (error) { 
         res.status(500).json({ status: 'error', error: 'Internal Server Error' }); 
