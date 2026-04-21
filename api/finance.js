@@ -39,7 +39,7 @@ export default async function handler(req, res) {
             const isTW = sym.endsWith('.TW') || sym.endsWith('.TWO');
             let hasPrimaryQuote = false;
 
-            // 1. 【台股專屬】呼叫富果 API
+            // 1. 【台股專屬】呼叫富果 API (精準對位 trade.price)
             if (isTW && FUGLE_API_KEY) {
                 const cleanSym = sym.replace('.TW', '').replace('.TWO', '');
                 try {
@@ -51,11 +51,9 @@ export default async function handler(req, res) {
                         if (fJson.data && fJson.data.quote) {
                             const q = fJson.data.quote;
                             currentPrice = (q.trade && q.trade.price) || q.previousClose || 0;
-                            // ⭐️ 抓取富果的資料更新時間
                             if (fJson.data.info && fJson.data.info.lastUpdatedAt) {
                                 dataTime = Math.floor(new Date(fJson.data.info.lastUpdatedAt).getTime() / 1000);
                             }
-                            
                             if (currentPrice > 0) {
                                 change = q.change !== undefined ? q.change : 0;
                                 changePercent = q.changePercent !== undefined ? (q.changePercent / 100) : 0;
@@ -68,7 +66,7 @@ export default async function handler(req, res) {
                 } catch (e) {}
             }
 
-            // 2. 【美股與匯率】呼叫 Yahoo Quote
+            // 2. 【美股/匯率】單獨呼叫 Yahoo Quote (避開批次被擋與幽靈數據)
             if (!hasPrimaryQuote) {
                 try {
                     const qRes = await fetch(`https://query2.finance.yahoo.com/v7/finance/quote?symbols=${sym}${crumb ? '&crumb='+crumb : ''}`, fetchOptions);
@@ -77,7 +75,6 @@ export default async function handler(req, res) {
                         if (qData.quoteResponse && qData.quoteResponse.result && qData.quoteResponse.result.length > 0) {
                             const q = qData.quoteResponse.result[0];
                             currentPrice = q.regularMarketPrice || 0;
-                            // ⭐️ 抓取 Yahoo 的正規市場成交時間
                             dataTime = q.regularMarketTime || 0;
                             if (currentPrice > 0) {
                                 change = q.regularMarketChange || 0;
@@ -93,14 +90,14 @@ export default async function handler(req, res) {
                 } catch (e) {}
             }
 
-            // 3. 【歷史資料】計算 CAGR 與 波動率
+            // 3. 【歷史 K 線與量化分析】
             try {
-                const chartUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?range=10y&interval=1d&events=div${crumb ? '&crumb='+crumb : ''}`;
-                const chartRes = await fetch(chartUrl, fetchOptions);
+                const chartRes = await fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${sym}?range=10y&interval=1d&events=div${crumb ? '&crumb='+crumb : ''}`, fetchOptions);
                 if (chartRes.ok) {
                     const chartData = await chartRes.json();
                     if (chartData.chart && chartData.chart.result && chartData.chart.result[0]) {
                         const result = chartData.chart.result[0];
+                        
                         if (!hasPrimaryQuote) {
                             currentPrice = result.meta.regularMarketPrice || 0;
                             dataTime = result.meta.regularMarketTime || 0;
@@ -109,6 +106,7 @@ export default async function handler(req, res) {
                             changePercent = prevClose ? (change / prevClose) : 0;
                             stockName = result.meta.shortName || result.meta.longName || sym;
                         }
+
                         const adjPrices = result.indicators.adjclose?.[0]?.adjclose || result.indicators.quote[0].close || [];
                         const validPrices = adjPrices.filter(p => p > 0);
                         if (validPrices.length > 20) {
@@ -120,6 +118,7 @@ export default async function handler(req, res) {
                             const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
                             stdev = Math.sqrt(returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length) * Math.sqrt(252);
                         }
+
                         let trailingDiv = 0;
                         if (result.events && result.events.dividends) {
                             const oneYearAgo = (Date.now() / 1000) - 31536000;
@@ -138,7 +137,7 @@ export default async function handler(req, res) {
                     yahooName: stockName, price: currentPrice, change: change, 
                     changePercent: changePercent, ytd: ytd, cagr: cagr, 
                     stdev: stdev, dividendYield: dividendYield, 
-                    regularMarketTime: dataTime // ⭐️ 將真實時間傳回
+                    regularMarketTime: dataTime 
                 }
             };
         };
