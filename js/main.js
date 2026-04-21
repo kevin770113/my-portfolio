@@ -257,7 +257,7 @@ async function updateFinanceData() {
     }
     
     document.getElementById('display-rate').innerText = currentRate.toFixed(2); 
-    latestDataTime = 0; // 重置最新數據時間戳
+    latestDataTime = 0; 
 
     const mapToCombined = (portfolio) => {
         let list = [...portfolio.tw, ...portfolio.us];
@@ -265,7 +265,7 @@ async function updateFinanceData() {
             const m = stockMapCache[item.symbol]; 
             if (!m) return { ...item, marketValueTWD: 0, costTWD: 0, cagr: 0 }; 
             
-            // ⭐️ 更新全域最新數據時間 (取所有持股中最晚的那筆)
+            // ⭐️ 更新全域最新數據時間
             if (m.regularMarketTime && m.regularMarketTime > latestDataTime) latestDataTime = m.regularMarketTime;
             
             const exRate = item.market === 'US' ? currentRate : 1; 
@@ -297,7 +297,7 @@ async function updateFinanceData() {
     if(activeScenarioId === 'real') globalCombinedList = realCombined; 
     else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); globalCombinedList = mapToCombined(sc.portfolio); }
 
-    // ⭐️ 核心修改：格式化並顯示真實資料時間 (月/日 時:分)
+    // ⭐️ 核心功能：格式化並顯示真實資料時間
     const dateEl = document.getElementById('data-date');
     if (globalCombinedList.length > 0 && latestDataTime > 0) { 
         let d = new Date(latestDataTime * 1000); 
@@ -343,6 +343,7 @@ function exportGlobalSyncData(realList) {
     localStorage.setItem('sync_invest_data', JSON.stringify({ totalValue: metrics.totalVal, cagr: metrics.cagr, dividendYield: metrics.totalVal > 0 ? (totalExpectedDividend / metrics.totalVal) : 0, timestamp: new Date().getTime() }));
 }
 
+// ⭐️ 修復的 CSV 讀取功能，確保屬性引號正確
 async function handleFileUpload(event, market) {
     const file = event.target.files[0]; if (!file) return; setLoading(true);
     Papa.parse(file, {
@@ -355,12 +356,22 @@ async function handleFileUpload(event, market) {
                     const parsedShares = parseNum(row['股數'] || row['目前庫存'] || '0'); 
                     return parsedShares > 0 && !invalidKeywords.some(kw => name.includes(kw)) && name.trim() !== ''; 
                 });
-                let normalized = market === 'tw' ? validData.map(row => ({ market: 'TW', name: row['股票名稱'] || row['股名'], symbol: null, shares: parseNum(row['股數'] || row['餘股數']), cost: parseNum(row['付出成本'] || row['成本']) })) : validData.map(row => ({ market: 'US', name: row['股票名稱'] || row['股名'], symbol: row['代號'] || row['股票'], shares: parseNum(row['目前庫存'] || row['股數']), cost: parseNum(row['庫存成本'] || row['成本']) }));
-                realPortfolio[market] = normalized; localStorage.setItem(`portfolio_${market}`, JSON.stringify(normalized)); 
+                let normalized = market === 'tw' ? 
+                    validData.map(row => ({ market: 'TW', name: row['股票名稱'] || row['股名'], symbol: null, shares: parseNum(row['股數'] || row['餘股數']), cost: parseNum(row['付出成本'] || row['成本']) })) : 
+                    validData.map(row => ({ market: 'US', name: row['股票名稱'] || row['股名'], symbol: row['代號'] || row['股票'], shares: parseNum(row['目前庫存'] || row['股數']), cost: parseNum(row['庫存成本'] || row['成本']) }));
+                
+                realPortfolio[market] = normalized; 
+                localStorage.setItem(`portfolio_${market}`, JSON.stringify(normalized)); 
                 document.getElementById(`label-${market}`).innerText = `✅ 匯入 (${normalized.length})`; 
-                if (market === 'tw') await processDictionary(normalized); await updateFinanceData();
+                
+                if (market === 'tw') await processDictionary(normalized); 
+                await updateFinanceData();
                 startPbiScan();
-            } catch (err) { showInfoModal('處理失敗', err.message, true); } finally { setLoading(false); }
+            } catch (err) { 
+                showInfoModal('處理失敗', err.message, true); 
+            } finally { 
+                setLoading(false); 
+            }
         }
     });
 }
