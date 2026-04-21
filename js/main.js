@@ -265,7 +265,6 @@ async function updateFinanceData() {
             const m = stockMapCache[item.symbol]; 
             if (!m) return { ...item, marketValueTWD: 0, costTWD: 0, cagr: 0 }; 
             
-            // ⭐️ 更新全域最新數據時間
             if (m.regularMarketTime && m.regularMarketTime > latestDataTime) latestDataTime = m.regularMarketTime;
             
             const exRate = item.market === 'US' ? currentRate : 1; 
@@ -297,7 +296,6 @@ async function updateFinanceData() {
     if(activeScenarioId === 'real') globalCombinedList = realCombined; 
     else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); globalCombinedList = mapToCombined(sc.portfolio); }
 
-    // ⭐️ 核心功能：格式化並顯示真實資料時間
     const dateEl = document.getElementById('data-date');
     if (globalCombinedList.length > 0 && latestDataTime > 0) { 
         let d = new Date(latestDataTime * 1000); 
@@ -343,19 +341,23 @@ function exportGlobalSyncData(realList) {
     localStorage.setItem('sync_invest_data', JSON.stringify({ totalValue: metrics.totalVal, cagr: metrics.cagr, dividendYield: metrics.totalVal > 0 ? (totalExpectedDividend / metrics.totalVal) : 0, timestamp: new Date().getTime() }));
 }
 
-// ⭐️ 修復的 CSV 讀取功能，確保屬性引號正確
+// ⭐️ 修正包含「總預估損益」等各種券商結算字眼的過濾機制
 async function handleFileUpload(event, market) {
     const file = event.target.files[0]; if (!file) return; setLoading(true);
     Papa.parse(file, {
         header: true, skipEmptyLines: true,
         complete: async function(results) {
             try {
-                const rawData = results.data; const invalidKeywords = ['合計', '總計', '小計'];
+                const rawData = results.data; 
+                // 擴充過濾清單，徹底阻絕券商結算行干擾
+                const invalidKeywords = ['合計', '總計', '小計', '總預估', '預估', '損益', '總額', '結餘', '帳戶'];
+                
                 const validData = rawData.filter(row => { 
                     const name = row['股票名稱'] || row['股名'] || ''; 
                     const parsedShares = parseNum(row['股數'] || row['目前庫存'] || '0'); 
                     return parsedShares > 0 && !invalidKeywords.some(kw => name.includes(kw)) && name.trim() !== ''; 
                 });
+                
                 let normalized = market === 'tw' ? 
                     validData.map(row => ({ market: 'TW', name: row['股票名稱'] || row['股名'], symbol: null, shares: parseNum(row['股數'] || row['餘股數']), cost: parseNum(row['付出成本'] || row['成本']) })) : 
                     validData.map(row => ({ market: 'US', name: row['股票名稱'] || row['股名'], symbol: row['代號'] || row['股票'], shares: parseNum(row['目前庫存'] || row['股數']), cost: parseNum(row['庫存成本'] || row['成本']) }));
