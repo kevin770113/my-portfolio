@@ -34,23 +34,24 @@ export default async function handler(req, res) {
         const safeFetch = async (sym) => {
             let currentPrice = 0, prevClose = 0, stockName = sym, dataTime = 0;
             let cagr = 0, stdev = 0, historyYears = 0, dividendYield = 0, ytd = 0;
-            let change = 0, changePercent = 0, historicalDividends = [];
+            
+            // ⭐️ 確保這兩個重要陣列存在，圖表才不會空掉
+            let change = 0, changePercent = 0, historicalDividends = [], monthlyReturns = {};
 
             const isTW = sym.endsWith('.TW') || sym.endsWith('.TWO');
             let hasPrimaryQuote = false;
 
+            // 1. 富果 API (台股精準對位)
             if (isTW && FUGLE_API_KEY) {
                 const cleanSym = sym.replace('.TW', '').replace('.TWO', '');
                 try {
-                    const fRes = await fetch(`https://api.fugle.tw/marketdata/v1.0/stock/intraday/quote/${cleanSym}`, {
-                        headers: { 'X-API-KEY': FUGLE_API_KEY }
-                    });
+                    const fRes = await fetch(`https://api.fugle.tw/marketdata/v1.0/stock/intraday/quote/${cleanSym}`, { headers: { 'X-API-KEY': FUGLE_API_KEY } });
                     if (fRes.ok) {
                         const fJson = await fRes.json();
                         if (fJson.data && fJson.data.quote) {
                             const q = fJson.data.quote;
                             currentPrice = (q.trade && q.trade.price) || q.previousClose || 0;
-                            if (fJson.data.info?.lastUpdatedAt) dataTime = Math.floor(new Date(fJson.data.info.lastUpdatedAt).getTime() / 1000);
+                            if (fJson.data.info && fJson.data.info.lastUpdatedAt) dataTime = Math.floor(new Date(fJson.data.info.lastUpdatedAt).getTime() / 1000);
                             if (currentPrice > 0) {
                                 change = q.change !== undefined ? q.change : 0;
                                 changePercent = q.changePercent !== undefined ? (q.changePercent / 100) : 0;
@@ -63,60 +64,129 @@ export default async function handler(req, res) {
                 } catch (e) {}
             }
 
+            // 2. Yahoo Quote (美股/備用)
             if (!hasPrimaryQuote) {
                 try {
                     const qRes = await fetch(`https://query2.finance.yahoo.com/v7/finance/quote?symbols=${sym}${crumb ? '&crumb='+crumb : ''}`, fetchOptions);
                     if (qRes.ok) {
                         const qData = await qRes.json();
-                        if (qData.quoteResponse?.result?.[0]) {
+                        if (qData.quoteResponse && qData.quoteResponse.result && qData.quoteResponse.result.length > 0) {
                             const q = qData.quoteResponse.result[0];
                             currentPrice = q.regularMarketPrice || 0;
                             dataTime = q.regularMarketTime || 0;
-                            change = q.regularMarketChange || 0;
-                            changePercent = (q.regularMarketChangePercent / 100) || 0;
-                            prevClose = q.regularMarketPreviousClose || currentPrice;
-                            stockName = q.shortName || q.longName || sym;
-                            dividendYield = (q.trailingAnnualDividendYield / 100) || 0;
-                            ytd = (q.ytdReturn / 100) || 0;
-                            hasPrimaryQuote = true;
+                            if (currentPrice > 0) {
+                                change = q.regularMarketChange || 0;
+                                changePercent = q.regularMarketChangePercent !== undefined ? (q.regularMarketChangePercent / 100) : 0;
+                                prevClose = q.regularMarketPreviousClose || currentPrice;
+                                stockName = q.shortName || q.longName || sym;
+                                dividendYield = q.trailingAnnualDividendYield !== undefined ? (q.trailingAnnualDividendYield / 100) : 0;
+                                ytd = q.ytdReturn !== undefined ? (q.ytdReturn / 100) : 0;
+                                hasPrimaryQuote = true;
+                            }
                         }
                     }
                 } catch (e) {}
             }
 
+            // 3. Yahoo Chart (長線回測、波動率、配息陣列)
             try {
                 const chartRes = await fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${sym}?range=10y&interval=1d&events=div${crumb ? '&crumb='+crumb : ''}`, fetchOptions);
                 if (chartRes.ok) {
                     const chartData = await chartRes.json();
-                    if (chartData.chart?.result?.[0]) {
+                    if (chartData.chart && chartData.chart.result && chartData.chart.result[0]) {
                         const result = chartData.chart.result[0];
+                        
                         if (!hasPrimaryQuote) {
                             currentPrice = result.meta.regularMarketPrice || 0;
+                            dataTime = result.meta.regularMarketTime || 0;
                             prevClose = result.meta.regularMarketPreviousClose || result.meta.previousClose || currentPrice;
                             change = currentPrice - prevClose;
-                            changePercent = prevClose ? change / prevClose : 0;
+                            changePercent = prevClose ? (change / prevClose) : 0;
+                            stockName = result.meta.shortName || result.meta.longName || sym;
                         }
-                        const adjPrices = (result.indicators.adjclose?.[0]?.adjclose || result.indicators.quote[0].close || []).filter(p => p > 0);
-                        if (validPrices = adjPrices, validPrices.length > 20) {
-                            historyYears = validPrices.length / 252;
-                            cagr = Math.pow(validPrices[validPrices.length - 1] / validPrices[0], 1 / historyYears) - 1;
-                            let returns = [];
-                            for (let i = 1; i < validPrices.length; i++) returns.push((validPrices[i] - validPrices[i-1]) / validPrices[i-1]);
-                            const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-                            stdev = Math.sqrt(returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length) * Math.sqrt(252);
+
+                        const timestamps = result.timestamp || [];
+                        const adjPrices = result.indicators.adjclose?.[0]?.adjclose || result.indicators.quote[0].close || [];
+                        const history = [];
+                        for (let k = 0; k < timestamps.length; k++) {
+                            if (adjPrices[k] > 0) history.push({ time: timestamps[k], price: adjPrices[k] });
                         }
+
+                        if (history.length > 0) {
+                            const validPrices = history.map(h => h.price);
+                            if (validPrices.length > 20) {
+                                historyYears = validPrices.length / 252;
+                                if (historyYears > 0) cagr = Math.pow(validPrices[validPrices.length - 1] / validPrices[0], 1 / historyYears) - 1;
+                                let returns = [];
+                                for (let i = 1; i < validPrices.length; i++) returns.push((validPrices[i] - validPrices[i-1]) / validPrices[i-1]);
+                                const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+                                stdev = Math.sqrt(returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length) * Math.sqrt(252);
+                            }
+
+                            // ⭐️ 補回：提取月度報酬率 (蒙地卡羅與星系圖必需)
+                            try {
+                                const monthEndPrices = {};
+                                for (let h of history) {
+                                    const date = new Date(h.time * 1000);
+                                    const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+                                    monthEndPrices[key] = h.price;
+                                }
+                                const sortedMonths = Object.keys(monthEndPrices).sort();
+                                for (let i = 1; i < sortedMonths.length; i++) {
+                                    const prevP = monthEndPrices[sortedMonths[i - 1]];
+                                    const currP = monthEndPrices[sortedMonths[i]];
+                                    if (prevP > 0 && currP !== undefined) {
+                                        monthlyReturns[sortedMonths[i]] = (currP - prevP) / prevP;
+                                    }
+                                }
+                            } catch (e) {}
+                        }
+
+                        // ⭐️ 補回：提取配息紀錄 (現金流圖必需)
+                        let trailingDiv = 0;
+                        if (result.events && result.events.dividends) {
+                            const oneYearAgo = (Date.now() / 1000) - 31536000;
+                            Object.values(result.events.dividends).forEach(d => { 
+                                if (d.date >= oneYearAgo) trailingDiv += d.amount; 
+                                historicalDividends.push({ date: d.date, amount: d.amount }); 
+                            });
+                            historicalDividends.sort((a, b) => a.date - b.date);
+                        }
+                        if (dividendYield === 0 && currentPrice > 0) dividendYield = trailingDiv / currentPrice;
                     }
                 }
             } catch (err) {}
 
-            return { symbol: sym, error: currentPrice === 0, data: { yahooName: stockName, price: currentPrice, change, changePercent, ytd, cagr, stdev, dividendYield, regularMarketTime: dataTime } };
+            if (currentPrice === 0) return { symbol: sym, error: true, message: '無效' };
+
+            // ⭐️ 確保將所有數據傳回前端
+            return {
+                symbol: sym, error: false,
+                data: { 
+                    yahooName: stockName, price: currentPrice, change: change, 
+                    changePercent: changePercent, ytd: ytd, cagr: cagr, 
+                    stdev: stdev, dividendYield: dividendYield, 
+                    regularMarketTime: dataTime,
+                    historicalDividends: historicalDividends, 
+                    monthlyReturns: monthlyReturns
+                }
+            };
         };
 
         const resList = await Promise.all(['TWD=X', ...symbols].map(sym => safeFetch(sym)));
-        let exRate = resList[0].data.price || 32.5;
-        let prevExRate = exRate - (resList[0].data.change || 0);
+        let exchangeRate = 32.5, prevExchangeRate = 32.5;
+        if (!resList[0].error && resList[0].data?.price) {
+            exchangeRate = resList[0].data.price;
+            prevExchangeRate = resList[0].data.price - resList[0].data.change; 
+        }
+
         const stockData = {};
-        for (let i = 1; i < resList.length; i++) { if (!resList[i].error) stockData[symbols[i-1]] = resList[i].data; }
-        res.status(200).json({ status: 'success', exchangeRate: exRate, prevExchangeRate: prevExRate, data: stockData });
-    } catch (error) { res.status(500).json({ status: 'error' }); }
+        for (let i = 1; i < resList.length; i++) { 
+            if (!resList[i].error) stockData[symbols[i - 1]] = resList[i].data; 
+        }
+
+        res.status(200).json({ status: 'success', exchangeRate, prevExchangeRate, data: stockData });
+    } catch (error) { 
+        res.status(500).json({ status: 'error', error: 'Internal Error' }); 
+    }
 }
