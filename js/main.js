@@ -43,17 +43,14 @@ function navigateTo(url) {
 const fmtMoney = (n) => isPrivacyMode ? '****' : Math.round(n).toLocaleString();
 const parseNum = (str) => { if (!str) return 0; const val = parseFloat(str.toString().replace(/,/g, '').replace('%', '')); return isNaN(val) ? 0 : val; };
 const setLoading = (show, msg="正在分析金融數據...") => { 
-    const textEl = document.getElementById('loading-text');
-    const overlayEl = document.getElementById('loading-overlay');
-    if (textEl) textEl.innerText = msg; 
-    if (overlayEl) overlayEl.style.display = show ? 'flex' : 'none'; 
+    document.getElementById('loading-text').innerText = msg; 
+    document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none'; 
 };
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 let toastTimeout;
 function showToast(msg) { 
     const toast = document.getElementById('toast-container'); 
-    if(!toast) return;
     toast.innerText = msg; 
     toast.classList.add('show'); 
     clearTimeout(toastTimeout); 
@@ -64,10 +61,8 @@ function showToast(msg) {
 // 系統初始化 (Initialization)
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
-    const uploadTW = document.getElementById('upload-tw');
-    const uploadUS = document.getElementById('upload-us');
-    if (uploadTW) uploadTW.addEventListener('change', (e) => handleFileUpload(e, 'tw'));
-    if (uploadUS) uploadUS.addEventListener('change', (e) => handleFileUpload(e, 'us'));
+    document.getElementById('upload-tw').addEventListener('change', (e) => handleFileUpload(e, 'tw'));
+    document.getElementById('upload-us').addEventListener('change', (e) => handleFileUpload(e, 'us'));
 
     window.addEventListener('resize', () => { 
         if (charts.corr) charts.corr.resize(); 
@@ -75,23 +70,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const reportOverlay = document.getElementById('report-overlay');
-    if (reportOverlay) {
-        const observer = new ResizeObserver(entries => {
-            for (let entry of entries) {
-                if (entry.contentRect.width > 0 && reportOverlay.style.display === 'block') {
-                    if (!isReportRendered) { 
-                        if(typeof renderScatterChart === 'function') renderScatterChart(); 
-                        if(typeof renderMCCompareChart === 'function') renderMCCompareChart(); 
-                        isReportRendered = true; 
-                    } else { 
-                        if(charts.scatter) charts.scatter.resize(); 
-                        if(charts.mcCompare) charts.mcCompare.resize(); 
-                    }
+    const observer = new ResizeObserver(entries => {
+        for (let entry of entries) {
+            if (entry.contentRect.width > 0 && reportOverlay.style.display === 'block') {
+                if (!isReportRendered) { 
+                    if(typeof renderScatterChart === 'function') renderScatterChart(); 
+                    if(typeof renderMCCompareChart === 'function') renderMCCompareChart(); 
+                    isReportRendered = true; 
+                } else { 
+                    if(charts.scatter) charts.scatter.resize(); 
+                    if(charts.mcCompare) charts.mcCompare.resize(); 
                 }
             }
-        });
-        observer.observe(reportOverlay);
-    }
+        }
+    });
+    observer.observe(reportOverlay);
 
     const savedTW = localStorage.getItem('portfolio_tw'); 
     const savedUS = localStorage.getItem('portfolio_us'); 
@@ -100,86 +93,92 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (savedUS) try { realPortfolio.us = JSON.parse(savedUS); } catch(e) {}
     if (savedScen) try { sandboxScenarios = JSON.parse(savedScen); } catch(e) {}
 
-    const btnConfirmDanger = document.getElementById('btn-confirm-danger');
-    if (btnConfirmDanger) btnConfirmDanger.onclick = () => { closeConfirmModal(); if(confirmCallback) confirmCallback(); };
+    document.getElementById('btn-confirm-danger').onclick = () => { closeConfirmModal(); if(confirmCallback) confirmCallback(); };
+    document.getElementById('scen-prompt-confirm').onclick = () => { closeScenPrompt(); if(promptCallback) promptCallback(document.getElementById('scen-prompt-input').value); };
     
-    const btnScenConfirm = document.getElementById('scen-prompt-confirm');
-    if (btnScenConfirm) btnScenConfirm.onclick = () => { closeScenPrompt(); if(promptCallback) promptCallback(document.getElementById('scen-prompt-input').value); };
-    
-    const btnSbCheck = document.getElementById('btn-sb-check');
-    if (btnSbCheck) {
-        btnSbCheck.onclick = async () => {
-            const val = document.getElementById('sb-input-val').value.trim().toUpperCase(); if (!val) return;
-            document.getElementById('sb-step-input').style.display = 'none'; document.getElementById('sb-step-loading').style.display = 'block';
-            try {
-                const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: [val] }) }); 
-                if(!res.ok) throw new Error('API Error'); const json = await res.json();
-                if (json.status === 'success' && json.data[val] && !json.data[val].error) { 
-                    const data = json.data[val]; stockMapCache[val] = data; currentPromptPrice = data.price; 
-                    document.getElementById('sb-yahoo-name').innerText = data.yahooName || val; 
-                    document.getElementById('sb-yahoo-price').innerText = data.price; 
-                    document.getElementById('sb-shares').value = ''; document.getElementById('sb-cost').value = ''; 
-                    document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-confirm').style.display = 'block'; 
-                } else { 
-                    showInfoModal('搜尋失敗', '查無此代號。', true); 
-                    document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-input').style.display = 'block'; 
-                }
-            } catch (e) { 
-                showInfoModal('連線異常', '伺服器無回應。', true); 
+    document.getElementById('btn-sb-check').onclick = async () => {
+        const val = document.getElementById('sb-input-val').value.trim().toUpperCase(); if (!val) return;
+        document.getElementById('sb-step-input').style.display = 'none'; document.getElementById('sb-step-loading').style.display = 'block';
+        try {
+            const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: [val] }) }); 
+            if(!res.ok) throw new Error('API Error'); const json = await res.json();
+            if (json.status === 'success' && json.data[val] && !json.data[val].error) { 
+                const data = json.data[val]; stockMapCache[val] = data; currentPromptPrice = data.price; 
+                document.getElementById('sb-yahoo-name').innerText = data.yahooName || val; 
+                document.getElementById('sb-yahoo-price').innerText = data.price; 
+                document.getElementById('sb-shares').value = ''; document.getElementById('sb-cost').value = ''; 
+                document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-confirm').style.display = 'block'; 
+            } else { 
+                showInfoModal('搜尋失敗', 'Yahoo Finance 查無此代號。', true); 
                 document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-input').style.display = 'block'; 
             }
-        };
-    }
-
-    const btnSbSave = document.getElementById('btn-sb-save');
-    if (btnSbSave) {
-        btnSbSave.onclick = () => {
-            let shares = parseFloat(document.getElementById('sb-shares').value) || 0; 
-            let finalCost = parseFloat(document.getElementById('sb-cost').value) || 0; 
-            let symbol = document.getElementById('sb-input-val').value.trim().toUpperCase(); 
-            let name = document.getElementById('sb-yahoo-name').innerText;
-            if(shares <= 0) { showInfoModal('輸入錯誤', '請輸入正確股數。', true); return; }
-            let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
-            let market = symbol.includes('.TW') || symbol.includes('.TWO') ? 'tw' : 'us'; 
-            sc.portfolio[market].push({ market: market.toUpperCase(), name: name, symbol: symbol, shares: shares, cost: finalCost });
-            document.getElementById('sandbox-add-overlay').classList.remove('active'); 
-            saveInventoryChanges(); 
-        };
-    }
+        } catch (e) { 
+            showInfoModal('連線異常', '伺服器無回應。', true); 
+            document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-input').style.display = 'block'; 
+        }
+    };
+    document.getElementById('btn-sb-retry').onclick = openSandboxAddStock;
+    document.getElementById('btn-sb-save').onclick = () => {
+        let shares = parseFloat(document.getElementById('sb-shares').value) || 0; 
+        let finalCost = parseFloat(document.getElementById('sb-cost').value) || 0; 
+        let symbol = document.getElementById('sb-input-val').value.trim().toUpperCase(); 
+        let name = document.getElementById('sb-yahoo-name').innerText;
+        if(shares <= 0 || finalCost < 0) { showInfoModal('輸入錯誤', '請輸入大於 0 的股數。', true); return; }
+        let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
+        let market = symbol.includes('.TW') || symbol.includes('.TWO') ? 'tw' : 'us'; 
+        sc.portfolio[market].push({ market: market.toUpperCase(), name: name, symbol: symbol, shares: shares, cost: finalCost });
+        document.getElementById('sandbox-add-overlay').classList.remove('active'); 
+        saveInventoryChanges(); 
+    };
 
     updateScenarioUI();
     
     if (realPortfolio.tw.length > 0 || realPortfolio.us.length > 0) { 
         setLoading(true); 
-        try { await updateFinanceData(); } catch(e) { console.error(e); renderCurrentView(); } finally { setLoading(false); } 
-    } else { renderCurrentView(); }
+        try { 
+            await updateFinanceData(); 
+        } catch(e) { 
+            console.error(e); 
+            if(typeof renderCurrentView === 'function') renderCurrentView(); 
+        } finally { 
+            setLoading(false); 
+        } 
+    } else { 
+        if(typeof renderCurrentView === 'function') renderCurrentView(); 
+    }
 
-    setTimeout(() => { startPbiScan(); }, 1000);
+    setTimeout(() => {
+        startPbiScan();
+    }, 1000);
 });
 
 // ==========================================
-// 🚀 PBI 恐慌抄底雷達 (加入完整防呆機制)
+// 🚀 PBI 恐慌抄底雷達 (背景非同步佇列)
 // ==========================================
 async function startPbiScan() {
     if (isPbiRunning) return;
+    
     let symbolsToFetch = new Set();
-    [realPortfolio.tw, realPortfolio.us].forEach(list => list.forEach(i => symbolsToFetch.add(i.symbol)));
-    sandboxScenarios.forEach(sc => { 
-        [sc.portfolio.tw, sc.portfolio.us].forEach(list => list.forEach(i => symbolsToFetch.add(i.symbol))); 
-    });
+    realPortfolio.tw.forEach(i => symbolsToFetch.add(i.symbol)); 
+    realPortfolio.us.forEach(i => symbolsToFetch.add(i.symbol));
+    sandboxScenarios.forEach(sc => { sc.portfolio.tw.forEach(i => symbolsToFetch.add(i.symbol)); sc.portfolio.us.forEach(i => symbolsToFetch.add(i.symbol)); });
+    symbolsToFetch.delete(null); symbolsToFetch.delete(undefined); symbolsToFetch.delete('SKIP'); symbolsToFetch.delete('');
     
-    symbolsToFetch.delete(null); symbolsToFetch.delete(undefined); symbolsToFetch.delete('');
     let allSymbols = Array.from(symbolsToFetch);
-    
     if (allSymbols.length === 0) {
-        const chartEl = document.getElementById('historyPnLChart');
-        if (chartEl) chartEl.innerHTML = '<div style="text-align: center; color: #999; padding-top: 160px; font-size: 12px;">無庫存資料，無法回測</div>';
+        document.getElementById('historyPnLChart').innerHTML = '<div style="text-align: center; color: #999; padding-top: 160px; font-size: 12px;">無庫存資料，無法回測</div>';
         return;
     }
 
-    isPbiRunning = true; pbiResults = [];
+    isPbiRunning = true;
+    pbiResults = [];
+    
     const btn = document.getElementById('btn-pbi-signal');
-    if (btn) { btn.className = 'btn-pbi loading'; btn.innerHTML = `⏳ 評估中 (0/${allSymbols.length})...`; btn.disabled = true; }
+    if (btn) {
+        btn.className = 'btn-pbi loading';
+        btn.innerHTML = `⏳ 評估中 (0/${allSymbols.length})...`;
+        btn.disabled = true;
+    }
 
     for (let i = 0; i < allSymbols.length; i++) {
         const symbol = allSymbols[i];
@@ -188,92 +187,246 @@ async function startPbiScan() {
             if (res.ok) {
                 const json = await res.json();
                 if (json.data && Array.isArray(json.data)) {
+                    // ⭐️【修正點一：雷達 Unknown】
+                    // 必須明確把 symbol 寫進陣列的屬性裡，讓 pbiEngine 抓得到
+                    json.data.symbol = symbol; 
                     window.historicalDataCache[symbol] = json.data;
+                    
                     if (window.pbiEngine) {
-                        const result = window.pbiEngine.evaluate(json.data, symbol);
-                        if (result) pbiResults.push(result);
+                        const result = window.pbiEngine.evaluate(json.data);
+                        if (result) {
+                            pbiResults.push(result);
+                        }
                     }
                 }
             }
-        } catch (err) { console.error(`PBI Scan Error (${symbol}):`, err); }
-        if (btn) btn.innerHTML = `⏳ 評估中 (${i + 1}/${allSymbols.length})...`;
-        await new Promise(resolve => setTimeout(resolve, 400));
+        } catch (err) {
+            console.error(`PBI Scan Error on ${symbol}:`, err);
+        }
+
+        if (btn) {
+            btn.innerHTML = `⏳ 評估中 (${i + 1}/${allSymbols.length})...`;
+        }
+        await new Promise(resolve => setTimeout(resolve, 600));
     }
-    isPbiRunning = false; finishPbiScan();
+
+    isPbiRunning = false;
+    finishPbiScan();
 }
 
 function finishPbiScan() {
     const btn = document.getElementById('btn-pbi-signal');
     if (!btn) return;
+
     pbiResults.sort((a, b) => b.score - a.score);
     const hasBuySignal = pbiResults.some(r => r.score >= 60);
-    if (hasBuySignal) { btn.className = 'btn-pbi trigger'; btn.innerHTML = '🚨 建議買入...'; btn.disabled = false; } 
-    else { btn.className = 'btn-pbi wait'; btn.innerHTML = '⚖️ 建議觀望 (點擊看分數)'; btn.disabled = false; }
+
+    if (hasBuySignal) {
+        btn.className = 'btn-pbi trigger';
+        btn.innerHTML = '🚨 建議買入...';
+        btn.disabled = false;
+    } else {
+        btn.className = 'btn-pbi wait';
+        btn.innerHTML = '⚖️ 建議觀望 (點擊看分數)';
+        btn.disabled = false; 
+    }
+    
     renderPbiModalContent();
-    if (typeof window.renderHistoryPnLChart === 'function') window.renderHistoryPnLChart();
+
+    if (typeof window.renderHistoryPnLChart === 'function') {
+        window.renderHistoryPnLChart();
+    }
 }
 
-// ⭐️ 修復：加入 res.error 檢查，避免 details 為 undefined 時當機
 function renderPbiModalContent() {
     const listEl = document.getElementById('pbi-signal-list');
     if (!listEl) return;
+    
     let html = '';
     pbiResults.forEach((res, idx) => {
-        let scoreColor = res.score >= 60 ? 'var(--red-profit)' : '#95A5A6';
         let badgeClass = res.badge === '🔴' ? 'red' : (res.badge === '🟡' ? 'yellow' : (res.badge === '🟢' ? 'green' : ''));
+        let highlightClass = res.score >= 60 ? 'pbi-highlight' : 'pbi-dimmed';
         
-        // 防呆：如果歷史資料不足導致評估失敗
-        let detailsHtml = res.error ? `<div style="text-align:center; padding: 15px 0; color: #95A5A6;">⚠️ 歷史資料不足或無效</div>` : `
+        let detailsHtml = '';
+        if (res.error) {
+            detailsHtml = `<div style="text-align:center; padding: 15px 0; color: #95A5A6;">⚠️ 此標的歷史資料不足 (上市未滿 30 天)，暫無法進行運算。</div>`;
+        } else {
+            detailsHtml = `
                 <div class="pbi-factor"><span>⚡ KDJ 深度</span><span class="pbi-factor-val">+${res.details.kdj} 分</span></div>
                 <div class="pbi-factor"><span>🔥 AMT 量能</span><span class="pbi-factor-val">+${res.details.amt} 分</span></div>
                 <div class="pbi-factor"><span>📉 MACD 動能</span><span class="pbi-factor-val">+${res.details.macd} 分</span></div>
-                <div class="pbi-factor"><span>🛡️ 240MA 乖離</span><span class="pbi-factor-val">${res.details.biasPct}%</span></div>
+                <div class="pbi-factor"><span>🛡️ 240MA 防護</span><span class="pbi-factor-val">乖離 ${res.details.biasPct}% (倍數 x${res.details.biasMultiplier})</span></div>
+                <div class="pbi-factor" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #eee;"><span>🏆 總結算</span><span class="pbi-factor-val ${res.colorClass}" style="font-size: 14px;">${res.score} 分</span></div>
             `;
-            
-        let closePriceDisplay = (res.details && res.details.closePrice) ? `$${res.details.closePrice}` : '--';
-            
+        }
+
+        let scoreDisplay = res.error ? '--' : res.score;
+        let scoreColor = res.score >= 60 ? 'var(--red-profit)' : '#95A5A6';
+
         html += `
-        <div class="pbi-item ${res.score >= 60 ? 'pbi-highlight' : 'pbi-dimmed'}">
+        <div class="pbi-item ${highlightClass}">
             <div class="pbi-header" onclick="togglePbiAccordion(${idx})">
-                <span class="pbi-symbol">${res.symbol.split('.')[0]} <span style="font-size: 11px; color: #999;">${closePriceDisplay}</span></span>
+                <span class="pbi-symbol">${res.symbol.replace('.TW', '')} <span style="font-size: 11px; color: #999; font-weight: normal; margin-left: 5px;">今收: $${res.details.closePrice}</span></span>
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <span style="font-size: 13px; font-weight: 800; color: ${scoreColor};">${res.error ? '--' : res.score} 分</span>
-                    <span class="pbi-badge ${badgeClass}">${res.badge || '未知'} ${res.action || ''}</span>
+                    <span style="font-size: 13px; font-weight: 800; color: ${scoreColor};">${scoreDisplay} 分</span>
+                    <span class="pbi-badge ${badgeClass}" style="${res.badge === '⚪' ? 'background:#AAB7B8;' : ''}">${res.badge} ${res.action}</span>
                 </div>
             </div>
-            <div class="pbi-details" id="pbi-details-${idx}">${detailsHtml}</div>
-        </div>`;
+            <div class="pbi-details" id="pbi-details-${idx}">
+                ${detailsHtml}
+            </div>
+        </div>
+        `;
     });
-    listEl.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px;">尚無分析數據</div>';
+    listEl.innerHTML = html;
 }
 
 window.openPbiModal = function() { 
-    const el = document.getElementById('pbi-modal-overlay'); 
+    const el = document.getElementById('pbi-modal-overlay');
     el.style.display = 'flex'; 
-    setTimeout(() => { el.classList.add('active'); }, 10); 
+    setTimeout(() => { el.classList.add('active'); }, 10);
 };
+
 window.closePbiModal = function() { 
-    const el = document.getElementById('pbi-modal-overlay'); 
+    const el = document.getElementById('pbi-modal-overlay');
     el.classList.remove('active'); 
-    setTimeout(() => { el.style.display = 'none'; }, 300); 
+    setTimeout(() => { el.style.display = 'none'; }, 300);
 };
+
 window.togglePbiAccordion = function(idx) {
     const detailEl = document.getElementById(`pbi-details-${idx}`);
-    const isOpen = detailEl.classList.contains('open');
-    document.querySelectorAll('.pbi-details').forEach(el => el.classList.remove('open'));
-    if (!isOpen) detailEl.classList.add('open');
+    if (detailEl.classList.contains('open')) {
+        detailEl.classList.remove('open');
+    } else {
+        document.querySelectorAll('.pbi-details').forEach(el => el.classList.remove('open'));
+        detailEl.classList.add('open');
+    }
 };
+
+// ==========================================
+// 彈窗系統 (Modals)
+// ==========================================
+let confirmCallback = null;
+function openConfirmModal(title, desc, btnText, callback) { 
+    document.getElementById('confirm-modal-title').innerText = title; 
+    document.getElementById('confirm-modal-desc').innerHTML = desc; 
+    document.getElementById('btn-confirm-danger').innerText = btnText; 
+    confirmCallback = callback; 
+    document.getElementById('confirm-modal-overlay').classList.add('active'); 
+}
+function closeConfirmModal() { document.getElementById('confirm-modal-overlay').classList.remove('active'); }
+
+let promptCallback = null;
+function openScenPrompt(title, defaultText, callback) { 
+    document.getElementById('scen-prompt-title').innerText = title; 
+    document.getElementById('scen-prompt-input').value = defaultText || ''; 
+    promptCallback = callback; 
+    document.getElementById('scen-prompt-modal').classList.add('active'); 
+    setTimeout(() => document.getElementById('scen-prompt-input').focus(), 100); 
+}
+function closeScenPrompt() { document.getElementById('scen-prompt-modal').classList.remove('active'); }
+
+let infoCallback = null;
+function showInfoModal(title, desc, isError = false, callback = null) { 
+    document.getElementById('info-modal-title').innerText = title; 
+    document.getElementById('info-modal-desc').innerHTML = desc; 
+    let icon = document.getElementById('info-modal-icon');
+    if(isError) { icon.innerText = '!'; icon.style.background = '#FDECEA'; icon.style.color = '#B25858'; } 
+    else { icon.innerText = '✓'; icon.style.background = '#E8F5E9'; icon.style.color = '#4E8765'; }
+    infoCallback = callback; 
+    document.getElementById('info-modal-overlay').classList.add('active'); 
+}
+function closeInfoModal() { 
+    document.getElementById('info-modal-overlay').classList.remove('active'); 
+    if (infoCallback) { let cb = infoCallback; infoCallback = null; cb(); } 
+}
+
+// ==========================================
+// 劇本切換系統 (Scenario Management)
+// ==========================================
+function openScenModal() {
+    document.getElementById('scen-list').innerHTML = '';
+    let html = `<div class="scen-item" style="${activeScenarioId === 'real' ? 'background:rgba(0,86,179,0.05); font-weight:bold;' : ''}"><div class="scen-name" onclick="switchScenario('real')">🌍 真實持股 (鎖定) ${activeScenarioId === 'real' ? '✅' : ''}</div></div>`;
+    sandboxScenarios.forEach(sc => { 
+        let isAct = activeScenarioId === sc.id; 
+        html += `<div class="scen-item" style="${isAct ? 'background:rgba(245,166,35,0.05); font-weight:bold;' : ''}"><div class="scen-name" onclick="switchScenario('${sc.id}')">🧪 ${sc.name} ${isAct ? '✅' : ''}</div><div class="scen-actions"><button class="scen-btn" onclick="renameScenario('${sc.id}')">✏️</button><button class="scen-btn" onclick="deleteScenario('${sc.id}')">🗑️</button></div></div>`; 
+    });
+    document.getElementById('scen-list').innerHTML = html; 
+    document.getElementById('scen-overlay').classList.add('active'); 
+    setTimeout(() => document.getElementById('scen-sheet').classList.add('show'), 10);
+}
+function closeScenModal() { 
+    document.getElementById('scen-sheet').classList.remove('show'); 
+    setTimeout(() => document.getElementById('scen-overlay').classList.remove('active'), 300); 
+}
+function createNewScenario() { 
+    closeScenModal(); 
+    openScenPrompt("請輸入新試算劇本名稱：", "我的實驗組合", (name) => { 
+        if(name && name.trim()){ 
+            const newId = generateId(); 
+            sandboxScenarios.push({ id: newId, name: name.trim(), portfolio: { tw: JSON.parse(JSON.stringify(realPortfolio.tw)), us: JSON.parse(JSON.stringify(realPortfolio.us)) } }); 
+            saveScenarios(); 
+            switchScenario(newId); 
+            showToast("已建立新劇本！"); 
+        } 
+    }); 
+}
+function renameScenario(id) { 
+    closeScenModal(); 
+    let sc = sandboxScenarios.find(s => s.id === id); 
+    openScenPrompt("重新命名劇本：", sc.name, (name) => { 
+        if(name && name.trim()){ 
+            sc.name = name.trim(); 
+            saveScenarios(); 
+            updateScenarioUI(); 
+        } 
+    }); 
+}
+function deleteScenario(id) { 
+    openConfirmModal("刪除劇本", "確定要刪除這個試算劇本嗎？", "確定刪除", () => { 
+        sandboxScenarios = sandboxScenarios.filter(s => s.id !== id); 
+        saveScenarios(); 
+        if(activeScenarioId === id) switchScenario('real'); 
+        else closeScenModal(); 
+    }); 
+}
+async function switchScenario(id) { 
+    activeScenarioId = id; 
+    updateScenarioUI(); 
+    closeScenModal(); 
+    setLoading(true); 
+    await updateFinanceData(); 
+    setLoading(false); 
+    if(id !== 'real') showToast("進入試算模式"); 
+}
+function saveScenarios() { localStorage.setItem('invest_scenarios_v1', JSON.stringify(sandboxScenarios)); }
+function updateScenarioUI() {
+    const bar = document.getElementById('scenario-bar'); 
+    const rowUpload = document.getElementById('row-upload'); 
+    const btnInv = document.getElementById('btn-inventory');
+    if(activeScenarioId === 'real') { 
+        bar.innerHTML = "📂 目前模式：真實持股 (鎖定) ▾"; 
+        bar.className = "scenario-bar"; 
+        if (rowUpload) rowUpload.style.display = "flex"; 
+        if (btnInv) btnInv.innerHTML = "⚙️ 庫存校正"; 
+    } else { 
+        let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
+        bar.innerHTML = `🧪 試算中：${sc.name} ▾`; 
+        bar.className = "scenario-bar sandbox"; 
+        if (rowUpload) rowUpload.style.display = "none"; 
+        if (btnInv) btnInv.innerHTML = "✏️ 調整持股"; 
+    }
+}
 
 // ==========================================
 // 數據同步與更新 (Data Sync)
 // ==========================================
 async function updateFinanceData() {
     let symbolsToFetch = new Set();
-    [realPortfolio.tw, realPortfolio.us].forEach(list => list.forEach(i => symbolsToFetch.add(i.symbol)));
-    sandboxScenarios.forEach(sc => { 
-        [sc.portfolio.tw, sc.portfolio.us].forEach(list => list.forEach(i => symbolsToFetch.add(i.symbol))); 
-    });
-    symbolsToFetch.delete(null); symbolsToFetch.delete(undefined); symbolsToFetch.delete('');
+    realPortfolio.tw.forEach(i => symbolsToFetch.add(i.symbol)); 
+    realPortfolio.us.forEach(i => symbolsToFetch.add(i.symbol));
+    sandboxScenarios.forEach(sc => { sc.portfolio.tw.forEach(i => symbolsToFetch.add(i.symbol)); sc.portfolio.us.forEach(i => symbolsToFetch.add(i.symbol)); });
+    symbolsToFetch.delete(null); symbolsToFetch.delete(undefined); symbolsToFetch.delete('SKIP'); symbolsToFetch.delete('');
     
     let allSymbols = Array.from(symbolsToFetch);
     if (allSymbols.length > 0) {
@@ -283,59 +436,79 @@ async function updateFinanceData() {
             const json = await res.json();
             if (json.status === 'success') { 
                 stockMapCache = Object.assign(stockMapCache, json.data); 
-                currentRate = json.exchangeRate || 32.5; 
-                prevRate = json.prevExchangeRate || currentRate; 
+                if(json.exchangeRate) currentRate = json.exchangeRate; 
+                if(json.prevExchangeRate) prevRate = json.prevExchangeRate; 
+                else prevRate = currentRate; 
             }
-        } catch(e) { console.error('Fetch error:', e); showToast("⚠️ 報價伺服器連線異常"); }
+        } catch(e) { 
+            console.error('Fetch error:', e); 
+            showToast("⚠️ 報價伺服器連線異常，目前使用快取資料"); 
+        }
     }
     
-    const rateEl = document.getElementById('display-rate');
-    if (rateEl) rateEl.innerText = currentRate.toFixed(2); 
-    latestDataTime = 0; 
+    const displayRateEl = document.getElementById('display-rate');
+    if (displayRateEl) displayRateEl.innerText = currentRate.toFixed(2); 
+    latestDataTime = 0;
 
     const mapToCombined = (portfolio) => {
         let list = [...portfolio.tw, ...portfolio.us];
         return list.filter(item => item.symbol && item.symbol !== 'SKIP').map(item => {
             const m = stockMapCache[item.symbol]; 
-            if (!m) return null; 
-            
-            if (m.regularMarketTime > latestDataTime) latestDataTime = m.regularMarketTime;
+            if (!m) return { ...item, marketValueTWD: 0, costTWD: 0, cagr: 0 }; 
+            if (m.regularMarketTime && m.regularMarketTime > latestDataTime) latestDataTime = m.regularMarketTime;
             
             const exRate = item.market === 'US' ? currentRate : 1; 
             const pastExRate = item.market === 'US' ? prevRate : 1;
+            
             const marketValTWD = m.price * item.shares * exRate; 
             const costTWD = item.cost * exRate; 
-            const prevPrice = m.price - m.change;
+            
+            // ⭐️【修正點三：美股異常損益】
+            // 放棄使用絕對金額 m.change，改用 m.changePercent 比例回推，避開股票分割與幽靈報價
+            let safeChangePercent = m.changePercent !== undefined ? m.changePercent : 0;
+            // 加上防呆機制：如果單日漲幅超過 30% 或跌幅大於 30%，認定為報價源或分割錯誤，強制歸零
+            if (safeChangePercent > 0.3 || safeChangePercent < -0.3) {
+                safeChangePercent = 0;
+            }
+            
+            const prevPrice = m.price / (1 + safeChangePercent);
             const prevMarketValTWD = prevPrice * item.shares * pastExRate;
+            const trueDayChangeTWD = marketValTWD - prevMarketValTWD;
 
             return { 
-                ...item, currentPrice: m.price, marketValueTWD: marketValTWD, costTWD: costTWD, 
-                profitTWD: marketValTWD - costTWD, roi: costTWD > 0 ? (marketValTWD - costTWD) / costTWD : 0, 
-                dayChangeTWD: marketValTWD - prevMarketValTWD, 
-                ytd: m.ytd || 0,     // ⭐️ 確保 YTD 通道不再被忽略
-                cagr: m.cagr || 0, stdev: m.stdev || 0, 
-                dividendYield: m.dividendYield || 0, 
-                historicalDividends: m.historicalDividends || [],
-                monthlyReturns: m.monthlyReturns || {}
+                ...item, 
+                currentPrice: m.price, 
+                marketValueTWD: marketValTWD, 
+                costTWD: costTWD, 
+                profitTWD: marketValTWD - costTWD, 
+                roi: costTWD > 0 ? (marketValTWD - costTWD) / costTWD : 0, 
+                dayChangeTWD: trueDayChangeTWD, 
+                ytd: m.ytd || 0, 
+                cagr: m.cagr, 
+                stdev: m.stdev, 
+                dividendTWD: (m.dividendYield * (m.price * item.shares)) * exRate, 
+                yield: m.dividendYield, 
+                historicalDividends: m.historicalDividends || [], 
+                market: item.market 
             };
-        }).filter(i => i !== null);
+        }).filter(i => i.marketValueTWD > 0);
     };
 
     let realCombined = mapToCombined(realPortfolio);
     compareData.realGlobal = calcPortfolioMetrics(realCombined); 
+    compareData.realTW = calcPortfolioMetrics(realCombined.filter(i => i.market === 'TW')); 
+    compareData.realUS = calcPortfolioMetrics(realCombined.filter(i => i.market === 'US'));
+    compareData.sandboxList = sandboxScenarios.map(sc => { return { id: sc.id, name: sc.name, metrics: calcPortfolioMetrics(mapToCombined(sc.portfolio)) }; });
+    
     exportGlobalSyncData(realCombined);
 
-    if(activeScenarioId === 'real') globalCombinedList = realCombined; 
-    else { 
-        let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
-        globalCombinedList = mapToCombined(sc.portfolio); 
-    }
+    if(activeScenarioId === 'real') { globalCombinedList = realCombined; } 
+    else { let sc = sandboxScenarios.find(s => s.id === activeScenarioId); globalCombinedList = mapToCombined(sc.portfolio); }
 
-    // ⭐️ 修正：嚴格檢查 data-date 標籤是否存在，防止 JS 中斷
     const dateEl = document.getElementById('data-date');
     if (dateEl) {
-        if (globalCombinedList.length > 0 && latestDataTime > 0) { 
-            let d = new Date(latestDataTime * 1000); 
+        if (globalCombinedList.length > 0) { 
+            let d = latestDataTime > 0 ? new Date(latestDataTime * 1000) : new Date(); 
             let mm = (d.getMonth() + 1).toString().padStart(2, '0'); 
             let dd = d.getDate().toString().padStart(2, '0'); 
             dateEl.innerText = `📅 ${mm}/${dd}`; 
@@ -345,7 +518,7 @@ async function updateFinanceData() {
         }
     }
     
-    renderCurrentView();
+    if(typeof renderCurrentView === 'function') renderCurrentView();
 }
 
 function calcPortfolioMetrics(list) {
@@ -375,7 +548,7 @@ function exportGlobalSyncData(realList) {
 }
 
 // ==========================================
-// CSV 匯入與管理
+// CSV 匯入與字典解析
 // ==========================================
 async function handleFileUpload(event, market) {
     const file = event.target.files[0]; if (!file) return; setLoading(true);
@@ -383,205 +556,206 @@ async function handleFileUpload(event, market) {
         header: true, skipEmptyLines: true,
         complete: async function(results) {
             try {
-                const rawData = results.data; 
-                // ⭐️ 修正：嚴格過濾所有結算與預估字眼
-                const forbidden = ['合計', '總計', '小計', '總預估', '預估', '損益', '總額', '結餘', '帳戶'];
-                const validData = rawData.filter(row => { 
-                    const name = row['股票名稱'] || row['股名'] || ''; 
-                    const parsedShares = parseNum(row['股數'] || row['目前庫存'] || '0'); 
-                    return parsedShares > 0 && !forbidden.some(kw => name.includes(kw)) && name.trim() !== ''; 
-                });
+                const rawData = results.data; const invalidKeywords = ['合計', '總計', '說明', '證券', '帳戶', '警語', '免責', '總預估', '現值', '損益', '小計'];
+                const validData = rawData.filter(row => { const name = row['股票名稱'] || row['股名'] || ''; const parsedShares = parseNum(row['股數'] || row['目前庫存'] || row['餘股數'] || '0'); if (parsedShares <= 0) return false; if (invalidKeywords.some(kw => name.includes(kw))) return false; if (!name.trim()) return false; return true; });
+                let normalized = market === 'tw' ? validData.map(row => ({ market: 'TW', name: row['股票名稱'] || row['股名'], symbol: null, shares: parseNum(row['股數'] || row['餘股數']), cost: parseNum(row['付出成本'] || row['成本']) })) : validData.map(row => ({ market: 'US', name: row['股票名稱'] || row['股名'], symbol: row['代號'] || row['股票'], shares: parseNum(row['目前庫存'] || row['股數'] || row['餘股數']), cost: parseNum(row['庫存成本'] || row['成本'] || row['付出成本']) }));
+                realPortfolio[market] = normalized; localStorage.setItem(`portfolio_${market}`, JSON.stringify(normalized)); 
+                document.getElementById(`label-${market}`).innerText = `✅ 匯入 (${normalized.length})`; 
+                showToast(`成功讀取並記憶 ${market === 'tw' ? '台股' : '美股'} CSV`);
+                if (market === 'tw') await processDictionary(normalized); await updateFinanceData();
                 
-                let normalized = validData.map(row => ({
-                    market: market.toUpperCase(),
-                    name: row['股票名稱'] || row['股名'],
-                    symbol: market === 'us' ? (row['代號'] || row['股票']) : null,
-                    shares: parseNum(row['股數'] || row['目前庫存'] || row['餘股數']),
-                    cost: parseNum(row['付出成本'] || row['成本'] || row['庫存成本'])
-                }));
-                
-                realPortfolio[market] = normalized; 
-                localStorage.setItem(`portfolio_${market}`, JSON.stringify(normalized)); 
-                if (market === 'tw') await processDictionary(normalized); 
-                await updateFinanceData();
+                isPbiRunning = false;
                 startPbiScan();
-                showToast(`成功匯入 ${normalized.length} 筆資料`);
+
             } catch (err) { showInfoModal('處理失敗', err.message, true); } finally { setLoading(false); }
         }
     });
 }
 
 async function processDictionary(twList) {
-    const names = twList.map(item => item.name); 
-    try {
-        const res = await fetch('/api/dictionary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ names }) }); 
-        const dictMap = await res.json();
-        for (let item of twList) { 
-            if (dictMap[item.name]) item.symbol = dictMap[item.name]; 
-            else { const input = await askForSymbol(item.name); item.symbol = input; } 
-        }
-    } catch(e) { console.error("Dictionary Sync Error"); }
+    const names = twList.map(item => item.name); const res = await fetch('/api/dictionary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ names }) }); const dictMap = await res.json();
+    for (let item of twList) { 
+        if (dictMap[item.name]) { item.symbol = dictMap[item.name]; } 
+        else { const input = await askForSymbol(item.name); item.symbol = input; if (input !== 'SKIP') await fetch('/api/dictionary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ update: { name: item.name, symbol: input } }) }); } 
+    }
     localStorage.setItem('portfolio_tw', JSON.stringify(twList));
 }
 
 function askForSymbol(stockName) {
     return new Promise((resolve) => {
         setLoading(false); const overlay = document.getElementById('csv-prompt-overlay'); 
-        document.getElementById('csv-stock-name').innerText = stockName; 
-        overlay.classList.add('active'); 
-        document.getElementById('btn-csv-save').onclick = () => {
-            const val = document.getElementById('csv-input-val').value.trim().toUpperCase();
-            overlay.classList.remove('active'); setLoading(true); resolve(val || 'SKIP');
+        document.getElementById('csv-stock-name').innerText = stockName; document.getElementById('csv-input-val').value = ''; 
+        document.getElementById('csv-step-input').style.display = 'block'; document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-confirm').style.display = 'none';
+        overlay.classList.add('active'); let currentTestSymbol = ''; const cleanup = () => { overlay.classList.remove('active'); setLoading(true); };
+        document.getElementById('btn-csv-skip').onclick = () => { cleanup(); resolve('SKIP'); };
+        document.getElementById('btn-csv-check').onclick = async () => {
+            const val = document.getElementById('csv-input-val').value.trim().toUpperCase(); if (!val) return;
+            currentTestSymbol = val; document.getElementById('csv-step-input').style.display = 'none'; document.getElementById('csv-step-loading').style.display = 'block';
+            try {
+                const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: [val] }) }); 
+                if (!res.ok) throw new Error('HTTP ' + res.status); const json = await res.json();
+                if (json.status === 'success' && json.data[val] && !json.data[val].error) { 
+                    document.getElementById('csv-yahoo-name').innerText = json.data[val].yahooName || val; 
+                    document.getElementById('csv-yahoo-price').innerText = json.data[val].price; 
+                    document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-confirm').style.display = 'block'; 
+                } 
+                else { showInfoModal('搜尋失敗', 'Yahoo Finance 查無此代號。', true); document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; }
+            } catch (e) { showInfoModal('連線異常', '伺服器無回應。', true); document.getElementById('csv-step-loading').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; }
         };
-    });
-}
-
-function askClearAllData() {
-    openConfirmModal("清空資料", "確定要刪除所有本地庫存資料嗎？此操作無法還原。", "確認刪除", () => {
-        realPortfolio = { tw: [], us: [] };
-        localStorage.removeItem('portfolio_tw'); localStorage.removeItem('portfolio_us');
-        updateFinanceData();
-        showToast("資料已全數清空");
+        document.getElementById('btn-csv-retry').onclick = () => { document.getElementById('csv-step-confirm').style.display = 'none'; document.getElementById('csv-step-input').style.display = 'block'; }; 
+        document.getElementById('btn-csv-save').onclick = () => { cleanup(); resolve(currentTestSymbol); };
     });
 }
 
 // ==========================================
-// ⭐️ 庫存校正與 AI 優化器功能 (補回遺失功能)
+// 庫存管理與沙盒操作 (Inventory & Sandbox)
 // ==========================================
 window.openInventoryManager = function() {
-    const listEl = document.getElementById('inventory-manager-list');
-    if (!listEl) return;
-    let list = activeScenarioId === 'real' 
-        ? [...realPortfolio.tw, ...realPortfolio.us] 
-        : [...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.tw, ...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.us];
+    // ⭐️【修正點二：校正按鈕失效】
+    // 在 index.html 第 56 行，這個 div 的 ID 叫做 inventory-list-container
+    // 必須與這裡保持一致，否則 listEl 為 null 就會導致視窗無法開啟！
+    const container = document.getElementById('inventory-list-container'); 
+    if (!container) return;
     
-    listEl.innerHTML = list.map((item, idx) => `
-        <div class="manager-item">
-            <div class="manager-info">
-                <span class="manager-name">${item.name}</span>
-                <span class="manager-symbol">${item.symbol}</span>
-            </div>
-            <div class="manager-inputs">
-                <input type="number" step="any" placeholder="股數" value="${item.shares}" onchange="updateManagerItem(${idx}, 'shares', this.value)">
-                <input type="number" step="any" placeholder="成本" value="${item.cost}" onchange="updateManagerItem(${idx}, 'cost', this.value)">
-                <button class="btn-del-item" onclick="deleteManagerItem(${idx})">×</button>
-            </div>
-        </div>
-    `).join('');
-    document.getElementById('inventory-manager-overlay').classList.add('active');
-};
+    container.innerHTML = '';
+    let portfolio = activeScenarioId === 'real' ? realPortfolio : sandboxScenarios.find(s => s.id === activeScenarioId).portfolio;
+    document.getElementById('btn-inv-add-stock').style.display = activeScenarioId === 'real' ? 'none' : 'inline-block'; 
+    document.getElementById('btn-ai-entry').style.display = activeScenarioId === 'real' ? 'none' : 'flex';
+    document.getElementById('inv-modal-title').innerText = activeScenarioId === 'real' ? '⚙️ 庫存校正中心' : '✏️ 試算持股調整'; 
+    document.getElementById('inv-modal-desc').innerText = activeScenarioId === 'real' ? '手動調整真實持股的股數或成本。' : '自由新增或刪除股票，或啟動 AI 智能配置。';
 
-window.updateManagerItem = function(idx, field, value) {
-    let list = activeScenarioId === 'real' 
-        ? [...realPortfolio.tw, ...realPortfolio.us] 
-        : [...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.tw, ...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.us];
-    list[idx][field] = parseFloat(value) || 0;
-};
+    const renderList = (market, list) => {
+        if(!list || list.length === 0) return; 
+        let html = `<div style="font-weight:bold; margin: 15px 0 8px; color: var(--primary-dark); font-size: 15px; border-bottom: 2px solid #eaeaea; padding-bottom: 4px;">${market === 'tw' ? '🇹🇼 台股' : '🇺🇸 美股'}</div>`;
+        list.forEach((item, index) => {
+            html += `<div class="inv-item"><div class="inv-item-header"><span>${item.name} <span style="color:#999; font-weight:normal; font-size:12px;">(${item.symbol})</span></span></div>${activeScenarioId !== 'real' ? `<button class="btn-del-stock" onclick="removeSandboxStock('${market}', ${index})">✕</button>` : ''}<div class="inv-input-group"><div class="inv-input-box"><span class="inv-input-label">總持有成本 (原幣)</span><input type="number" class="inv-input-field num" id="inv-cost-${market}-${index}" value="${item.cost}" step="any"></div><div class="inv-input-box"><span class="inv-input-label">目前股數</span><input type="number" class="inv-input-field num" id="inv-shares-${market}-${index}" value="${item.shares}" step="any"></div></div></div>`;
+        }); 
+        container.innerHTML += html;
+    };
+    renderList('tw', portfolio.tw); 
+    renderList('us', portfolio.us);
+    
+    if(portfolio.tw.length === 0 && portfolio.us.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding: 30px 20px; color:#999;">無資料。</div>';
+    }
+    document.getElementById('inventory-modal-overlay').classList.add('active');
+}
 
-window.deleteManagerItem = function(idx) {
-    if(!confirm("確定要刪除此持股嗎？")) return;
-    let sc = activeScenarioId === 'real' ? realPortfolio : sandboxScenarios.find(s => s.id === activeScenarioId).portfolio;
-    let all = [...sc.tw, ...sc.us];
-    let target = all[idx];
-    if(target.market === 'TW') sc.tw = sc.tw.filter(i => i !== target);
-    else sc.us = sc.us.filter(i => i !== target);
-    window.openInventoryManager();
-};
+window.closeInventoryManager = function() { 
+    document.getElementById('inventory-modal-overlay').classList.remove('active'); 
+}
 
-window.saveInventoryManager = function() {
-    saveInventoryChanges();
-    document.getElementById('inventory-manager-overlay').classList.remove('active');
-    showToast("庫存校正已儲存");
-};
+window.saveInventoryChanges = async function() {
+    const updateList = (market, list) => { 
+        if(!list) return; 
+        list.forEach((item, index) => { 
+            const sInp = document.getElementById(`inv-shares-${market}-${index}`); 
+            const cInp = document.getElementById(`inv-cost-${market}-${index}`); 
+            if(sInp && cInp) { item.shares = parseFloat(sInp.value) || 0; item.cost = parseFloat(cInp.value) || 0; } 
+        }); 
+    };
+    if(activeScenarioId === 'real') { 
+        updateList('tw', realPortfolio.tw); updateList('us', realPortfolio.us); 
+        localStorage.setItem('portfolio_tw', JSON.stringify(realPortfolio.tw)); localStorage.setItem('portfolio_us', JSON.stringify(realPortfolio.us)); 
+    } else { 
+        let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
+        updateList('tw', sc.portfolio.tw); updateList('us', sc.portfolio.us); saveScenarios(); 
+    }
+    closeInventoryManager(); setLoading(true); try { await updateFinanceData(); showToast("✅ 組合已更新並重新計算"); } catch (err) {} finally { setLoading(false); }
+}
 
-window.closeInventoryManager = function() {
-    document.getElementById('inventory-manager-overlay').classList.remove('active');
-};
+window.removeSandboxStock = function(market, index) { 
+    let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
+    if(sc) { sc.portfolio[market].splice(index, 1); openInventoryManager(); } 
+}
 
-window.openAIOptimizer = function() {
-    const el = document.getElementById('ai-optimizer-overlay');
-    if (el) el.classList.add('active');
-};
-
-window.closeAIOptimizer = function() {
-    const el = document.getElementById('ai-optimizer-overlay');
-    if (el) el.classList.remove('active');
-};
+window.openSandboxAddStock = function() { 
+    closeInventoryManager(); const overlay = document.getElementById('sandbox-add-overlay'); 
+    document.getElementById('sb-step-input').style.display = 'block'; document.getElementById('sb-step-confirm').style.display = 'none'; document.getElementById('sb-input-val').value = ''; overlay.classList.add('active'); 
+}
+window.closeSandboxAddStock = function() { 
+    document.getElementById('sandbox-add-overlay').classList.remove('active'); openInventoryManager(); 
+}
 
 // ==========================================
-// 介面導覽與沙盒方案管理
+// 主畫面控制 (UI Toggles)
 // ==========================================
-function togglePrivacy() { isPrivacyMode = !isPrivacyMode; document.getElementById('btn-privacy').innerText = isPrivacyMode ? '🙈' : '👁️'; renderCurrentView(); }
+function askClearAllData() { 
+    openConfirmModal("警告", "確定要清空所有真實持股資料嗎？<br><br>這將移除儀表板上的所有紀錄。", "確定清空", () => { 
+        localStorage.removeItem('portfolio_tw'); localStorage.removeItem('portfolio_us'); 
+        realPortfolio = { tw: [], us: [] }; globalCombinedList = []; 
+        document.getElementById('label-tw').innerText = '📁 匯入台股'; document.getElementById('label-us').innerText = '📁 匯入美股'; 
+        exportGlobalSyncData([]); 
+        if(typeof renderCurrentView === 'function') renderCurrentView(); 
+        showToast('已清空所有資料'); 
+    }); 
+}
+
+function togglePrivacy() { 
+    isPrivacyMode = !isPrivacyMode; 
+    document.getElementById('btn-privacy').innerHTML = isPrivacyMode ? '🙈' : '👁️'; 
+    if(typeof renderCurrentView === 'function') renderCurrentView(); 
+    showToast(isPrivacyMode ? "隱私模式已開啟" : "隱私模式已關閉"); 
+}
 
 function switchMarket(market) { 
     currentMarketView = market; 
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.id === `tab-${market}`)); 
-    renderCurrentView(); 
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active')); 
+    document.getElementById(`tab-${market}`).classList.add('active'); 
+    if(typeof renderCurrentView === 'function') renderCurrentView(); 
+    let name = market === 'ALL' ? '全球總覽' : (market === 'TW' ? '台股' : '美股'); 
+    showToast(`已切換至 ${name}`); 
 }
 
 function renderCurrentView() {
-    if (typeof renderDashboard === 'function') {
-        let filtered = currentMarketView === 'ALL' ? globalCombinedList : globalCombinedList.filter(i => i.market === currentMarketView);
-        renderDashboard(filtered);
+    if (globalCombinedList.length === 0) { 
+        if(typeof renderDashboard === 'function') renderDashboard([]); 
+        return; 
+    }
+    let filteredList = currentMarketView !== 'ALL' ? globalCombinedList.filter(item => item.market === currentMarketView) : globalCombinedList;
+    if(typeof renderDashboard === 'function') renderDashboard(filteredList);
+    
+    if(typeof window.renderHistoryPnLChart === 'function') {
+        window.renderHistoryPnLChart();
     }
 }
 
-function updateScenarioUI() {
-    const listEl = document.getElementById('scenario-list'); if(!listEl) return;
-    let html = `<div class="scenario-item ${activeScenarioId === 'real' ? 'active' : ''}" onclick="switchScenario('real')">📊 真實庫存</div>`;
-    sandboxScenarios.forEach(sc => { 
-        html += `<div class="scenario-item ${activeScenarioId === sc.id ? 'active' : ''}" onclick="switchScenario('${sc.id}')">🧪 ${sc.name} <span class="del-scen" onclick="deleteScenario(event, '${sc.id}')">×</span></div>`; 
+// ==========================================
+// AI 最佳化 UI (AI Opt Modals)
+// ==========================================
+window.selectAIOpt = function(el) { 
+    document.querySelectorAll('.ai-opt-card').forEach(card => card.classList.remove('active')); 
+    el.classList.add('active'); document.getElementById('ai-opt-objective').value = el.getAttribute('data-val'); 
+}
+window.openAIOptimizer = function() { 
+    closeInventoryManager(); let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
+    let totalStocks = sc.portfolio.tw.length + sc.portfolio.us.length; 
+    if(totalStocks < 2) { 
+        showInfoModal("⚠️ 資料不足", "至少需要 2 檔不同的股票才能啟動最佳化引擎！", true, () => { openInventoryManager(); }); 
+        return; 
+    } 
+    document.getElementById('ai-opt-modal').classList.add('active'); 
+}
+window.closeAIOptimizer = function() { document.getElementById('ai-opt-modal').classList.remove('active'); openInventoryManager(); }
+window.closeAIResult = function() { document.getElementById('ai-res-modal').classList.remove('active'); document.getElementById('ai-opt-modal').classList.add('active'); }
+
+window.applyAIWeights = function() {
+    if(!pendingAIWeights) return; 
+    let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
+    let totalVal = 0; 
+    pendingAIWeights.stocks.forEach(s => { let exRate = s.market === 'US' ? currentRate : 1; totalVal += s.shares * stockMapCache[s.symbol].price * exRate; });
+    
+    pendingAIWeights.stocks.forEach((s, idx) => { 
+        let targetValTWD = totalVal * pendingAIWeights.weights[idx]; 
+        let exRate = s.market === 'US' ? currentRate : 1; 
+        let targetShares = targetValTWD / (stockMapCache[s.symbol].price * exRate); 
+        let targetCost = targetValTWD / exRate; 
+        let item = sc.portfolio.tw.find(x => x.symbol === s.symbol) || sc.portfolio.us.find(x => x.symbol === s.symbol); 
+        if(item) { item.shares = parseFloat(targetShares.toFixed(4)); item.cost = parseFloat(targetCost.toFixed(2)); } 
     });
-    listEl.innerHTML = html;
+    
+    saveScenarios(); 
+    document.getElementById('ai-res-modal').classList.remove('active'); 
+    setLoading(true); 
+    updateFinanceData().then(() => { setLoading(false); showToast("✅ 配置套用成功！"); });
 }
-
-function switchScenario(id) { activeScenarioId = id; updateScenarioUI(); setLoading(true); updateFinanceData().finally(() => setLoading(false)); }
-
-function deleteScenario(e, id) {
-    e.stopPropagation();
-    if(confirm("確定要刪除此沙盒方案嗎？")) {
-        sandboxScenarios = sandboxScenarios.filter(s => s.id !== id);
-        if(activeScenarioId === id) activeScenarioId = 'real';
-        localStorage.setItem('invest_scenarios_v1', JSON.stringify(sandboxScenarios));
-        updateScenarioUI(); updateFinanceData();
-    }
-}
-
-function saveInventoryChanges() {
-    if (activeScenarioId === 'real') {
-        localStorage.setItem('portfolio_tw', JSON.stringify(realPortfolio.tw));
-        localStorage.setItem('portfolio_us', JSON.stringify(realPortfolio.us));
-    } else {
-        localStorage.setItem('invest_scenarios_v1', JSON.stringify(sandboxScenarios));
-    }
-    updateFinanceData();
-}
-
-// ==========================================
-// 彈窗與模式控制 (Modals)
-// ==========================================
-let confirmCallback = null;
-function openConfirmModal(title, desc, btnText, callback) { 
-    document.getElementById('confirm-modal-title').innerText = title; 
-    document.getElementById('confirm-modal-desc').innerHTML = desc; 
-    document.getElementById('btn-confirm-danger').innerText = btnText; 
-    confirmCallback = callback; 
-    document.getElementById('confirm-modal-overlay').classList.add('active'); 
-}
-function closeConfirmModal() { document.getElementById('confirm-modal-overlay').classList.remove('active'); }
-
-let promptCallback = null;
-function openScenPrompt(title, defaultText, callback) { 
-    document.getElementById('scen-prompt-title').innerText = title; 
-    document.getElementById('scen-prompt-input').value = defaultText || ''; 
-    promptCallback = callback; 
-    document.getElementById('scen-prompt-modal').classList.add('active'); 
-}
-function closeScenPrompt() { document.getElementById('scen-prompt-modal').classList.remove('active'); }
-
-function showInfoModal(title, desc, isError = false) { 
-    document.getElementById('info-modal-title').innerText = title; 
-    document.getElementById('info-modal-desc').innerText = desc; 
-    document.getElementById('info-modal-overlay').classList.add('active'); 
-}
-function closeInfoModal() { document.getElementById('info-modal-overlay').classList.remove('active'); }
