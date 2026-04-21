@@ -39,7 +39,7 @@ export default async function handler(req, res) {
             const isTW = sym.endsWith('.TW') || sym.endsWith('.TWO');
             let hasPrimaryQuote = false;
 
-            // 1. 【台股專屬】精準呼叫 Fugle API
+            // 1. 【台股】呼叫富果 API
             if (isTW && FUGLE_API_KEY) {
                 const cleanSym = sym.replace('.TW', '').replace('.TWO', '');
                 try {
@@ -50,9 +50,7 @@ export default async function handler(req, res) {
                         const fJson = await fRes.json();
                         if (fJson.data && fJson.data.quote) {
                             const q = fJson.data.quote;
-                            // ⭐️ 修正富果資料結構，正確讀取 trade.price
                             currentPrice = (q.trade && q.trade.price) || q.previousClose || 0;
-                            
                             if (currentPrice > 0) {
                                 change = q.change !== undefined ? q.change : 0;
                                 changePercent = q.changePercent !== undefined ? (q.changePercent / 100) : 0;
@@ -62,10 +60,10 @@ export default async function handler(req, res) {
                             }
                         }
                     }
-                } catch (e) { console.warn(`Fugle API 連線失敗 (${sym})`); }
+                } catch (e) {}
             }
 
-            // 2. 【美股與匯率】單獨呼叫 Yahoo Quote (防止批次查詢被擋)
+            // 2. 【美股/匯率】單獨呼叫 Yahoo Quote
             if (!hasPrimaryQuote) {
                 try {
                     const qRes = await fetch(`https://query2.finance.yahoo.com/v7/finance/quote?symbols=${sym}${crumb ? '&crumb='+crumb : ''}`, fetchOptions);
@@ -85,10 +83,10 @@ export default async function handler(req, res) {
                             }
                         }
                     }
-                } catch (e) { console.warn(`Yahoo Quote 失敗 (${sym})`); }
+                } catch (e) {}
             }
 
-            // 3. 【歷史 K 線與圖表數據】計算 CAGR 與波動率
+            // 3. 【歷史 K 線與絕對安全兜底機制】
             try {
                 const chartUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?range=10y&interval=1d&events=div${crumb ? '&crumb='+crumb : ''}`;
                 const chartRes = await fetch(chartUrl, fetchOptions);
@@ -98,13 +96,35 @@ export default async function handler(req, res) {
                     if (chartData.chart && chartData.chart.result && chartData.chart.result[0]) {
                         const result = chartData.chart.result[0];
                         
-                        // 【極端防禦兜底】：只有在富果和 Yahoo Quote 都當機時才觸發
+                        // 🚀 重構的安全兜底：徹底拔除 meta.previousClose
                         if (!hasPrimaryQuote) {
                             currentPrice = result.meta.regularMarketPrice || 0;
-                            prevClose = result.meta.regularMarketPreviousClose || result.meta.previousClose || currentPrice;
+                            stockName = result.meta.shortName || result.meta.longName || sym;
+                            
+                            const rawCloses = result.indicators?.quote?.[0]?.close || [];
+                            const validCloses = rawCloses.filter(c => c !== null && c > 0);
+                            
+                            if (validCloses.length > 1) {
+                                if (Math.abs(currentPrice - validCloses[validCloses.length - 1]) < 0.01) {
+                                    prevClose = validCloses[validCloses.length - 2];
+                                } else {
+                                    prevClose = validCloses[validCloses.length - 1];
+                                }
+                            } else if (validCloses.length === 1) {
+                                prevClose = validCloses[0];
+                            } else {
+                                prevClose = currentPrice;
+                            }
+
                             change = currentPrice - prevClose;
                             changePercent = prevClose ? (change / prevClose) : 0;
-                            stockName = result.meta.shortName || result.meta.longName || sym;
+
+                            // 🚀 斷路器機制：如果算出來的單日波動大於 30%，強制歸零 (防止分割與除權息崩潰)
+                            if (Math.abs(changePercent) > 0.3) {
+                                change = 0;
+                                changePercent = 0;
+                                prevClose = currentPrice;
+                            }
                         }
 
                         const timestamps = result.timestamp || [];
@@ -142,38 +162,14 @@ export default async function handler(req, res) {
                                 const variance = returns.reduce((acc, val) => acc + Math.pow(val - meanReturn, 2), 0) / returns.length;
                                 stdev = Math.sqrt(variance) * Math.sqrt(252);
                             }
-                            
-                            try {
-                                const monthEndPrices = {};
-                                for (let h of history) {
-                                    if (h && typeof h.price === 'number') {
-                                        const date = new Date(h.time * 1000);
-                                        const yyyy = date.getUTCFullYear();
-                                        const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-                                        monthEndPrices[`${yyyy}-${mm}`] = h.price;
-                                    }
-                                }
-                                const sortedMonths = Object.keys(monthEndPrices).sort();
-                                for (let i = 1; i < sortedMonths.length; i++) {
-                                    const prevPrice = monthEndPrices[sortedMonths[i - 1]];
-                                    const currPrice = monthEndPrices[sortedMonths[i]];
-                                    if (prevPrice && prevPrice > 0 && currPrice !== undefined) {
-                                        monthlyReturns[sortedMonths[i]] = (currPrice - prevPrice) / prevPrice;
-                                    }
-                                }
-                            } catch (e) {}
                         }
 
                         let trailingDiv = 0;
                         if (result.events && result.events.dividends) {
                             const oneYearAgo = (Date.now() / 1000) - 31536000;
                             Object.values(result.events.dividends).forEach(d => { 
-                                if (d.date >= oneYearAgo) {
-                                    trailingDiv += d.amount; 
-                                    historicalDividends.push({ date: d.date, amount: d.amount }); 
-                                }
+                                if (d.date >= oneYearAgo) { trailingDiv += d.amount; }
                             });
-                            historicalDividends.sort((a, b) => a.date - b.date);
                         }
                         if (dividendYield === 0 && currentPrice > 0) dividendYield = trailingDiv / currentPrice;
                     }
@@ -188,15 +184,12 @@ export default async function handler(req, res) {
                     yahooName: stockName, price: currentPrice, change: change, 
                     changePercent: changePercent, ytd: ytd, cagr: cagr, 
                     stdev: stdev, dividendYield: dividendYield, 
-                    historicalDividends: historicalDividends,
-                    monthlyReturns: monthlyReturns 
+                    monthlyReturns: {} 
                 }
             };
         };
 
-        // 加入 TWD=X 讓匯率也透過單獨的 Yahoo Quote 抓取
-        const allRequests = ['TWD=X', ...symbols].map(sym => safeFetch(sym));
-        const resList = await Promise.all(allRequests);
+        const resList = await Promise.all(['TWD=X', ...symbols].map(sym => safeFetch(sym)));
 
         let exchangeRate = 32.5; 
         let prevExchangeRate = 32.5;
