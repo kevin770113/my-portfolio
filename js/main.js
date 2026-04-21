@@ -1,40 +1,24 @@
 // ==========================================
-// 全域變數宣告
+// 全域狀態
 // ==========================================
-let isPrivacyMode = false; 
-let currentRate = 32.5; 
-let prevRate = 32.5; 
-let latestDataTime = 0; 
-let charts = {}; 
-let currentMarketView = 'ALL'; 
-let realPortfolio = { tw: [], us: [] }; 
-let sandboxScenarios = []; 
-let activeScenarioId = 'real'; 
-let stockMapCache = {}; 
-let globalCombinedList = []; 
-let compareData = { realGlobal: null, realTW: null, realUS: null, sandboxList: [] };
-let currentMCDim = 'P50'; 
-let currentPromptPrice = 0;
-let isReportRendered = false; 
-window.historicalDataCache = {};
-let pbiResults = [];
-let isPbiRunning = false;
+let isPrivacyMode = false; let currentRate = 32.5; let prevRate = 32.5; let latestDataTime = 0; 
+let realPortfolio = { tw: [], us: [] }; let sandboxScenarios = []; let activeScenarioId = 'real'; 
+let stockMapCache = {}; let globalCombinedList = []; let currentMarketView = 'ALL';
+let pbiResults = []; let isPbiRunning = false;
 
 // ==========================================
-// 工具函式
+// 基礎工具
 // ==========================================
 function openDrawer() { document.getElementById('drawer-overlay').classList.add('show'); }
 function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('show'); }
 function navigateTo(url) { closeDrawer(); setTimeout(() => { document.body.classList.add('fade-out'); setTimeout(() => { window.location.href = url; }, 400); }, 250); }
 const fmtMoney = (n) => isPrivacyMode ? '****' : Math.round(n).toLocaleString();
 const parseNum = (str) => { if (!str) return 0; const val = parseFloat(str.toString().replace(/,/g, '').replace('%', '')); return isNaN(val) ? 0 : val; };
-const setLoading = (show, msg="正在分析數據...") => { document.getElementById('loading-text').innerText = msg; document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none'; };
-const generateId = () => Math.random().toString(36).substr(2, 9);
-let toastTimeout;
-function showToast(msg) { const toast = document.getElementById('toast-container'); toast.innerText = msg; toast.classList.add('show'); clearTimeout(toastTimeout); toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500); }
+const setLoading = (show, msg="數據處理中...") => { document.getElementById('loading-text').innerText = msg; document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none'; };
+function showToast(msg) { const t = document.getElementById('toast-container'); t.innerText = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
 
 // ==========================================
-// 初始化
+// 初始化與生命週期
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('upload-tw').addEventListener('change', (e) => handleFileUpload(e, 'tw'));
@@ -43,73 +27,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     const savedTW = localStorage.getItem('portfolio_tw'); 
     const savedUS = localStorage.getItem('portfolio_us'); 
     const savedScen = localStorage.getItem('invest_scenarios_v1');
-    if (savedTW) try { realPortfolio.tw = JSON.parse(savedTW); } catch(e) {}
-    if (savedUS) try { realPortfolio.us = JSON.parse(savedUS); } catch(e) {}
-    if (savedScen) try { sandboxScenarios = JSON.parse(savedScen); } catch(e) {}
-
-    document.getElementById('btn-confirm-danger').onclick = () => { closeConfirmModal(); if(confirmCallback) confirmCallback(); };
-    document.getElementById('scen-prompt-confirm').onclick = () => { closeScenPrompt(); if(promptCallback) promptCallback(document.getElementById('scen-prompt-input').value); };
-    
-    document.getElementById('btn-sb-check').onclick = async () => {
-        const val = document.getElementById('sb-input-val').value.trim().toUpperCase(); if (!val) return;
-        document.getElementById('sb-step-input').style.display = 'none'; document.getElementById('sb-step-loading').style.display = 'block';
-        try {
-            const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: [val] }) }); 
-            const json = await res.json();
-            if (json.status === 'success' && json.data[val]) { 
-                const data = json.data[val]; stockMapCache[val] = data; currentPromptPrice = data.price; 
-                document.getElementById('sb-yahoo-name').innerText = data.yahooName || val; 
-                document.getElementById('sb-yahoo-price').innerText = data.price; 
-                document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-confirm').style.display = 'block'; 
-            } else { showToast("查無此代號"); document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-input').style.display = 'block'; }
-        } catch (e) { document.getElementById('sb-step-loading').style.display = 'none'; document.getElementById('sb-step-input').style.display = 'block'; }
-    };
-    document.getElementById('btn-sb-save').onclick = () => {
-        let shares = parseFloat(document.getElementById('sb-shares').value) || 0; 
-        let cost = parseFloat(document.getElementById('sb-cost').value) || 0; 
-        let symbol = document.getElementById('sb-input-val').value.trim().toUpperCase(); 
-        let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
-        let market = symbol.includes('.TW') || symbol.includes('.TWO') ? 'tw' : 'us'; 
-        sc.portfolio[market].push({ market: market.toUpperCase(), name: document.getElementById('sb-yahoo-name').innerText, symbol, shares, cost });
-        document.getElementById('sandbox-add-overlay').classList.remove('active'); 
-        saveInventoryChanges(); 
-    };
+    if (savedTW) realPortfolio.tw = JSON.parse(savedTW);
+    if (savedUS) realPortfolio.us = JSON.parse(savedUS);
+    if (savedScen) sandboxScenarios = JSON.parse(savedScen);
 
     updateScenarioUI();
-    if (realPortfolio.tw.length > 0 || realPortfolio.us.length > 0) { setLoading(true); try { await updateFinanceData(); } catch(e) {} finally { setLoading(false); } } 
-    else { renderCurrentView(); }
-    setTimeout(() => { startPbiScan(); }, 1000);
+    if (realPortfolio.tw.length || realPortfolio.us.length) { 
+        setLoading(true); try { await updateFinanceData(); } finally { setLoading(false); } 
+    } else { renderCurrentView(); }
+    setTimeout(startPbiScan, 1000);
 });
 
 // ==========================================
-// 數據更新與顯示
+// 核心數據處理
 // ==========================================
 async function updateFinanceData() {
-    let symbolsToFetch = new Set();
+    let symbols = new Set();
     [realPortfolio, ...sandboxScenarios.map(s => s.portfolio)].forEach(p => {
-        p.tw.forEach(i => symbolsToFetch.add(i.symbol)); p.us.forEach(i => symbolsToFetch.add(i.symbol));
+        p.tw.forEach(i => symbols.add(i.symbol)); p.us.forEach(i => symbols.add(i.symbol));
     });
-    symbolsToFetch.delete(null); symbolsToFetch.delete('');
+    symbols.delete(null); symbols.delete('');
     
-    if (symbolsToFetch.size > 0) {
+    if (symbols.size > 0) {
         try {
-            const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: Array.from(symbolsToFetch) }) });
+            const res = await fetch('/api/finance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: Array.from(symbols) }) });
             const json = await res.json();
-            if (json.status === 'success') { stockMapCache = Object.assign(stockMapCache, json.data); currentRate = json.exchangeRate; prevRate = json.prevExchangeRate || json.exchangeRate; }
-        } catch(e) { showToast("連線異常"); }
+            if (json.status === 'success') { stockMapCache = Object.assign(stockMapCache, json.data); currentRate = json.exchangeRate; prevRate = json.prevExchangeRate; }
+        } catch(e) { showToast("報價連線異常"); }
     }
     
     latestDataTime = 0;
-    const mapToCombined = (portfolio) => {
-        return [...portfolio.tw, ...portfolio.us].filter(i => i.symbol && i.symbol !== 'SKIP').map(item => {
-            const m = stockMapCache[item.symbol]; if (!m) return null;
-            if (m.regularMarketTime > latestDataTime) latestDataTime = m.regularMarketTime;
-            const exRate = item.market === 'US' ? currentRate : 1; 
-            const pastExRate = item.market === 'US' ? prevRate : 1;
-            const marketVal = m.price * item.shares * exRate;
-            return { ...item, currentPrice: m.price, marketValueTWD: marketVal, costTWD: item.cost * exRate, dayChangeTWD: marketVal - ((m.price - m.change) * item.shares * pastExRate), cagr: m.cagr, stdev: m.stdev, dividendYield: m.dividendYield };
-        }).filter(i => i && i.marketValueTWD > 0);
-    };
+    const mapToCombined = (p) => [...p.tw, ...p.us].filter(i => i.symbol && i.symbol !== 'SKIP').map(item => {
+        const m = stockMapCache[item.symbol]; if (!m) return null;
+        if (m.regularMarketTime > latestDataTime) latestDataTime = m.regularMarketTime;
+        const ex = item.market === 'US' ? currentRate : 1;
+        const mv = m.price * item.shares * ex;
+        return { ...item, currentPrice: m.price, marketValueTWD: mv, costTWD: item.cost * ex, dayChangeTWD: mv - ((m.price - m.change) * item.shares * (item.market === 'US' ? prevRate : 1)), cagr: m.cagr, stdev: m.stdev };
+    }).filter(i => i);
 
     globalCombinedList = activeScenarioId === 'real' ? mapToCombined(realPortfolio) : mapToCombined(sandboxScenarios.find(s => s.id === activeScenarioId).portfolio);
     
@@ -117,57 +71,83 @@ async function updateFinanceData() {
     if (latestDataTime > 0) {
         let d = new Date(latestDataTime * 1000);
         dateEl.innerText = `📅 ${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-        dateEl.style.display = 'inline-block';
     }
     renderCurrentView();
 }
 
 // ==========================================
-// 補回缺失的核心函式
+// UI 渲染與導航函式 (補回被刪除部分)
 // ==========================================
+function renderCurrentView() {
+    let filtered = currentMarketView === 'ALL' ? globalCombinedList : globalCombinedList.filter(i => i.market === currentMarketView);
+    
+    let totalVal = filtered.reduce((s, i) => s + i.marketValueTWD, 0);
+    let totalCost = filtered.reduce((s, i) => s + i.costTWD, 0);
+    let dayChange = filtered.reduce((s, i) => s + i.dayChangeTWD, 0);
+    
+    document.getElementById('total-wealth').innerText = fmtMoney(totalVal);
+    document.getElementById('total-roi').innerText = totalCost > 0 ? ((totalVal - totalCost)/totalCost*100).toFixed(2) + '%' : '0.00%';
+    document.getElementById('day-change').innerText = (dayChange >= 0 ? '+' : '') + fmtMoney(dayChange);
+    document.getElementById('day-change').className = 'card-value ' + (dayChange >= 0 ? 'profit' : 'loss');
+
+    const grid = document.getElementById('stock-grid');
+    grid.innerHTML = filtered.map(i => `
+        <div class="stock-card">
+            <div class="stock-name">${i.name}</div>
+            <div class="stock-symbol">${i.symbol.split('.')[0]}</div>
+            <div class="stock-price">$${i.currentPrice}</div>
+            <div class="stock-roi ${i.marketValueTWD >= i.costTWD ? 'profit' : 'loss'}">${((i.marketValueTWD - i.costTWD)/i.costTWD*100).toFixed(2)}%</div>
+        </div>
+    `).join('');
+}
+
 function updateScenarioUI() {
-    const listEl = document.getElementById('scenario-list'); if(!listEl) return;
-    let html = `<div class="scenario-item ${activeScenarioId === 'real' ? 'active' : ''}" onclick="switchScenario('real')"><span>📊 真實庫存</span></div>`;
-    sandboxScenarios.forEach(sc => { html += `<div class="scenario-item ${activeScenarioId === sc.id ? 'active' : ''}" onclick="switchScenario('${sc.id}')"><span>🧪 ${sc.name}</span><button onclick="deleteScenario(event, '${sc.id}')">×</button></div>`; });
-    listEl.innerHTML = html;
-}
-
-function switchScenario(id) { activeScenarioId = id; updateScenarioUI(); setLoading(true); updateFinanceData().finally(() => setLoading(false)); }
-
-function saveInventoryChanges() {
-    if (activeScenarioId === 'real') { localStorage.setItem('portfolio_tw', JSON.stringify(realPortfolio.tw)); localStorage.setItem('portfolio_us', JSON.stringify(realPortfolio.us)); } 
-    else { localStorage.setItem('invest_scenarios_v1', JSON.stringify(sandboxScenarios)); }
-    updateFinanceData();
-}
-
-async function handleFileUpload(event, market) {
-    const file = event.target.files[0]; if (!file) return; setLoading(true);
-    Papa.parse(file, {
-        header: true, skipEmptyLines: true,
-        complete: async function(results) {
-            try {
-                const invalidKeywords = ['合計', '總計', '小計', '總預估', '預估', '損益', '總額', '結餘', '帳戶'];
-                const validData = results.data.filter(row => {
-                    const name = row['股票名稱'] || row['股名'] || '';
-                    return parseNum(row['股數'] || row['目前庫存']) > 0 && !invalidKeywords.some(kw => name.includes(kw));
-                });
-                realPortfolio[market] = validData.map(row => ({ market: market.toUpperCase(), name: row['股票名稱'] || row['股名'], symbol: row['代號'] || null, shares: parseNum(row['股數'] || row['目前庫存']), cost: parseNum(row['付出成本'] || row['成本']) }));
-                if (market === 'tw') await processDictionary(realPortfolio.tw);
-                saveInventoryChanges();
-            } catch (e) { showToast("處理失敗"); } finally { setLoading(false); }
-        }
+    const list = document.getElementById('scenario-list');
+    let html = `<div class="scenario-item ${activeScenarioId === 'real' ? 'active' : ''}" onclick="switchScenario('real')">📊 真實庫存</div>`;
+    sandboxScenarios.forEach(sc => {
+        html += `<div class="scenario-item ${activeScenarioId === sc.id ? 'active' : ''}" onclick="switchScenario('${sc.id}')">🧪 ${sc.name} <span onclick="deleteScenario(event, '${sc.id}')">×</span></div>`;
     });
+    list.innerHTML = html;
 }
 
-// ==========================================
-// PBI 與其餘彈窗 (維持原有功能)
-// ==========================================
-async function startPbiScan() { /* 原有 PBI 邏輯 */ }
-function renderCurrentView() { if(typeof renderDashboard === 'function') renderDashboard(currentMarketView === 'ALL' ? globalCombinedList : globalCombinedList.filter(i => i.market === currentMarketView)); }
+function switchScenario(id) { activeScenarioId = id; updateScenarioUI(); updateFinanceData(); }
 function togglePrivacy() { isPrivacyMode = !isPrivacyMode; document.getElementById('btn-privacy').innerText = isPrivacyMode ? '🙈' : '👁️'; renderCurrentView(); }
 function switchMarket(m) { currentMarketView = m; document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.id === `tab-${m}`)); renderCurrentView(); }
-function openSandboxAddStock() { document.getElementById('sb-step-input').style.display='block'; document.getElementById('sb-step-loading').style.display='none'; document.getElementById('sb-step-confirm').style.display='none'; document.getElementById('sb-input-val').value=''; document.getElementById('sandbox-add-overlay').classList.add('active'); }
-function showInfoModal(t, d) { document.getElementById('info-modal-title').innerText=t; document.getElementById('info-modal-desc').innerText=d; document.getElementById('info-modal-overlay').classList.add('active'); }
+
+// ==========================================
+// 檔案與垃圾桶功能
+// ==========================================
+function askClearAllData() {
+    if(confirm("確定要清空所有庫存資料嗎？")) {
+        realPortfolio = { tw: [], us: [] };
+        localStorage.removeItem('portfolio_tw'); localStorage.removeItem('portfolio_us');
+        updateFinanceData();
+    }
+}
+
+async function handleFileUpload(e, market) {
+    const file = e.target.files[0]; if (!file) return; setLoading(true);
+    Papa.parse(file, { header: true, skipEmptyLines: true, complete: async (res) => {
+        try {
+            const forbidden = ['合計', '總計', '小計', '預估', '損益'];
+            const valid = res.data.filter(row => {
+                const n = row['股票名稱'] || row['股名'] || '';
+                return parseNum(row['股數'] || row['目前庫存']) > 0 && !forbidden.some(k => n.includes(k));
+            });
+            realPortfolio[market] = valid.map(r => ({ market: market.toUpperCase(), name: r['股票名稱'] || r['股名'], symbol: r['代號'] || null, shares: parseNum(r['股數'] || r['目前庫存']), cost: parseNum(r['成本'] || r['付出成本']) }));
+            localStorage.setItem(`portfolio_${market}`, JSON.stringify(realPortfolio[market]));
+            if(market === 'tw') await processDictionary(realPortfolio.tw);
+            updateFinanceData();
+        } catch(err) { showToast("處理失敗"); } finally { setLoading(false); }
+    }});
+}
+
+// 彈窗關閉函式
 function closeInfoModal() { document.getElementById('info-modal-overlay').classList.remove('active'); }
 function closeConfirmModal() { document.getElementById('confirm-modal-overlay').classList.remove('active'); }
-function closeScenPrompt() { document.getElementById('scen-prompt-modal').classList.remove('active'); }
+
+// PBI 模擬
+async function startPbiScan() {
+    const btn = document.getElementById('btn-pbi-signal');
+    btn.innerText = "⚖️ 建議觀望"; btn.className = "btn-pbi wait";
+}
