@@ -34,24 +34,26 @@ export default async function handler(req, res) {
         const safeFetch = async (sym) => {
             let currentPrice = 0, prevClose = 0, stockName = sym, dataTime = 0;
             let cagr = 0, stdev = 0, historyYears = 0, dividendYield = 0, ytd = 0;
-            
-            // ⭐️ 確保這兩個重要陣列存在，圖表才不會空掉
             let change = 0, changePercent = 0, historicalDividends = [], monthlyReturns = {};
 
             const isTW = sym.endsWith('.TW') || sym.endsWith('.TWO');
             let hasPrimaryQuote = false;
 
-            // 1. 富果 API (台股精準對位)
+            // 1. 【台股專屬】呼叫富果 API (精準對位 trade.price)
             if (isTW && FUGLE_API_KEY) {
                 const cleanSym = sym.replace('.TW', '').replace('.TWO', '');
                 try {
-                    const fRes = await fetch(`https://api.fugle.tw/marketdata/v1.0/stock/intraday/quote/${cleanSym}`, { headers: { 'X-API-KEY': FUGLE_API_KEY } });
+                    const fRes = await fetch(`https://api.fugle.tw/marketdata/v1.0/stock/intraday/quote/${cleanSym}`, {
+                        headers: { 'X-API-KEY': FUGLE_API_KEY }
+                    });
                     if (fRes.ok) {
                         const fJson = await fRes.json();
                         if (fJson.data && fJson.data.quote) {
                             const q = fJson.data.quote;
                             currentPrice = (q.trade && q.trade.price) || q.previousClose || 0;
-                            if (fJson.data.info && fJson.data.info.lastUpdatedAt) dataTime = Math.floor(new Date(fJson.data.info.lastUpdatedAt).getTime() / 1000);
+                            if (fJson.data.info && fJson.data.info.lastUpdatedAt) {
+                                dataTime = Math.floor(new Date(fJson.data.info.lastUpdatedAt).getTime() / 1000);
+                            }
                             if (currentPrice > 0) {
                                 change = q.change !== undefined ? q.change : 0;
                                 changePercent = q.changePercent !== undefined ? (q.changePercent / 100) : 0;
@@ -64,7 +66,7 @@ export default async function handler(req, res) {
                 } catch (e) {}
             }
 
-            // 2. Yahoo Quote (美股/備用)
+            // 2. 【美股/匯率】單獨呼叫 Yahoo Quote
             if (!hasPrimaryQuote) {
                 try {
                     const qRes = await fetch(`https://query2.finance.yahoo.com/v7/finance/quote?symbols=${sym}${crumb ? '&crumb='+crumb : ''}`, fetchOptions);
@@ -88,7 +90,7 @@ export default async function handler(req, res) {
                 } catch (e) {}
             }
 
-            // 3. Yahoo Chart (長線回測、波動率、配息陣列)
+            // 3. 【歷史 K 線與量化分析】
             try {
                 const chartRes = await fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${sym}?range=10y&interval=1d&events=div${crumb ? '&crumb='+crumb : ''}`, fetchOptions);
                 if (chartRes.ok) {
@@ -96,6 +98,7 @@ export default async function handler(req, res) {
                     if (chartData.chart && chartData.chart.result && chartData.chart.result[0]) {
                         const result = chartData.chart.result[0];
                         
+                        // 若主要報價源雙雙失效，才啟動圖表兜底機制
                         if (!hasPrimaryQuote) {
                             currentPrice = result.meta.regularMarketPrice || 0;
                             dataTime = result.meta.regularMarketTime || 0;
@@ -114,6 +117,25 @@ export default async function handler(req, res) {
 
                         if (history.length > 0) {
                             const validPrices = history.map(h => h.price);
+                            
+                            // ⭐️ 補回重點：尋找去年年底最後一個交易日的收盤價來手動計算 YTD
+                            // (解決台股無原生 YTD 或是 Yahoo 回傳空值的問題)
+                            if (ytd === 0 && currentPrice > 0) {
+                                const currentYear = new Date().getFullYear();
+                                let lastYearEndPrice = null;
+                                for (let j = history.length - 1; j >= 0; j--) {
+                                    if (new Date(history[j].time * 1000).getFullYear() < currentYear) {
+                                        lastYearEndPrice = history[j].price; 
+                                        break;
+                                    }
+                                }
+                                if (!lastYearEndPrice && validPrices.length > 0) lastYearEndPrice = validPrices[0];
+                                if (lastYearEndPrice && lastYearEndPrice > 0) {
+                                    ytd = (currentPrice - lastYearEndPrice) / lastYearEndPrice;
+                                }
+                            }
+
+                            // 計算 CAGR 與 波動率
                             if (validPrices.length > 20) {
                                 historyYears = validPrices.length / 252;
                                 if (historyYears > 0) cagr = Math.pow(validPrices[validPrices.length - 1] / validPrices[0], 1 / historyYears) - 1;
@@ -123,7 +145,7 @@ export default async function handler(req, res) {
                                 stdev = Math.sqrt(returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length) * Math.sqrt(252);
                             }
 
-                            // ⭐️ 補回：提取月度報酬率 (蒙地卡羅與星系圖必需)
+                            // 提取月度報酬率 (供蒙地卡羅與資產星系圖使用)
                             try {
                                 const monthEndPrices = {};
                                 for (let h of history) {
@@ -142,7 +164,7 @@ export default async function handler(req, res) {
                             } catch (e) {}
                         }
 
-                        // ⭐️ 補回：提取配息紀錄 (現金流圖必需)
+                        // 提取配息紀錄 (供現金流圖使用)
                         let trailingDiv = 0;
                         if (result.events && result.events.dividends) {
                             const oneYearAgo = (Date.now() / 1000) - 31536000;
@@ -157,9 +179,8 @@ export default async function handler(req, res) {
                 }
             } catch (err) {}
 
-            if (currentPrice === 0) return { symbol: sym, error: true, message: '無效' };
+            if (currentPrice === 0) return { symbol: sym, error: true, message: '無效報價' };
 
-            // ⭐️ 確保將所有數據傳回前端
             return {
                 symbol: sym, error: false,
                 data: { 
