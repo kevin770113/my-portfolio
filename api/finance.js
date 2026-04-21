@@ -98,13 +98,10 @@ export default async function handler(req, res) {
                     if (chartData.chart && chartData.chart.result && chartData.chart.result[0]) {
                         const result = chartData.chart.result[0];
                         
-                        // 若主要報價源雙雙失效，才啟動圖表兜底機制
+                        // 【關鍵修復】：若 Quote 失效，不再信任 meta.previousClose，僅取最新價與名稱
                         if (!hasPrimaryQuote) {
                             currentPrice = result.meta.regularMarketPrice || 0;
                             dataTime = result.meta.regularMarketTime || 0;
-                            prevClose = result.meta.regularMarketPreviousClose || result.meta.previousClose || currentPrice;
-                            change = currentPrice - prevClose;
-                            changePercent = prevClose ? (change / prevClose) : 0;
                             stockName = result.meta.shortName || result.meta.longName || sym;
                         }
 
@@ -117,9 +114,18 @@ export default async function handler(req, res) {
 
                         if (history.length > 0) {
                             const validPrices = history.map(h => h.price);
-                            
-                            // ⭐️ 補回重點：尋找去年年底最後一個交易日的收盤價來手動計算 YTD
-                            // (解決台股無原生 YTD 或是 Yahoo 回傳空值的問題)
+
+                            // 【關鍵修復】：從 K 線實體反推兜底昨收價 (徹底避開分割前的幽靈報價)
+                            if (!hasPrimaryQuote && validPrices.length >= 2) {
+                                const lastK = validPrices[validPrices.length - 1];
+                                const prevK = validPrices[validPrices.length - 2];
+                                // 判斷最新報價是否已經是最後一根 K 線
+                                prevClose = Math.abs(currentPrice - lastK) < 0.001 ? prevK : lastK;
+                                change = currentPrice - prevClose;
+                                changePercent = prevClose ? (change / prevClose) : 0;
+                            }
+
+                            // 【關鍵修復】：手動計算 YTD
                             if (ytd === 0 && currentPrice > 0) {
                                 const currentYear = new Date().getFullYear();
                                 let lastYearEndPrice = null;
@@ -135,7 +141,7 @@ export default async function handler(req, res) {
                                 }
                             }
 
-                            // 計算 CAGR 與 波動率
+                            // 計算 CAGR 與波動率
                             if (validPrices.length > 20) {
                                 historyYears = validPrices.length / 252;
                                 if (historyYears > 0) cagr = Math.pow(validPrices[validPrices.length - 1] / validPrices[0], 1 / historyYears) - 1;
@@ -145,7 +151,7 @@ export default async function handler(req, res) {
                                 stdev = Math.sqrt(returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length) * Math.sqrt(252);
                             }
 
-                            // 提取月度報酬率 (供蒙地卡羅與資產星系圖使用)
+                            // 提取月度報酬率 (蒙地卡羅必需)
                             try {
                                 const monthEndPrices = {};
                                 for (let h of history) {
@@ -164,7 +170,7 @@ export default async function handler(req, res) {
                             } catch (e) {}
                         }
 
-                        // 提取配息紀錄 (供現金流圖使用)
+                        // 提取配息紀錄 (現金流圖必需)
                         let trailingDiv = 0;
                         if (result.events && result.events.dividends) {
                             const oneYearAgo = (Date.now() / 1000) - 31536000;
@@ -198,7 +204,7 @@ export default async function handler(req, res) {
         let exchangeRate = 32.5, prevExchangeRate = 32.5;
         if (!resList[0].error && resList[0].data?.price) {
             exchangeRate = resList[0].data.price;
-            prevExchangeRate = resList[0].data.price - resList[0].data.change; 
+            prevExchangeRate = resList[0].data.price - (resList[0].data.change || 0); 
         }
 
         const stockData = {};
