@@ -16,6 +16,11 @@ let compareData = { realGlobal: null, realTW: null, realUS: null, sandboxList: [
 let currentMCDim = 'P50'; 
 let currentPromptPrice = 0;
 let isReportRendered = false; 
+let pendingAIWeights = null;
+let nodeStatsMap = {}; 
+let fullGalaxyNodes = []; 
+let fullGalaxyLinks = []; 
+let rawLinkData = []; 
 
 // 全域歷史資料快取
 window.historicalDataCache = {};
@@ -48,7 +53,7 @@ const generateId = () => Math.random().toString(36).substr(2, 9);
 let toastTimeout;
 function showToast(msg) { 
     const toast = document.getElementById('toast-container'); 
-    if (!toast) return;
+    if(!toast) return;
     toast.innerText = msg; 
     toast.classList.add('show'); 
     clearTimeout(toastTimeout); 
@@ -153,7 +158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ==========================================
-// 🚀 PBI 恐慌抄底雷達
+// 🚀 PBI 恐慌抄底雷達 (加入完整防呆機制)
 // ==========================================
 async function startPbiScan() {
     if (isPbiRunning) return;
@@ -208,35 +213,38 @@ function finishPbiScan() {
     if (typeof window.renderHistoryPnLChart === 'function') window.renderHistoryPnLChart();
 }
 
-// ⭐️ 抄底雷達渲染 (加入 error 檢查防護)
+// ⭐️ 修復：加入 res.error 檢查，避免 details 為 undefined 時當機
 function renderPbiModalContent() {
     const listEl = document.getElementById('pbi-signal-list');
     if (!listEl) return;
     let html = '';
     pbiResults.forEach((res, idx) => {
         let scoreColor = res.score >= 60 ? 'var(--red-profit)' : '#95A5A6';
+        let badgeClass = res.badge === '🔴' ? 'red' : (res.badge === '🟡' ? 'yellow' : (res.badge === '🟢' ? 'green' : ''));
         
-        // 防呆機制：如果回傳有錯誤(資料不足)，顯示警告而非當機
-        let detailsHtml = res.error ? `<div style="text-align:center; padding: 15px 0; color: #95A5A6;">⚠️ 歷史資料不足</div>` : `
+        // 防呆：如果歷史資料不足導致評估失敗
+        let detailsHtml = res.error ? `<div style="text-align:center; padding: 15px 0; color: #95A5A6;">⚠️ 歷史資料不足或無效</div>` : `
                 <div class="pbi-factor"><span>⚡ KDJ 深度</span><span class="pbi-factor-val">+${res.details.kdj} 分</span></div>
                 <div class="pbi-factor"><span>🔥 AMT 量能</span><span class="pbi-factor-val">+${res.details.amt} 分</span></div>
                 <div class="pbi-factor"><span>📉 MACD 動能</span><span class="pbi-factor-val">+${res.details.macd} 分</span></div>
                 <div class="pbi-factor"><span>🛡️ 240MA 乖離</span><span class="pbi-factor-val">${res.details.biasPct}%</span></div>
             `;
             
+        let closePriceDisplay = (res.details && res.details.closePrice) ? `$${res.details.closePrice}` : '--';
+            
         html += `
         <div class="pbi-item ${res.score >= 60 ? 'pbi-highlight' : 'pbi-dimmed'}">
             <div class="pbi-header" onclick="togglePbiAccordion(${idx})">
-                <span class="pbi-symbol">${res.symbol.split('.')[0]} <span style="font-size: 11px; color: #999;">$${res.details.closePrice || '--'}</span></span>
+                <span class="pbi-symbol">${res.symbol.split('.')[0]} <span style="font-size: 11px; color: #999;">${closePriceDisplay}</span></span>
                 <div style="display:flex; align-items:center; gap:10px;">
                     <span style="font-size: 13px; font-weight: 800; color: ${scoreColor};">${res.error ? '--' : res.score} 分</span>
-                    <span class="pbi-badge ${res.colorClass}">${res.badge} ${res.action}</span>
+                    <span class="pbi-badge ${badgeClass}">${res.badge || '未知'} ${res.action || ''}</span>
                 </div>
             </div>
             <div class="pbi-details" id="pbi-details-${idx}">${detailsHtml}</div>
         </div>`;
     });
-    listEl.innerHTML = html || '<div style="text-align:center;color:#999;">尚無分析數據</div>';
+    listEl.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px;">尚無分析數據</div>';
 }
 
 window.openPbiModal = function() { 
@@ -257,7 +265,7 @@ window.togglePbiAccordion = function(idx) {
 };
 
 // ==========================================
-// 數據同步與更新
+// 數據同步與更新 (Data Sync)
 // ==========================================
 async function updateFinanceData() {
     let symbolsToFetch = new Set();
@@ -304,7 +312,8 @@ async function updateFinanceData() {
                 ...item, currentPrice: m.price, marketValueTWD: marketValTWD, costTWD: costTWD, 
                 profitTWD: marketValTWD - costTWD, roi: costTWD > 0 ? (marketValTWD - costTWD) / costTWD : 0, 
                 dayChangeTWD: marketValTWD - prevMarketValTWD, 
-                ytd: m.ytd || 0, cagr: m.cagr || 0, stdev: m.stdev || 0, 
+                ytd: m.ytd || 0,     // ⭐️ 確保 YTD 通道不再被忽略
+                cagr: m.cagr || 0, stdev: m.stdev || 0, 
                 dividendYield: m.dividendYield || 0, 
                 historicalDividends: m.historicalDividends || [],
                 monthlyReturns: m.monthlyReturns || {}
@@ -322,6 +331,7 @@ async function updateFinanceData() {
         globalCombinedList = mapToCombined(sc.portfolio); 
     }
 
+    // ⭐️ 修正：嚴格檢查 data-date 標籤是否存在，防止 JS 中斷
     const dateEl = document.getElementById('data-date');
     if (dateEl) {
         if (globalCombinedList.length > 0 && latestDataTime > 0) { 
@@ -374,7 +384,8 @@ async function handleFileUpload(event, market) {
         complete: async function(results) {
             try {
                 const rawData = results.data; 
-                const forbidden = ['合計', '總計', '小計', '總預估', '預估', '損益', '總額', '帳戶'];
+                // ⭐️ 修正：嚴格過濾所有結算與預估字眼
+                const forbidden = ['合計', '總計', '小計', '總預估', '預估', '損益', '總額', '結餘', '帳戶'];
                 const validData = rawData.filter(row => { 
                     const name = row['股票名稱'] || row['股名'] || ''; 
                     const parsedShares = parseNum(row['股數'] || row['目前庫存'] || '0'); 
@@ -435,12 +446,14 @@ function askClearAllData() {
 }
 
 // ==========================================
-// ⭐️ 庫存校正與 AI 優化器管理 (補回遺漏函式)
+// ⭐️ 庫存校正與 AI 優化器功能 (補回遺失功能)
 // ==========================================
 window.openInventoryManager = function() {
     const listEl = document.getElementById('inventory-manager-list');
     if (!listEl) return;
-    let list = activeScenarioId === 'real' ? [...realPortfolio.tw, ...realPortfolio.us] : [...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.tw, ...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.us];
+    let list = activeScenarioId === 'real' 
+        ? [...realPortfolio.tw, ...realPortfolio.us] 
+        : [...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.tw, ...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.us];
     
     listEl.innerHTML = list.map((item, idx) => `
         <div class="manager-item">
@@ -459,7 +472,9 @@ window.openInventoryManager = function() {
 };
 
 window.updateManagerItem = function(idx, field, value) {
-    let list = activeScenarioId === 'real' ? [...realPortfolio.tw, ...realPortfolio.us] : [...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.tw, ...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.us];
+    let list = activeScenarioId === 'real' 
+        ? [...realPortfolio.tw, ...realPortfolio.us] 
+        : [...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.tw, ...sandboxScenarios.find(s => s.id === activeScenarioId).portfolio.us];
     list[idx][field] = parseFloat(value) || 0;
 };
 
@@ -484,18 +499,25 @@ window.closeInventoryManager = function() {
 };
 
 window.openAIOptimizer = function() {
-    document.getElementById('ai-optimizer-overlay').classList.add('active');
+    const el = document.getElementById('ai-optimizer-overlay');
+    if (el) el.classList.add('active');
 };
 
 window.closeAIOptimizer = function() {
-    document.getElementById('ai-optimizer-overlay').classList.remove('active');
+    const el = document.getElementById('ai-optimizer-overlay');
+    if (el) el.classList.remove('active');
 };
 
 // ==========================================
-// 介面導覽與沙盒管理
+// 介面導覽與沙盒方案管理
 // ==========================================
 function togglePrivacy() { isPrivacyMode = !isPrivacyMode; document.getElementById('btn-privacy').innerText = isPrivacyMode ? '🙈' : '👁️'; renderCurrentView(); }
-function switchMarket(market) { currentMarketView = market; document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.id === `tab-${market}`)); renderCurrentView(); }
+
+function switchMarket(market) { 
+    currentMarketView = market; 
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.id === `tab-${market}`)); 
+    renderCurrentView(); 
+}
 
 function renderCurrentView() {
     if (typeof renderDashboard === 'function') {
