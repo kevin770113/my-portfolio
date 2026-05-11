@@ -2,6 +2,34 @@
 // 量化運算與 AI 最佳化引擎 (Math Core & QP Solver)
 // ==========================================
 
+/**
+ * ⭐️ 【防呆修正三：樣本數過低防呆】
+ * 計算皮爾森相關係數 (Pearson Correlation)，供「資產連動星系圖」使用。
+ * 強制保護機制：若兩檔資產重疊的有效月份少於 3 個月 (如剛上市新股)，
+ * 直接回傳 0 (無相關性)，避免分母過小或極端值導致星系圖引力異常。
+ */
+function calculateCorrelation(arr1, arr2) {
+    if (!arr1 || !arr2 || !Array.isArray(arr1) || !Array.isArray(arr2)) return 0;
+    if (arr1.length !== arr2.length || arr1.length < 3) return 0;
+
+    let n = arr1.length;
+    let sum1 = 0, sum2 = 0, sum1Sq = 0, sum2Sq = 0, pSum = 0;
+    
+    for (let i = 0; i < n; i++) {
+        sum1 += arr1[i]; 
+        sum2 += arr2[i];
+        sum1Sq += arr1[i] * arr1[i]; 
+        sum2Sq += arr2[i] * arr2[i];
+        pSum += arr1[i] * arr2[i];
+    }
+    
+    let num = pSum - (sum1 * sum2 / n);
+    let den = Math.sqrt((sum1Sq - sum1 * sum1 / n) * (sum2Sq - sum2 * sum2 / n));
+    
+    if (den === 0) return 0;
+    return num / den;
+}
+
 // 【修復】找回被遺漏的矩陣波動率計算 (讓蒙地卡羅的五條線重新展開)
 function calculateMatrixRisk(list, totalVal) {
     if (!list || list.length === 0 || totalVal <= 0) return 0;
@@ -20,6 +48,7 @@ function calculateMatrixRisk(list, totalVal) {
     });
 
     let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
+    // 矩陣風險計算本身也有 >= 3 的防呆保護
     if (commonMonths && commonMonths.length >= 3) {
         validStocks.forEach((s) => { 
             let m = stockMapCache[s.symbol];
