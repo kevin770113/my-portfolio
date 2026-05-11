@@ -98,7 +98,7 @@ export default async function handler(req, res) {
                     if (chartData.chart && chartData.chart.result && chartData.chart.result[0]) {
                         const result = chartData.chart.result[0];
                         
-                        // 【關鍵修復】：若 Quote 失效，不再信任 meta.previousClose，僅取最新價與名稱
+                        // 若 Quote 失效，不再信任 meta.previousClose，僅取最新價與名稱
                         if (!hasPrimaryQuote) {
                             currentPrice = result.meta.regularMarketPrice || 0;
                             dataTime = result.meta.regularMarketTime || 0;
@@ -115,17 +115,16 @@ export default async function handler(req, res) {
                         if (history.length > 0) {
                             const validPrices = history.map(h => h.price);
 
-                            // 【關鍵修復】：從 K 線實體反推兜底昨收價 (徹底避開分割前的幽靈報價)
+                            // 從 K 線實體反推兜底昨收價
                             if (!hasPrimaryQuote && validPrices.length >= 2) {
                                 const lastK = validPrices[validPrices.length - 1];
                                 const prevK = validPrices[validPrices.length - 2];
-                                // 判斷最新報價是否已經是最後一根 K 線
                                 prevClose = Math.abs(currentPrice - lastK) < 0.001 ? prevK : lastK;
                                 change = currentPrice - prevClose;
                                 changePercent = prevClose ? (change / prevClose) : 0;
                             }
 
-                            // 【關鍵修復】：手動計算 YTD
+                            // 手動計算 YTD
                             if (ytd === 0 && currentPrice > 0) {
                                 const currentYear = new Date().getFullYear();
                                 let lastYearEndPrice = null;
@@ -143,28 +142,53 @@ export default async function handler(req, res) {
 
                             // 計算 CAGR 與波動率
                             if (validPrices.length > 20) {
-                                historyYears = validPrices.length / 252;
-                                if (historyYears > 0) cagr = Math.pow(validPrices[validPrices.length - 1] / validPrices[0], 1 / historyYears) - 1;
+                                // ⭐️ 【防呆修正一】：未滿一年的新股，強制將分母鎖底在 1，避免 CAGR (年化報酬率) 被極端放大
+                                historyYears = Math.max(1, validPrices.length / 252);
+                                cagr = Math.pow(validPrices[validPrices.length - 1] / validPrices[0], 1 / historyYears) - 1;
                                 let returns = [];
                                 for (let i = 1; i < validPrices.length; i++) returns.push((validPrices[i] - validPrices[i-1]) / validPrices[i-1]);
                                 const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
                                 stdev = Math.sqrt(returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length) * Math.sqrt(252);
                             }
 
-                            // 提取月度報酬率 (蒙地卡羅必需)
+                            // 提取月度報酬率 (蒙地卡羅與星系圖必需)
                             try {
                                 const monthEndPrices = {};
                                 for (let h of history) {
-                                    const date = new Date(h.time * 1000);
+                                    // ⭐️ 【防呆修正二(A)】：加上 12 小時 (43200秒) 緩衝，確保亞洲/美洲時區差異不會導致月底收盤日飄移到下一個月
+                                    const date = new Date((h.time + 43200) * 1000);
                                     const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
                                     monthEndPrices[key] = h.price;
                                 }
-                                const sortedMonths = Object.keys(monthEndPrices).sort();
-                                for (let i = 1; i < sortedMonths.length; i++) {
-                                    const prevP = monthEndPrices[sortedMonths[i - 1]];
-                                    const currP = monthEndPrices[sortedMonths[i]];
+                                
+                                // ⭐️ 【防呆修正二(B)】：向前填補 (Forward Fill)。針對 Yahoo 台股經常缺失整月資料的髒數據，自動拿前一個月的有效價格來替補，確保連動性矩陣不斷鏈
+                                const rawMonths = Object.keys(monthEndPrices).sort();
+                                if (rawMonths.length > 0) {
+                                    let firstMonth = rawMonths[0];
+                                    let lastMonth = rawMonths[rawMonths.length - 1];
+                                    let [y, m] = firstMonth.split('-').map(Number);
+                                    let [endY, endM] = lastMonth.split('-').map(Number);
+                                    
+                                    let lastKnownPrice = monthEndPrices[firstMonth];
+                                    
+                                    while (y < endY || (y === endY && m <= endM)) {
+                                        let key = `${y}-${String(m).padStart(2, '0')}`;
+                                        if (monthEndPrices[key] !== undefined) {
+                                            lastKnownPrice = monthEndPrices[key];
+                                        } else {
+                                            monthEndPrices[key] = lastKnownPrice; // 填補缺漏月份
+                                        }
+                                        m++;
+                                        if (m > 12) { m = 1; y++; }
+                                    }
+                                }
+
+                                const filledMonths = Object.keys(monthEndPrices).sort();
+                                for (let i = 1; i < filledMonths.length; i++) {
+                                    const prevP = monthEndPrices[filledMonths[i - 1]];
+                                    const currP = monthEndPrices[filledMonths[i]];
                                     if (prevP > 0 && currP !== undefined) {
-                                        monthlyReturns[sortedMonths[i]] = (currP - prevP) / prevP;
+                                        monthlyReturns[filledMonths[i]] = (currP - prevP) / prevP;
                                     }
                                 }
                             } catch (e) {}
