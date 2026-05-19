@@ -69,38 +69,60 @@ function renderCorrelationGraph(list, totalVal) {
     let N = validStocks.length;
     if (N < 2) return;
 
-    let commonMonths = null; let returnsMap = {};
+    // ⭐️ 【核心修正：老將與新兵隔離】只允許滿 12 個月的老將計算全域交集引力
+    let veterans = []; 
+    let commonMonths = null; 
+    let returnsMap = {};
+
     validStocks.forEach(s => {
         let m = stockMapCache[s.symbol];
-        if(m && m.monthlyReturns && Object.keys(m.monthlyReturns).length > 0) {
+        if (m && m.monthlyReturns) {
             let months = Object.keys(m.monthlyReturns);
-            if(commonMonths === null) commonMonths = months; 
-            else commonMonths = commonMonths.filter(x => months.includes(x));
+            if (months.length >= 12) {
+                veterans.push(s.symbol);
+                if (commonMonths === null) commonMonths = months; 
+                else commonMonths = commonMonths.filter(x => months.includes(x));
+            }
         }
     });
 
     let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
+    
     if (commonMonths && commonMonths.length >= 3) {
         validStocks.forEach((s) => { 
-            let m = stockMapCache[s.symbol];
-            returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns && m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
+            if (veterans.includes(s.symbol)) {
+                let m = stockMapCache[s.symbol];
+                returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
+            }
         });
+        
         for(let i=0; i<N; i++) {
             for(let j=0; j<N; j++) {
-                let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns;
-                let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns;
-                if(hasRetI && hasRetJ) {
-                    let arrI = returnsMap[validStocks[i].symbol]; let arrJ = returnsMap[validStocks[j].symbol];
-                    let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
-                    let cov = 0; for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
+                let symI = validStocks[i].symbol;
+                let symJ = validStocks[j].symbol;
+
+                if (veterans.includes(symI) && veterans.includes(symJ)) {
+                    let arrI = returnsMap[symI]; let arrJ = returnsMap[symJ];
+                    let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; 
+                    let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
+                    let cov = 0; 
+                    for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
                     Sigma[i][j] = cov; 
                 } else {
-                    if (i === j) { let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); Sigma[i][j] = sd * sd; } else { Sigma[i][j] = 0; }
+                    if (i === j) { 
+                        let sd = (stockMapCache[symI].stdev || 0)/Math.sqrt(12); 
+                        Sigma[i][j] = sd * sd; 
+                    } else { 
+                        Sigma[i][j] = 0; 
+                    }
                 }
             }
         }
     } else {
-        for(let i=0; i<N; i++) { let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); Sigma[i][i] = sd * sd; }
+        for(let i=0; i<N; i++) { 
+            let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); 
+            Sigma[i][i] = sd * sd; 
+        }
     }
 
     let SD = [];
@@ -979,3 +1001,4 @@ window.setHistoryZoom = function(days, btnElement) {
         end: 100
     });
 };
+
