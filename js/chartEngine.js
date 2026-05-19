@@ -69,60 +69,38 @@ function renderCorrelationGraph(list, totalVal) {
     let N = validStocks.length;
     if (N < 2) return;
 
-    // ⭐️ 【核心修正：老將與新兵隔離】只允許滿 12 個月的老將計算全域交集引力
-    let veterans = []; 
-    let commonMonths = null; 
-    let returnsMap = {};
-
+    let commonMonths = null; let returnsMap = {};
     validStocks.forEach(s => {
         let m = stockMapCache[s.symbol];
-        if (m && m.monthlyReturns) {
+        if(m && m.monthlyReturns && Object.keys(m.monthlyReturns).length > 0) {
             let months = Object.keys(m.monthlyReturns);
-            if (months.length >= 12) {
-                veterans.push(s.symbol);
-                if (commonMonths === null) commonMonths = months; 
-                else commonMonths = commonMonths.filter(x => months.includes(x));
-            }
+            if(commonMonths === null) commonMonths = months; 
+            else commonMonths = commonMonths.filter(x => months.includes(x));
         }
     });
 
     let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
-    
     if (commonMonths && commonMonths.length >= 3) {
         validStocks.forEach((s) => { 
-            if (veterans.includes(s.symbol)) {
-                let m = stockMapCache[s.symbol];
-                returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
-            }
+            let m = stockMapCache[s.symbol];
+            returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns && m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
         });
-        
         for(let i=0; i<N; i++) {
             for(let j=0; j<N; j++) {
-                let symI = validStocks[i].symbol;
-                let symJ = validStocks[j].symbol;
-
-                if (veterans.includes(symI) && veterans.includes(symJ)) {
-                    let arrI = returnsMap[symI]; let arrJ = returnsMap[symJ];
-                    let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; 
-                    let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
-                    let cov = 0; 
-                    for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
+                let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns;
+                let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns;
+                if(hasRetI && hasRetJ) {
+                    let arrI = returnsMap[validStocks[i].symbol]; let arrJ = returnsMap[validStocks[j].symbol];
+                    let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
+                    let cov = 0; for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
                     Sigma[i][j] = cov; 
                 } else {
-                    if (i === j) { 
-                        let sd = (stockMapCache[symI].stdev || 0)/Math.sqrt(12); 
-                        Sigma[i][j] = sd * sd; 
-                    } else { 
-                        Sigma[i][j] = 0; 
-                    }
+                    if (i === j) { let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); Sigma[i][j] = sd * sd; } else { Sigma[i][j] = 0; }
                 }
             }
         }
     } else {
-        for(let i=0; i<N; i++) { 
-            let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); 
-            Sigma[i][i] = sd * sd; 
-        }
+        for(let i=0; i<N; i++) { let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); Sigma[i][i] = sd * sd; }
     }
 
     let SD = [];
@@ -344,6 +322,91 @@ function renderCorrelationGraph(list, totalVal) {
     });
 }
 
+// ==========================================
+// 全球持股現值排行 (動態抽離模組)
+// ==========================================
+window.currentPerfMode = 'value';
+window.currentPerfList = [];
+window.currentPerfTotalVal = 0;
+
+window.switchPerfMode = function(mode, btnElement) {
+    window.currentPerfMode = mode;
+    
+    // UI 切換
+    if (btnElement) {
+        const siblings = btnElement.parentElement.querySelectorAll('.mc-btn');
+        siblings.forEach(b => b.classList.remove('active'));
+        btnElement.classList.add('active');
+    }
+
+    // 重新渲染長條圖
+    if (window.currentPerfList.length > 0) {
+        window.renderPerformanceChart(window.currentPerfList, window.currentPerfTotalVal);
+    }
+};
+
+window.renderPerformanceChart = function(list, totalVal) {
+    if (!list || list.length === 0) return;
+    
+    // 快取資料供切換按鈕使用
+    window.currentPerfList = list;
+    window.currentPerfTotalVal = totalVal;
+
+    let sortedList;
+    let labels = [];
+    let datasets = [];
+
+    if (window.currentPerfMode === 'value') {
+        // 模式 A: 總現值佔比 (依現值由大到小排序)
+        sortedList = [...list].sort((a,b) => (b.marketValueTWD || 0) - (a.marketValueTWD || 0));
+        labels = sortedList.map(i => `${i.name} (${totalVal > 0 ? ((i.marketValueTWD / totalVal) * 100).toFixed(1) : 0}%)`);
+        datasets = [
+            { label: '成本', data: sortedList.map(i => i.costTWD), backgroundColor: '#e0e0e0', barPercentage: 0.7, categoryPercentage: 0.6 },
+            { label: '現值', data: sortedList.map(i => i.marketValueTWD), backgroundColor: sortedList.map(i => i.marketValueTWD >= i.costTWD ? '#d93025' : '#188038'), barPercentage: 0.7, categoryPercentage: 0.6 }
+        ];
+    } else {
+        // 模式 B: 當日損益 (依當日損益由大到小排序)
+        sortedList = [...list].sort((a,b) => (b.dayChangeTWD || 0) - (a.dayChangeTWD || 0));
+        labels = sortedList.map(i => `${i.name} (${totalVal > 0 ? ((i.marketValueTWD / totalVal) * 100).toFixed(1) : 0}%)`);
+        datasets = [
+            { 
+                label: '當日損益', 
+                data: sortedList.map(i => i.dayChangeTWD || 0), 
+                backgroundColor: sortedList.map(i => (i.dayChangeTWD || 0) >= 0 ? '#d93025' : '#188038'), 
+                barPercentage: 0.7, 
+                categoryPercentage: 0.6 
+            }
+        ];
+    }
+
+    if (charts.perf) charts.perf.destroy();
+    charts.perf = new Chart(document.getElementById('performanceChart'), { 
+        type: 'bar', 
+        data: { labels, datasets }, 
+        options: { 
+            indexAxis: 'y', 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            scales: { 
+                // Chart.js 預設不寫死 min/max 時，會自動進行 Auto-Bounding 自適應延伸
+                x: { display: false }, 
+                y: { grid: { display: false }, ticks: { font: { size: 10 } } } 
+            }, 
+            plugins: { 
+                legend: { display: false }, 
+                tooltip: { 
+                    callbacks: { 
+                        label: function(c) { 
+                            let prefix = c.raw >= 0 && window.currentPerfMode === 'dayChange' ? '+' : '';
+                            return `${c.dataset.label}: ` + prefix + (isPrivacyMode ? '****' : '$' + Math.round(c.raw).toLocaleString()); 
+                        } 
+                    } 
+                } 
+            } 
+        } 
+    });
+};
+
 // ------------------------------------------
 // 2. 儀表板與基礎圖表渲染
 // ------------------------------------------
@@ -458,23 +521,8 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
         } 
     });
 
-    // 績效條圖
-    if (charts.perf) charts.perf.destroy();
-    charts.perf = new Chart(document.getElementById('performanceChart'), { 
-        type: 'bar', 
-        data: { 
-            labels: sortedByVal.map(i => `${i.name} (${totalVal > 0 ? ((i.marketValueTWD / totalVal) * 100).toFixed(1) : 0}%)`), 
-            datasets: [
-                { label: '成本', data: sortedByVal.map(i => i.costTWD), backgroundColor: '#e0e0e0', barPercentage: 0.7, categoryPercentage: 0.6 }, 
-                { label: '現值', data: sortedByVal.map(i => i.marketValueTWD), backgroundColor: sortedByVal.map(i => i.marketValueTWD >= i.costTWD ? '#d93025' : '#188038'), barPercentage: 0.7, categoryPercentage: 0.6 }
-            ] 
-        }, 
-        options: { 
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false, 
-            scales: { x: { display: false }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }, 
-            plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return `${c.dataset.label}: ` + (isPrivacyMode ? '****' : '$' + Math.round(c.raw).toLocaleString()); } } } } 
-        } 
-    });
+    // 績效條圖 (已抽離為獨立函式，支援切換模式與動態自適應)
+    window.renderPerformanceChart(list, totalVal);
 
     // 蒙地卡羅
     if (charts.mc) charts.mc.destroy();
@@ -654,7 +702,7 @@ function renderScatterChart() {
     if (charts.scatter) charts.scatter.destroy(); 
     let d = compareData; let datasets = [];
     
-    if(d.realGlobal && d.realGlobal.totalVal > 0) datasets.push({ label: '全球總持倉', data: [{x: d.realGlobal.stdev*100, y: d.realGlobal.cagr*100, r: 8}], backgroundColor: '#3498db' });
+    if(d.realGlobal && d.realGlobal.totalVal > 0) datasets.push({ label: '全球總持仓', data: [{x: d.realGlobal.stdev*100, y: d.realGlobal.cagr*100, r: 8}], backgroundColor: '#3498db' });
     if(d.realTW && d.realTW.totalVal > 0) datasets.push({ label: '🇹🇼 台股部位', data: [{x: d.realTW.stdev*100, y: d.realTW.cagr*100, r: 6}], backgroundColor: '#2ecc71' });
     if(d.realUS && d.realUS.totalVal > 0) datasets.push({ label: '🇺🇸 美股部位', data: [{x: d.realUS.stdev*100, y: d.realUS.cagr*100, r: 6}], backgroundColor: '#e74c3c' });
     
@@ -746,7 +794,7 @@ function renderMCCompareChart() {
         ];
     } else {
         let dimKey = currentMCDim.toLowerCase();
-        if(gData[dimKey].length>0) datasets.push({ label: '全球總持倉', data: gData[dimKey], borderColor: '#3498db', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
+        if(gData[dimKey].length>0) datasets.push({ label: '全球總持仓', data: gData[dimKey], borderColor: '#3498db', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
         if(twData[dimKey].length>0) datasets.push({ label: '🇹🇼 台股部位', data: twData[dimKey], borderColor: '#2ecc71', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
         if(usData[dimKey].length>0) datasets.push({ label: '🇺🇸 美股部位', data: usData[dimKey], borderColor: '#e74c3c', borderWidth: 2, fill: false, pointRadius: 3, tension: 0.4 });
         
