@@ -3,10 +3,9 @@
 // ==========================================
 
 /**
- * ⭐️ 【防呆修正三：樣本數過低防呆】
  * 計算皮爾森相關係數 (Pearson Correlation)，供「資產連動星系圖」使用。
- * 強制保護機制：若兩檔資產重疊的有效月份少於 3 個月 (如剛上市新股)，
- * 直接回傳 0 (無相關性)，避免分母過小或極端值導致星系圖引力異常。
+ * 加入基礎防呆：兩陣列長度必須一致，且至少需要 3 個月以上的長度才具備統計意義。
+ * (更嚴格的 12 個月全域過濾門檻會在產生陣列之前由 chartEngine 處理)
  */
 function calculateCorrelation(arr1, arr2) {
     if (!arr1 || !arr2 || !Array.isArray(arr1) || !Array.isArray(arr2)) return 0;
@@ -30,7 +29,7 @@ function calculateCorrelation(arr1, arr2) {
     return num / den;
 }
 
-// 【修復】找回被遺漏的矩陣波動率計算 (讓蒙地卡羅的五條線重新展開)
+// ⭐️ 【核心修正：組合總風險矩陣】加入老將與新兵隔離機制
 function calculateMatrixRisk(list, totalVal) {
     if (!list || list.length === 0 || totalVal <= 0) return 0;
     let validStocks = list.filter(s => stockMapCache[s.symbol]);
@@ -38,46 +37,77 @@ function calculateMatrixRisk(list, totalVal) {
     if (N === 0) return 0;
     if (N === 1) return stockMapCache[validStocks[0].symbol].stdev || 0;
 
-    let commonMonths = null; let returnsMap = {};
+    let veterans = []; // 歷史滿 12 個月的老將名單
+    let commonMonths = null; 
+    let returnsMap = {};
+
+    // 1. 隔離門檻：只允許「滿 12 個月」的標的參與全域交集尋找
     validStocks.forEach(s => {
         let m = stockMapCache[s.symbol];
-        if(m && m.monthlyReturns && Object.keys(m.monthlyReturns).length > 0) {
+        if (m && m.monthlyReturns) {
             let months = Object.keys(m.monthlyReturns);
-            if(commonMonths === null) commonMonths = months; else commonMonths = commonMonths.filter(x => months.includes(x));
+            if (months.length >= 12) {
+                veterans.push(s.symbol);
+                if (commonMonths === null) commonMonths = months; 
+                else commonMonths = commonMonths.filter(x => months.includes(x));
+            }
         }
     });
 
     let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
-    // 矩陣風險計算本身也有 >= 3 的防呆保護
+    
+    // 2. 如果老將們找得出共同交集 (確保有足夠樣本數算共變異數)
     if (commonMonths && commonMonths.length >= 3) {
         validStocks.forEach((s) => { 
-            let m = stockMapCache[s.symbol];
-            returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns && m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
+            if (veterans.includes(s.symbol)) {
+                let m = stockMapCache[s.symbol];
+                returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
+            }
         });
+
         for(let i=0; i<N; i++) {
             for(let j=0; j<N; j++) {
-                let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns;
-                let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns;
-                if(hasRetI && hasRetJ) {
-                    let arrI = returnsMap[validStocks[i].symbol]; let arrJ = returnsMap[validStocks[j].symbol];
-                    let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
-                    let cov = 0;
+                let symI = validStocks[i].symbol;
+                let symJ = validStocks[j].symbol;
+
+                // 只有 A 跟 B 都是老將時，才計算真實的交集共變異數
+                if (veterans.includes(symI) && veterans.includes(symJ)) {
+                    let arrI = returnsMap[symI]; let arrJ = returnsMap[symJ];
+                    let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; 
+                    let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
+                    let cov = 0; 
                     for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
-                    Sigma[i][j] = (cov / (commonMonths.length - 1)) * 12; 
+                    Sigma[i][j] = (cov / (commonMonths.length - 1)) * 12; // 年化共變異數
                 } else {
-                    if (i === j) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][j] = sd * sd; } else { Sigma[i][j] = 0; }
+                    // 如果其中一方是新股：與他人的連動性強制設為 0；自己對自己則保留個股變異數 (stdev^2)
+                    if (i === j) { 
+                        let sd = stockMapCache[symI].stdev || 0; 
+                        Sigma[i][j] = sd * sd; 
+                    } else { 
+                        Sigma[i][j] = 0; 
+                    }
                 }
             }
         }
     } else {
-        for(let i=0; i<N; i++) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][i] = sd * sd; }
+        // 極端情況：完全沒有老將，或是交集被破壞，兜底採用獨立變異數
+        for(let i=0; i<N; i++) { 
+            let sd = stockMapCache[validStocks[i].symbol].stdev || 0; 
+            Sigma[i][i] = sd * sd; 
+        }
     }
 
-    let weights = validStocks.map(s => (s.marketValueTWD || 0) / totalVal); let portVar = 0;
-    for(let i=0; i<N; i++) { for(let j=0; j<N; j++) { portVar += weights[i] * weights[j] * Sigma[i][j]; } }
+    let weights = validStocks.map(s => (s.marketValueTWD || 0) / totalVal); 
+    let portVar = 0;
+    for(let i=0; i<N; i++) { 
+        for(let j=0; j<N; j++) { 
+            portVar += weights[i] * weights[j] * Sigma[i][j]; 
+        } 
+    }
     return Math.sqrt(Math.max(0, portVar));
 }
 
+// ⭐️ 【核心修正：AI 最佳化矩陣】同步加入老將與新兵隔離機制，確保 AI 不當機
 function executeAIOptimizer() {
     if (typeof numeric === 'undefined') { 
         showInfoModal("系統錯誤", "載入矩陣運算引擎失敗。", true); 
@@ -92,13 +122,20 @@ function executeAIOptimizer() {
         let validStocks = [...sc.portfolio.tw, ...sc.portfolio.us].filter(s => stockMapCache[s.symbol]); 
         let N = validStocks.length;
         
-        let commonMonths = null; let returnsMap = {};
+        let veterans = []; 
+        let commonMonths = null; 
+        let returnsMap = {};
+
+        // 1. 隔離門檻：尋找滿 12 個月的老將全域交集
         validStocks.forEach(s => { 
             let m = stockMapCache[s.symbol]; 
-            if(m && m.monthlyReturns && Object.keys(m.monthlyReturns).length > 0) { 
+            if (m && m.monthlyReturns) { 
                 let months = Object.keys(m.monthlyReturns); 
-                if(commonMonths === null) commonMonths = months; 
-                else commonMonths = commonMonths.filter(x => months.includes(x)); 
+                if (months.length >= 12) {
+                    veterans.push(s.symbol);
+                    if (commonMonths === null) commonMonths = months; 
+                    else commonMonths = commonMonths.filter(x => months.includes(x)); 
+                }
             } 
         });
         
@@ -106,27 +143,41 @@ function executeAIOptimizer() {
         let expectedCAGR = validStocks.map(s => stockMapCache[s.symbol].cagr || 0); 
         let expectedYield = validStocks.map(s => stockMapCache[s.symbol].dividendYield || 0);
         
+        // 2. 構建純淨的共變異矩陣 Sigma
         if (commonMonths && commonMonths.length >= 3) {
             validStocks.forEach((s) => { 
-                let m = stockMapCache[s.symbol]; 
-                returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns && m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
+                if (veterans.includes(s.symbol)) {
+                    let m = stockMapCache[s.symbol]; 
+                    returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
+                }
             });
             for(let i=0; i<N; i++) { 
                 for(let j=0; j<N; j++) { 
-                    let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns; 
-                    let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns; 
-                    if(hasRetI && hasRetJ) { 
-                        let arrI = returnsMap[validStocks[i].symbol]; let arrJ = returnsMap[validStocks[j].symbol]; 
-                        let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length; 
-                        let cov = 0; for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); } 
+                    let symI = validStocks[i].symbol;
+                    let symJ = validStocks[j].symbol;
+
+                    if (veterans.includes(symI) && veterans.includes(symJ)) { 
+                        let arrI = returnsMap[symI]; let arrJ = returnsMap[symJ]; 
+                        let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; 
+                        let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length; 
+                        let cov = 0; 
+                        for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); } 
                         Sigma[i][j] = (cov / (commonMonths.length - 1)) * 12;
                     } else { 
-                        if (i === j) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][j] = sd * sd; } else { Sigma[i][j] = 0; } 
+                        if (i === j) { 
+                            let sd = stockMapCache[symI].stdev || 0; 
+                            Sigma[i][j] = sd * sd; 
+                        } else { 
+                            Sigma[i][j] = 0; 
+                        } 
                     } 
                 } 
             }
         } else { 
-            for(let i=0; i<N; i++) { let sd = stockMapCache[validStocks[i].symbol].stdev || 0; Sigma[i][i] = sd * sd; } 
+            for(let i=0; i<N; i++) { 
+                let sd = stockMapCache[validStocks[i].symbol].stdev || 0; 
+                Sigma[i][i] = sd * sd; 
+            } 
         }
         
         let origTotalVal = 0; validStocks.forEach(s => { let exRate = s.market === 'US' ? currentRate : 1; origTotalVal += s.shares * stockMapCache[s.symbol].price * exRate; });
