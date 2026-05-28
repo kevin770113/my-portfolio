@@ -333,6 +333,44 @@
         <div class="card"><div class="card-header"><h2 class="card-title">風險與報酬量化</h2><span class="card-subtitle">市值排序 ＆ 組合連動度</span></div><div class="scrollable-list" id="risk-list"><div style="color: #999; text-align: center; padding: 20px;">請先匯入資料</div></div></div>
     </main>
 
+    <div id="privacy-consent-overlay" class="modal-overlay system-top" style="display:none;">
+        <div class="custom-prompt-box" style="height: auto;">
+            <div class="prompt-icon" style="background:#E8F5E9; color:#4E8765;">🛡️</div>
+            <div class="prompt-title">授權 AI 智慧解析</div>
+            <div class="prompt-desc" style="text-align: left; margin-bottom: 15px; font-size: 13px;">
+                為了自動辨識券商格式，系統需要擷取您匯入檔案的<b>前 20 行文字</b>發送至 AI 引擎進行推論。<br><br>
+                請放心，我們<b>不會</b>上傳您的完整庫存數據，且推論過程完全匿名。
+            </div>
+            <div class="prompt-actions">
+                <button class="btn-skip" onclick="cancelPrivacyConsent()">拒絕並取消</button>
+                <button class="btn-confirm" onclick="acceptPrivacyConsent()">同意授權</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="manual-mapping-overlay" class="modal-overlay system-top" style="display:none;">
+        <div class="custom-prompt-box" style="height: auto; width: 90%; max-width: 400px;">
+            <div class="prompt-icon" style="background:#FFF4E5; color:#CF9236;">⚠️</div>
+            <div class="prompt-title">AI 解析失敗：請手動指定欄位</div>
+            <div class="prompt-desc" id="manual-mapping-desc" style="text-align: left; margin-bottom: 15px; font-size: 12px; color: #e74c3c; background: #fff5f5; padding: 8px; border-radius: 6px;">
+                </div>
+            
+            <div style="text-align: left; margin-bottom: 15px;">
+                <label style="font-size: 12px; font-weight: bold; color: var(--primary-dark);">哪一個欄位代表「股票名稱」？</label>
+                <select id="map-name-select" class="prompt-input" style="height: 40px; margin-top: 5px; background: #fff;"></select>
+            </div>
+            
+            <div style="text-align: left; margin-bottom: 15px;">
+                <label style="font-size: 12px; font-weight: bold; color: var(--primary-dark);">哪一個欄位代表「股數/庫存」？</label>
+                <select id="map-shares-select" class="prompt-input" style="height: 40px; margin-top: 5px; background: #fff;"></select>
+            </div>
+
+            <div class="prompt-actions">
+                <button class="btn-skip" onclick="cancelManualMapping()">取消匯入</button>
+                <button class="btn-confirm" onclick="confirmManualMapping()">確認對應</button>
+            </div>
+        </div>
+    </div>
     <script src="js/pbiEngine.js"></script>
     <script src="js/main.js"></script>
     <script src="js/mathCore.js"></script>
