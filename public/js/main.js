@@ -29,6 +29,12 @@ window.historicalDataCache = {};
 let pbiResults = [];
 let isPbiRunning = false;
 
+// 新增：微任務 A (匯入管線) 的全域暫存
+let pendingImportFile = null;
+let pendingImportMarket = '';
+let pendingCSVChunk = '';
+let pendingHeaders = [];
+
 // ==========================================
 // 基礎工具與導航 (Utilities & Navigation)
 // ==========================================
@@ -188,7 +194,6 @@ async function startPbiScan() {
                 const json = await res.json();
                 if (json.data && Array.isArray(json.data)) {
                     // ⭐️【修正點一：雷達 Unknown】
-                    // 必須明確把 symbol 寫進陣列的屬性裡，讓 pbiEngine 抓得到
                     json.data.symbol = symbol; 
                     window.historicalDataCache[symbol] = json.data;
                     
@@ -464,9 +469,7 @@ async function updateFinanceData() {
             const costTWD = item.cost * exRate; 
             
             // ⭐️【修正點三：美股異常損益】
-            // 放棄使用絕對金額 m.change，改用 m.changePercent 比例回推，避開股票分割與幽靈報價
             let safeChangePercent = m.changePercent !== undefined ? m.changePercent : 0;
-            // 加上防呆機制：如果單日漲幅超過 30% 或跌幅大於 30%，認定為報價源或分割錯誤，強制歸零
             if (safeChangePercent > 0.3 || safeChangePercent < -0.3) {
                 safeChangePercent = 0;
             }
@@ -548,26 +551,183 @@ function exportGlobalSyncData(realList) {
 }
 
 // ==========================================
-// CSV 匯入與字典解析
+// CSV 匯入與字典解析 (Phase 4: AI 智慧解析引擎)
 // ==========================================
 async function handleFileUpload(event, market) {
-    const file = event.target.files[0]; if (!file) return; setLoading(true);
-    Papa.parse(file, {
-        header: true, skipEmptyLines: true,
+    const file = event.target.files[0]; 
+    if (!file) return; 
+    
+    pendingImportFile = file;
+    pendingImportMarket = market;
+    
+    // 擷取前 20 行以進行 AI 推理
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        const lines = text.split('\n');
+        pendingCSVChunk = lines.slice(0, 20).join('\n');
+        
+        // 簡單解析第一行以取得所有欄位名稱 (供手動降級 UI 備用)
+        Papa.parse(pendingCSVChunk, {
+            header: true,
+            preview: 1,
+            skipEmptyLines: true,
+            complete: function(res) {
+                pendingHeaders = res.meta.fields || [];
+                checkPrivacyAndParse();
+            }
+        });
+    };
+    reader.readAsText(file);
+    
+    // 重置 input 以允許使用者重新上傳同一份檔案
+    event.target.value = ''; 
+}
+
+async function checkPrivacyAndParse() {
+    const consented = localStorage.getItem('ai_privacy_consented');
+    if (!consented) {
+        document.getElementById('privacy-consent-overlay').style.display = 'flex';
+    } else {
+        await startAIParsing();
+    }
+}
+
+window.acceptPrivacyConsent = function() {
+    localStorage.setItem('ai_privacy_consented', 'true');
+    document.getElementById('privacy-consent-overlay').style.display = 'none';
+    startAIParsing();
+};
+
+window.cancelPrivacyConsent = function() {
+    document.getElementById('privacy-consent-overlay').style.display = 'none';
+    pendingImportFile = null;
+    showToast("已取消匯入");
+};
+
+async function startAIParsing() {
+    setLoading(true, "AI 智慧解析表頭中...");
+    
+    // 設定 9 秒 Timeout 閥值
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
+    
+    try {
+        const res = await fetch('/api/parser', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ csvChunk: pendingCSVChunk }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+            throw new Error(res.status === 500 ? "API_ERROR" : "PARSE_FAILED");
+        }
+        
+        const json = await res.json();
+        
+        if (json.status === 'success' && json.data && json.data.nameColumn && json.data.sharesColumn) {
+            console.log(`[AI Parser] 來源: ${json.source}, 判定規則:`, json.data);
+            // 成功取得 AI 推理規則，正式進入 PapaParse 搬磚流程
+            executeCSVImport(json.data.nameColumn, json.data.sharesColumn);
+        } else {
+            throw new Error("PARSE_FAILED");
+        }
+    } catch (err) {
+        clearTimeout(timeoutId);
+        let reason = "AI 解析異常或格式無法辨識";
+        if (err.name === 'AbortError') reason = "AI 伺服器回應逾時 (超過 9 秒)";
+        else if (err.message === 'API_ERROR') reason = "伺服器內部錯誤";
+        
+        console.warn("[AI Parser Failed]", reason, err);
+        setLoading(false);
+        showManualMappingModal(reason); // 觸發降級 UI
+    }
+}
+
+function showManualMappingModal(reason) {
+    document.getElementById('manual-mapping-desc').innerText = `失敗原因：${reason}\n請您協助手動指定欄位，完成本次匯入。`;
+    
+    const nameSelect = document.getElementById('map-name-select');
+    const sharesSelect = document.getElementById('map-shares-select');
+    nameSelect.innerHTML = '';
+    sharesSelect.innerHTML = '';
+    
+    // 將剛剛擷取到的 CSV 欄位名稱填入下拉選單
+    pendingHeaders.forEach(h => {
+        nameSelect.innerHTML += `<option value="${h}">${h}</option>`;
+        sharesSelect.innerHTML += `<option value="${h}">${h}</option>`;
+    });
+    
+    document.getElementById('manual-mapping-overlay').style.display = 'flex';
+}
+
+window.confirmManualMapping = function() {
+    const nCol = document.getElementById('map-name-select').value;
+    const sCol = document.getElementById('map-shares-select').value;
+    document.getElementById('manual-mapping-overlay').style.display = 'none';
+    
+    setLoading(true, "資料處理中...");
+    executeCSVImport(nCol, sCol);
+};
+
+window.cancelManualMapping = function() {
+    document.getElementById('manual-mapping-overlay').style.display = 'none';
+    pendingImportFile = null;
+    showToast("已取消匯入");
+};
+
+function executeCSVImport(nameCol, sharesCol) {
+    Papa.parse(pendingImportFile, {
+        header: true, 
+        skipEmptyLines: true,
         complete: async function(results) {
             try {
-                const rawData = results.data; const invalidKeywords = ['合計', '總計', '說明', '證券', '帳戶', '警語', '免責', '總預估', '現值', '損益', '小計'];
-                const validData = rawData.filter(row => { const name = row['股票名稱'] || row['股名'] || ''; const parsedShares = parseNum(row['股數'] || row['目前庫存'] || row['餘股數'] || '0'); if (parsedShares <= 0) return false; if (invalidKeywords.some(kw => name.includes(kw))) return false; if (!name.trim()) return false; return true; });
-                let normalized = market === 'tw' ? validData.map(row => ({ market: 'TW', name: row['股票名稱'] || row['股名'], symbol: null, shares: parseNum(row['股數'] || row['餘股數']), cost: parseNum(row['付出成本'] || row['成本']) })) : validData.map(row => ({ market: 'US', name: row['股票名稱'] || row['股名'], symbol: row['代號'] || row['股票'], shares: parseNum(row['目前庫存'] || row['股數'] || row['餘股數']), cost: parseNum(row['庫存成本'] || row['成本'] || row['付出成本']) }));
-                realPortfolio[market] = normalized; localStorage.setItem(`portfolio_${market}`, JSON.stringify(normalized)); 
-                document.getElementById(`label-${market}`).innerText = `✅ 匯入 (${normalized.length})`; 
-                showToast(`成功讀取並記憶 ${market === 'tw' ? '台股' : '美股'} CSV`);
-                if (market === 'tw') await processDictionary(normalized); await updateFinanceData();
+                const rawData = results.data; 
+                const invalidKeywords = ['合計', '總計', '說明', '證券', '帳戶', '警語', '免責', '總預估', '現值', '損益', '小計'];
+                
+                // 動態套用 nameCol 與 sharesCol
+                const validData = rawData.filter(row => { 
+                    const name = row[nameCol] || ''; 
+                    const parsedShares = parseNum(row[sharesCol] || '0'); 
+                    if (parsedShares <= 0) return false; 
+                    if (invalidKeywords.some(kw => name.includes(kw))) return false; 
+                    if (!name.trim()) return false; 
+                    return true; 
+                });
+                
+                let normalized = pendingImportMarket === 'tw' ? validData.map(row => ({ 
+                    market: 'TW', 
+                    name: row[nameCol], 
+                    symbol: null, 
+                    shares: parseNum(row[sharesCol]), 
+                    cost: parseNum(row['付出成本'] || row['成本'] || row['投資本金'] || row['買進成本'] || row['買價'] || row['庫存成本'] || '0') 
+                })) : validData.map(row => ({ 
+                    market: 'US', 
+                    name: row[nameCol], 
+                    symbol: row['代號'] || row['股票'] || row['Ticker'] || row['Symbol'] || row['商品名稱'] || row['商品代碼'] || '', 
+                    shares: parseNum(row[sharesCol]), 
+                    cost: parseNum(row['庫存成本'] || row['成本'] || row['付出成本'] || row['投資本金'] || row['買進成本'] || '0') 
+                }));
+                
+                realPortfolio[pendingImportMarket] = normalized; 
+                localStorage.setItem(`portfolio_${pendingImportMarket}`, JSON.stringify(normalized)); 
+                document.getElementById(`label-${pendingImportMarket}`).innerText = `✅ 匯入 (${normalized.length})`; 
+                showToast(`成功讀取並記憶 ${pendingImportMarket === 'tw' ? '台股' : '美股'} CSV`);
+                
+                if (pendingImportMarket === 'tw') await processDictionary(normalized); 
+                await updateFinanceData();
                 
                 isPbiRunning = false;
                 startPbiScan();
 
-            } catch (err) { showInfoModal('處理失敗', err.message, true); } finally { setLoading(false); }
+            } catch (err) { 
+                showInfoModal('處理失敗', err.message, true); 
+            } finally { 
+                setLoading(false); 
+                pendingImportFile = null;
+            }
         }
     });
 }
@@ -612,8 +772,6 @@ function askForSymbol(stockName) {
 // ==========================================
 window.openInventoryManager = function() {
     // ⭐️【修正點二：校正按鈕失效】
-    // 在 index.html 第 56 行，這個 div 的 ID 叫做 inventory-list-container
-    // 必須與這裡保持一致，否則 listEl 為 null 就會導致視窗無法開啟！
     const container = document.getElementById('inventory-list-container'); 
     if (!container) return;
     
