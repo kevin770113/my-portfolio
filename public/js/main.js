@@ -193,7 +193,6 @@ async function startPbiScan() {
             if (res.ok) {
                 const json = await res.json();
                 if (json.data && Array.isArray(json.data)) {
-                    // ⭐️【修正點一：雷達 Unknown】
                     json.data.symbol = symbol; 
                     window.historicalDataCache[symbol] = json.data;
                     
@@ -468,7 +467,6 @@ async function updateFinanceData() {
             const marketValTWD = m.price * item.shares * exRate; 
             const costTWD = item.cost * exRate; 
             
-            // ⭐️【修正點三：美股異常損益】
             let safeChangePercent = m.changePercent !== undefined ? m.changePercent : 0;
             if (safeChangePercent > 0.3 || safeChangePercent < -0.3) {
                 safeChangePercent = 0;
@@ -560,14 +558,12 @@ async function handleFileUpload(event, market) {
     pendingImportFile = file;
     pendingImportMarket = market;
     
-    // 擷取前 20 行以進行 AI 推理
     const reader = new FileReader();
     reader.onload = function(e) {
         const text = e.target.result;
         const lines = text.split('\n');
         pendingCSVChunk = lines.slice(0, 20).join('\n');
         
-        // 簡單解析第一行以取得所有欄位名稱 (供手動降級 UI 備用)
         Papa.parse(pendingCSVChunk, {
             header: true,
             preview: 1,
@@ -580,14 +576,15 @@ async function handleFileUpload(event, market) {
     };
     reader.readAsText(file);
     
-    // 重置 input 以允許使用者重新上傳同一份檔案
     event.target.value = ''; 
 }
 
 async function checkPrivacyAndParse() {
     const consented = localStorage.getItem('ai_privacy_consented');
     if (!consented) {
-        document.getElementById('privacy-consent-overlay').style.display = 'flex';
+        const el = document.getElementById('privacy-consent-overlay');
+        el.style.display = 'flex';
+        setTimeout(() => { el.classList.add('active'); }, 10);
     } else {
         await startAIParsing();
     }
@@ -595,12 +592,16 @@ async function checkPrivacyAndParse() {
 
 window.acceptPrivacyConsent = function() {
     localStorage.setItem('ai_privacy_consented', 'true');
-    document.getElementById('privacy-consent-overlay').style.display = 'none';
+    const el = document.getElementById('privacy-consent-overlay');
+    el.classList.remove('active');
+    setTimeout(() => { el.style.display = 'none'; }, 300);
     startAIParsing();
 };
 
 window.cancelPrivacyConsent = function() {
-    document.getElementById('privacy-consent-overlay').style.display = 'none';
+    const el = document.getElementById('privacy-consent-overlay');
+    el.classList.remove('active');
+    setTimeout(() => { el.style.display = 'none'; }, 300);
     pendingImportFile = null;
     showToast("已取消匯入");
 };
@@ -608,7 +609,6 @@ window.cancelPrivacyConsent = function() {
 async function startAIParsing() {
     setLoading(true, "AI 智慧解析表頭中...");
     
-    // 設定 9 秒 Timeout 閥值
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 9000);
     
@@ -629,7 +629,6 @@ async function startAIParsing() {
         
         if (json.status === 'success' && json.data && json.data.nameColumn && json.data.sharesColumn) {
             console.log(`[AI Parser] 來源: ${json.source}, 判定規則:`, json.data);
-            // 成功取得 AI 推理規則，正式進入 PapaParse 搬磚流程
             executeCSVImport(json.data.nameColumn, json.data.sharesColumn);
         } else {
             throw new Error("PARSE_FAILED");
@@ -642,7 +641,7 @@ async function startAIParsing() {
         
         console.warn("[AI Parser Failed]", reason, err);
         setLoading(false);
-        showManualMappingModal(reason); // 觸發降級 UI
+        showManualMappingModal(reason);
     }
 }
 
@@ -654,26 +653,32 @@ function showManualMappingModal(reason) {
     nameSelect.innerHTML = '';
     sharesSelect.innerHTML = '';
     
-    // 將剛剛擷取到的 CSV 欄位名稱填入下拉選單
     pendingHeaders.forEach(h => {
         nameSelect.innerHTML += `<option value="${h}">${h}</option>`;
         sharesSelect.innerHTML += `<option value="${h}">${h}</option>`;
     });
     
-    document.getElementById('manual-mapping-overlay').style.display = 'flex';
+    const el = document.getElementById('manual-mapping-overlay');
+    el.style.display = 'flex';
+    setTimeout(() => { el.classList.add('active'); }, 10);
 }
 
 window.confirmManualMapping = function() {
     const nCol = document.getElementById('map-name-select').value;
     const sCol = document.getElementById('map-shares-select').value;
-    document.getElementById('manual-mapping-overlay').style.display = 'none';
+    
+    const el = document.getElementById('manual-mapping-overlay');
+    el.classList.remove('active');
+    setTimeout(() => { el.style.display = 'none'; }, 300);
     
     setLoading(true, "資料處理中...");
     executeCSVImport(nCol, sCol);
 };
 
 window.cancelManualMapping = function() {
-    document.getElementById('manual-mapping-overlay').style.display = 'none';
+    const el = document.getElementById('manual-mapping-overlay');
+    el.classList.remove('active');
+    setTimeout(() => { el.style.display = 'none'; }, 300);
     pendingImportFile = null;
     showToast("已取消匯入");
 };
@@ -687,7 +692,6 @@ function executeCSVImport(nameCol, sharesCol) {
                 const rawData = results.data; 
                 const invalidKeywords = ['合計', '總計', '說明', '證券', '帳戶', '警語', '免責', '總預估', '現值', '損益', '小計'];
                 
-                // 動態套用 nameCol 與 sharesCol
                 const validData = rawData.filter(row => { 
                     const name = row[nameCol] || ''; 
                     const parsedShares = parseNum(row[sharesCol] || '0'); 
@@ -771,7 +775,6 @@ function askForSymbol(stockName) {
 // 庫存管理與沙盒操作 (Inventory & Sandbox)
 // ==========================================
 window.openInventoryManager = function() {
-    // ⭐️【修正點二：校正按鈕失效】
     const container = document.getElementById('inventory-list-container'); 
     if (!container) return;
     
