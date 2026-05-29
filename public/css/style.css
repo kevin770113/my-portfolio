@@ -134,19 +134,18 @@ input[type="file"] { display: none; }
 /* ⭐️ 升級版膠囊型分段控制器 (Segmented Control) ⭐️ */
 .mc-toggles { 
     display: inline-flex; 
-    gap: 4px; 
+    flex-wrap: wrap;          /* 新增：允許按鈕自動折行 */
+    gap: 8px;                 /* 更新：加大間距，讓上下排有呼吸空間 */
+    justify-content: center;  /* 新增：折行後置中對齊 */
     background: rgba(135, 142, 150, 0.15); 
-    padding: 4px; 
-    border-radius: 100px; 
-    overflow-x: auto; 
+    padding: 6px;             /* 微調：增加一點內邊距讓多排更好看 */
+    border-radius: 16px;      /* 更新：改用 16px 圓角，適應多行高度 */
     margin-bottom: 15px; 
     align-items: center;
-    -webkit-overflow-scrolling: touch;
 }
-.mc-toggles::-webkit-scrollbar { display: none; } /* 隱藏滾動條 */
 
 .mc-btn { 
-    flex: 1; 
+    flex: 1 1 auto;           /* 新增：允許按鈕根據空間自動伸縮 */
     padding: 6px 14px; 
     text-align: center; 
     font-size: 12px; 
