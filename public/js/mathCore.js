@@ -2,34 +2,7 @@
 // 量化運算與 AI 最佳化引擎 (Math Core & QP Solver)
 // ==========================================
 
-/**
- * 計算皮爾森相關係數 (Pearson Correlation)，供「資產連動星系圖」使用。
- * 加入基礎防呆：兩陣列長度必須一致，且至少需要 3 個月以上的長度才具備統計意義。
- * (更嚴格的 12 個月全域過濾門檻會在產生陣列之前由 chartEngine 處理)
- */
-function calculateCorrelation(arr1, arr2) {
-    if (!arr1 || !arr2 || !Array.isArray(arr1) || !Array.isArray(arr2)) return 0;
-    if (arr1.length !== arr2.length || arr1.length < 3) return 0;
-
-    let n = arr1.length;
-    let sum1 = 0, sum2 = 0, sum1Sq = 0, sum2Sq = 0, pSum = 0;
-    
-    for (let i = 0; i < n; i++) {
-        sum1 += arr1[i]; 
-        sum2 += arr2[i];
-        sum1Sq += arr1[i] * arr1[i]; 
-        sum2Sq += arr2[i] * arr2[i];
-        pSum += arr1[i] * arr2[i];
-    }
-    
-    let num = pSum - (sum1 * sum2 / n);
-    let den = Math.sqrt((sum1Sq - sum1 * sum1 / n) * (sum2Sq - sum2 * sum2 / n));
-    
-    if (den === 0) return 0;
-    return num / den;
-}
-
-// ⭐️ 【核心修正：組合總風險矩陣】加入老將與新兵隔離機制
+// ⭐️ 【核心修正：組合總風險矩陣】下修老將門檻至 10 個月，避免台股 250 天資料被誤判為新兵
 function calculateMatrixRisk(list, totalVal) {
     if (!list || list.length === 0 || totalVal <= 0) return 0;
     let validStocks = list.filter(s => stockMapCache[s.symbol]);
@@ -37,16 +10,16 @@ function calculateMatrixRisk(list, totalVal) {
     if (N === 0) return 0;
     if (N === 1) return stockMapCache[validStocks[0].symbol].stdev || 0;
 
-    let veterans = []; // 歷史滿 12 個月的老將名單
+    let veterans = []; // 歷史滿 10 個月的老將名單
     let commonMonths = null; 
     let returnsMap = {};
 
-    // 1. 隔離門檻：只允許「滿 12 個月」的標的參與全域交集尋找
+    // 1. 隔離門檻：只允許「滿 10 個月」的標的參與全域交集尋找
     validStocks.forEach(s => {
         let m = stockMapCache[s.symbol];
         if (m && m.monthlyReturns) {
             let months = Object.keys(m.monthlyReturns);
-            if (months.length >= 12) {
+            if (months.length >= 10) { 
                 veterans.push(s.symbol);
                 if (commonMonths === null) commonMonths = months; 
                 else commonMonths = commonMonths.filter(x => months.includes(x));
@@ -107,7 +80,7 @@ function calculateMatrixRisk(list, totalVal) {
     return Math.sqrt(Math.max(0, portVar));
 }
 
-// ⭐️ 【核心修正：AI 最佳化矩陣】同步加入老將與新兵隔離機制，確保 AI 不當機
+// ⭐️ 【核心修正：AI 最佳化矩陣】同步下修老將門檻至 10 個月
 function executeAIOptimizer() {
     if (typeof numeric === 'undefined') { 
         showInfoModal("系統錯誤", "載入矩陣運算引擎失敗。", true); 
@@ -126,12 +99,12 @@ function executeAIOptimizer() {
         let commonMonths = null; 
         let returnsMap = {};
 
-        // 1. 隔離門檻：尋找滿 12 個月的老將全域交集
+        // 1. 隔離門檻：尋找滿 10 個月的老將全域交集
         validStocks.forEach(s => { 
             let m = stockMapCache[s.symbol]; 
             if (m && m.monthlyReturns) { 
                 let months = Object.keys(m.monthlyReturns); 
-                if (months.length >= 12) {
+                if (months.length >= 10) { 
                     veterans.push(s.symbol);
                     if (commonMonths === null) commonMonths = months; 
                     else commonMonths = commonMonths.filter(x => months.includes(x)); 
