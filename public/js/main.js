@@ -563,7 +563,7 @@ function exportGlobalSyncData(realList) {
 }
 
 // ==========================================
-// CSV 匯入與字典解析 (Phase 4: AI 智慧解析引擎)
+// CSV 匯入與字典解析 (Phase 4 & 7: AI 智慧解析引擎與防呆)
 // ==========================================
 async function handleFileUpload(event, market) {
     const file = event.target.files[0]; 
@@ -624,7 +624,7 @@ async function startAIParsing() {
     setLoading(true, "AI 智慧解析表頭中...");
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 9000);
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     
     try {
         const res = await fetch('/api/parser', {
@@ -643,14 +643,46 @@ async function startAIParsing() {
         
         if (json.status === 'success' && json.data && json.data.nameColumn && json.data.sharesColumn) {
             console.log(`[AI Parser] 來源: ${json.source}, 判定規則:`, json.data);
-            executeCSVImport(json.data.nameColumn, json.data.sharesColumn);
+            
+            // 🛡️ 方案 B 防線：邏輯預檢 (Sanity Check)
+            Papa.parse(pendingCSVChunk, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    const sampleData = results.data;
+                    let validSharesCount = 0;
+                    
+                    // 檢查前幾筆資料的股數是否真的是有效數字
+                    for (let i = 0; i < Math.min(5, sampleData.length); i++) {
+                        let rawVal = sampleData[i][json.data.sharesColumn];
+                        if (rawVal !== undefined) {
+                            const testVal = parseNum(rawVal);
+                            if (testVal > 0 && !isNaN(testVal)) {
+                                validSharesCount++;
+                            }
+                        }
+                    }
+                    
+                    // 預檢失敗：全為 0 或 NaN，判定 AI 猜測失敗
+                    if (validSharesCount === 0 && sampleData.length > 0) {
+                        console.warn("[AI Parser] 預檢失敗：解析出的股數無效，退回手動對應");
+                        setLoading(false);
+                        // 帶入 AI 的猜測值，讓人類親自確認修改
+                        showManualMappingModal("AI 猜測的欄位無法通過數值驗證，請您親自確認。", json.data.nameColumn, json.data.sharesColumn);
+                    } else {
+                        // 預檢成功：靜默放行與吐司通知
+                        showToast(`🤖 AI 已自動辨識：【${json.data.nameColumn}】/【${json.data.sharesColumn}】`);
+                        executeCSVImport(json.data.nameColumn, json.data.sharesColumn);
+                    }
+                }
+            });
         } else {
             throw new Error("PARSE_FAILED");
         }
     } catch (err) {
         clearTimeout(timeoutId);
         let reason = "AI 解析異常或格式無法辨識";
-        if (err.name === 'AbortError') reason = "AI 伺服器回應逾時 (超過 9 秒)";
+        if (err.name === 'AbortError') reason = "AI 伺服器回應逾時 (超過 12 秒)";
         else if (err.message === 'API_ERROR') reason = "伺服器內部錯誤";
         
         console.warn("[AI Parser Failed]", reason, err);
@@ -659,8 +691,8 @@ async function startAIParsing() {
     }
 }
 
-function showManualMappingModal(reason) {
-    document.getElementById('manual-mapping-desc').innerText = `失敗原因：${reason}\n請您協助手動指定欄位，完成本次匯入。`;
+function showManualMappingModal(reason, defaultNameCol = null, defaultSharesCol = null) {
+    document.getElementById('manual-mapping-desc').innerText = `系統提示：${reason}\n請協助手動指定欄位，完成本次匯入。`;
     
     const nameSelect = document.getElementById('map-name-select');
     const sharesSelect = document.getElementById('map-shares-select');
@@ -668,8 +700,8 @@ function showManualMappingModal(reason) {
     sharesSelect.innerHTML = '';
     
     pendingHeaders.forEach(h => {
-        nameSelect.innerHTML += `<option value="${h}">${h}</option>`;
-        sharesSelect.innerHTML += `<option value="${h}">${h}</option>`;
+        nameSelect.innerHTML += `<option value="${h}" ${h === defaultNameCol ? 'selected' : ''}>${h}</option>`;
+        sharesSelect.innerHTML += `<option value="${h}" ${h === defaultSharesCol ? 'selected' : ''}>${h}</option>`;
     });
     
     const el = document.getElementById('manual-mapping-overlay');
