@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>個人投資儀表板 (全球資產版)</title>
+    <title>個人投資儀表板</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -11,6 +11,11 @@
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* AI 簡報卡片專屬微調動畫 */
+        @keyframes pulse-soft { 0% { opacity: 0.8; } 50% { opacity: 0.4; } 100% { opacity: 0.8; } }
+        .ai-loading-text { animation: pulse-soft 1.5s infinite; color: #718096; font-size: 13px; }
+    </style>
 </head>
 <body>
 
@@ -97,8 +102,7 @@
             <div class="prompt-desc" style="font-size: 12px; margin-bottom: 15px; text-align: left;">
                 系統已針對您的庫存完成 PBI 模型掃描，以下為觸發買入訊號之標的。點擊可展開因子得分細節：
             </div>
-            <div id="pbi-signal-list">
-                </div>
+            <div id="pbi-signal-list"></div>
             <div class="prompt-actions" style="margin-top: 15px;">
                 <button class="btn-confirm" style="width: 100%;" onclick="closePbiModal()">我知道了</button>
             </div>
@@ -111,8 +115,7 @@
             <h3 style="font-size: 16px; color: var(--primary-dark); margin: 0;" id="div-detail-title">配息明細</h3>
             <button onclick="closeDivDetail()" style="background:none; border:none; font-size:22px; color:#999; cursor:pointer; padding: 0 5px;">✕</button>
         </div>
-        <div id="div-detail-list" style="max-height: 55vh; overflow-y: auto; padding-right: 5px;">
-            </div>
+        <div id="div-detail-list" style="max-height: 55vh; overflow-y: auto; padding-right: 5px;"></div>
     </div>
 
     <div id="csv-prompt-overlay" class="modal-overlay">
@@ -254,6 +257,28 @@
             </div>
         </div>
 
+        <div class="card" id="ai-briefing-card" style="display: none; background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%); border-left: 4px solid var(--primary-dark); padding: 14px 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px;" onclick="if(window.toggleAIBriefing) window.toggleAIBriefing()">
+                <div style="font-size: 14px; font-weight: 700; color: var(--primary-dark); display: flex; align-items: center; gap: 6px; letter-spacing: 0.5px;">
+                    <span>▌智能量化簡報</span>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <span id="ai-refresh-btn" style="font-size: 14px; color: #95A5A6; cursor: pointer;" onclick="event.stopPropagation(); if(window.forceRefreshAIBriefing) window.forceRefreshAIBriefing();" title="強制刷新">↻</span>
+                    <span id="ai-toggle-icon" style="font-size: 12px; color: #95A5A6; transition: transform 0.3s;">—</span>
+                </div>
+            </div>
+            
+            <div id="ai-briefing-content" style="font-size: 13px; line-height: 1.6; color: var(--text-main); transition: all 0.3s ease;">
+                <div id="ai-local-status" style="font-weight: 600; color: #34495e; margin-bottom: 4px;"></div>
+                <div id="ai-remote-text" style="color: #4a5568;">
+                    <span class="ai-loading-text">正在進行量化矩陣演算與生成...</span>
+                </div>
+            </div>
+
+            <div id="ai-briefing-collapsed" style="display: none; font-size: 12px; color: var(--text-muted); cursor: pointer; padding-top: 2px;" onclick="if(window.toggleAIBriefing) window.toggleAIBriefing()">
+                <span id="ai-collapsed-preview"></span>
+            </div>
+        </div>
         <div class="card">
             <div class="top-stats-grid">
                 <div class="stat-item"><span class="stat-label">總現值 (TWD)</span><span class="stat-main num" id="val-total">--</span><span class="stat-sub text-muted num">成本 <span id="val-cost">--</span></span></div>
@@ -340,7 +365,7 @@
             <div class="prompt-icon" style="background:#FFF4E5; color:#CF9236;">⚠️</div>
             <div class="prompt-title">AI 解析失敗：請手動指定欄位</div>
             <div class="prompt-desc" id="manual-mapping-desc" style="text-align: left; margin-bottom: 15px; font-size: 12px; color: #e74c3c; background: #fff5f5; padding: 8px; border-radius: 6px;">
-                </div>
+            </div>
             
             <div style="text-align: left; margin-bottom: 15px;">
                 <label style="font-size: 12px; font-weight: bold; color: var(--primary-dark);">哪一個欄位代表「股票名稱」？</label>
@@ -364,13 +389,14 @@
             <div class="prompt-icon" style="background:#FFF4E5; color:#CF9236;">⚠️</div>
             <div class="prompt-title">匯入對帳異常報告</div>
             <div class="prompt-desc" id="reconciliation-desc" style="text-align: left; margin-bottom: 20px; font-size: 13px; line-height: 1.5;">
-                </div>
+            </div>
             <div class="prompt-actions">
                 <button class="btn-skip" onclick="closeReconciliationModal()">稍後再說</button>
                 <button class="btn-confirm" onclick="goToInventoryFromReconciliation()">前往庫存校正</button>
             </div>
         </div>
     </div>
+
     <script src="js/pbiEngine.js"></script>
     <script src="js/main.js"></script>
     <script src="js/mathCore.js"></script>
