@@ -12,11 +12,9 @@ window.showDivDetail = function(monthData) {
     let titleEl = document.getElementById('div-detail-title');
     let listEl = document.getElementById('div-detail-list');
     
-    // 標題顯示總金額
     let totalStr = isPrivacyMode ? '****' : '$' + Math.round(monthData.total).toLocaleString();
     titleEl.innerText = `${monthData.label.replace(' (預估)', '')} 配息明細 (共 ${totalStr})`;
     
-    // 排序：金額由高到低
     let sortedDetails = [...monthData.details].sort((a, b) => b.amount - a.amount);
     
     let html = '';
@@ -31,7 +29,6 @@ window.showDivDetail = function(monthData) {
     });
     listEl.innerHTML = html;
     
-    // 滑出面板
     document.getElementById('div-detail-overlay').style.display = 'flex';
     setTimeout(() => document.getElementById('div-detail-sheet').classList.add('show'), 10);
 };
@@ -42,76 +39,74 @@ window.closeDivDetail = function() {
 };
 
 // ------------------------------------------
-// 1. 星系拓樸圖 (ECharts - 極光視覺升級版)
+// 1. 資產連動度計算 (無頭化 - 供風險列表使用)
 // ------------------------------------------
-function renderCorrelationGraph(list, totalVal) {
-    let container = document.getElementById('correlationGraph');
-    let hud = document.getElementById('galaxy-hud');
-    if (hud) hud.classList.remove('show'); 
-    
-    if (typeof echarts === 'undefined') {
-        container.innerHTML = '<div style="color: #8b949e; text-align: center; padding-top: 180px; font-size:13px;">⚠️ 視覺化引擎載入失敗<br><span style="font-size:11px;">請檢查網路環境或關閉廣告阻擋器 (AdBlocker)</span></div>';
-        return;
-    }
-
-    if (list.length < 2 || totalVal <= 0) {
-        if (charts.corr) { charts.corr.dispose(); charts.corr = null; }
-        container.innerHTML = '<div style="color: #666; text-align: center; padding-top: 200px; font-size:12px;">🪐 至少需要 2 檔以上標的才能運算引力</div>';
-        return;
-    }
-
-    if (charts.corr) {
-        charts.corr.dispose();
-    }
-    charts.corr = echarts.init(container);
-
+function calculateCorrelationStats(list, totalVal) {
     let validStocks = list.filter(s => stockMapCache[s.symbol]);
     let N = validStocks.length;
+    nodeStatsMap = {};
     if (N < 2) return;
 
-    let commonMonths = null; let returnsMap = {};
+    let veterans = []; 
+    let commonMonths = null; 
+    let returnsMap = {};
+
     validStocks.forEach(s => {
         let m = stockMapCache[s.symbol];
-        if(m && m.monthlyReturns && Object.keys(m.monthlyReturns).length > 0) {
+        if (m && m.monthlyReturns) {
             let months = Object.keys(m.monthlyReturns);
-            if(commonMonths === null) commonMonths = months; 
-            else commonMonths = commonMonths.filter(x => months.includes(x));
+            // 套用修復後的 10 個月老將審查機制，確保台股能正確納入連動運算
+            if (months.length >= 10) { 
+                veterans.push(s.symbol);
+                if (commonMonths === null) commonMonths = months; 
+                else commonMonths = commonMonths.filter(x => months.includes(x));
+            }
         }
     });
 
     let Sigma = Array(N).fill(0).map(() => Array(N).fill(0));
+    
     if (commonMonths && commonMonths.length >= 3) {
         validStocks.forEach((s) => { 
-            let m = stockMapCache[s.symbol];
-            returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns && m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
+            if (veterans.includes(s.symbol)) {
+                let m = stockMapCache[s.symbol];
+                returnsMap[s.symbol] = commonMonths.map(mStr => (m.monthlyReturns[mStr] !== undefined) ? m.monthlyReturns[mStr] : 0); 
+            }
         });
+
         for(let i=0; i<N; i++) {
             for(let j=0; j<N; j++) {
-                let hasRetI = stockMapCache[validStocks[i].symbol].monthlyReturns;
-                let hasRetJ = stockMapCache[validStocks[j].symbol].monthlyReturns;
-                if(hasRetI && hasRetJ) {
-                    let arrI = returnsMap[validStocks[i].symbol]; let arrJ = returnsMap[validStocks[j].symbol];
-                    let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
-                    let cov = 0; for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
+                let symI = validStocks[i].symbol;
+                let symJ = validStocks[j].symbol;
+
+                if (veterans.includes(symI) && veterans.includes(symJ)) {
+                    let arrI = returnsMap[symI]; let arrJ = returnsMap[symJ];
+                    let meanI = arrI.reduce((a,b)=>a+b,0) / commonMonths.length; 
+                    let meanJ = arrJ.reduce((a,b)=>a+b,0) / commonMonths.length;
+                    let cov = 0; 
+                    for(let k=0; k<commonMonths.length; k++) { cov += (arrI[k] - meanI) * (arrJ[k] - meanJ); }
                     Sigma[i][j] = cov; 
                 } else {
-                    if (i === j) { let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); Sigma[i][j] = sd * sd; } else { Sigma[i][j] = 0; }
+                    if (i === j) { 
+                        let sd = (stockMapCache[symI].stdev || 0)/Math.sqrt(12); 
+                        Sigma[i][j] = sd * sd; 
+                    } else { 
+                        Sigma[i][j] = 0; 
+                    }
                 }
             }
         }
     } else {
-        for(let i=0; i<N; i++) { let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); Sigma[i][i] = sd * sd; }
+        for(let i=0; i<N; i++) { 
+            let sd = (stockMapCache[validStocks[i].symbol].stdev || 0)/Math.sqrt(12); 
+            Sigma[i][i] = sd * sd; 
+        }
     }
 
     let SD = [];
     for(let i=0; i<N; i++) SD[i] = Math.sqrt(Math.max(0, Sigma[i][i]));
 
     let weights = validStocks.map(s => (s.marketValueTWD || 0) / totalVal);
-    nodeStatsMap = {};
-    fullGalaxyLinks = []; 
-    rawLinkData = [];
-    let posCount = Array(N).fill(0);
-    let negCount = Array(N).fill(0);
 
     for(let i=0; i<N; i++) {
         let weightedCorrSum = 0;
@@ -124,28 +119,6 @@ function renderCorrelationGraph(list, totalVal) {
             if(i !== j) {
                 weightedCorrSum += r * weights[j];
                 weightSumOthers += weights[j];
-                
-                if (j > i && (r > 0.6 || r < -0.15)) {
-                    let isNegative = r < 0;
-                    if(isNegative) { negCount[i]++; negCount[j]++; } else { posCount[i]++; posCount[j]++; }
-                    
-                    rawLinkData.push({ source: validStocks[i].symbol, target: validStocks[j].symbol, r: r, isNegative: isNegative });
-
-                    fullGalaxyLinks.push({
-                        id: validStocks[i].symbol + '-' + validStocks[j].symbol,
-                        source: validStocks[i].symbol,
-                        target: validStocks[j].symbol,
-                        lineStyle: {
-                            color: isNegative ? '#00e676' : '#ff4757', 
-                            width: 1, 
-                            type: isNegative ? 'dashed' : 'solid',
-                            curveness: 0.1,
-                            opacity: 0.15 
-                        },
-                        silent: true, 
-                        tooltip: { show: false } 
-                    });
-                }
             }
         }
         
@@ -154,172 +127,6 @@ function renderCorrelationGraph(list, totalVal) {
             avgCorr: weightSumOthers > 0 ? (weightedCorrSum / weightSumOthers) : 0
         };
     }
-
-    let maxPosIdx = posCount.indexOf(Math.max(...posCount));
-    let maxNegIdx = negCount.indexOf(Math.max(...negCount));
-
-    fullGalaxyNodes = [];
-    validStocks.forEach((s, i) => {
-        let weight = weights[i];
-        let size = Math.max(18, Math.min(65, weight * 100)); 
-        let isProfit = (s.marketValueTWD - s.costTWD) >= 0;
-        
-        let isHub = (i === maxPosIdx && posCount[i] > 0);
-        let isHedge = (i === maxNegIdx && negCount[i] > 0);
-
-        let baseColor = isProfit ? '#d93025' : '#188038';
-        let glowColor = isProfit ? 'rgba(217, 48, 37, 0.8)' : 'rgba(24, 128, 56, 0.8)';
-        let glowBlur = 15;
-
-        if (isHub) {
-            baseColor = '#ff3b2f'; 
-            glowColor = 'rgba(255, 59, 47, 1)';
-            glowBlur = 45; 
-        } else if (isHedge) {
-            baseColor = '#00e676'; 
-            glowColor = 'rgba(0, 230, 118, 1)';
-            glowBlur = 45; 
-        }
-
-        fullGalaxyNodes.push({
-            id: s.symbol,
-            name: s.symbol.replace('.TW', ''), 
-            value: (weight * 100).toFixed(1) + '%',
-            symbolSize: size, 
-            baseNodeSize: size, 
-            itemStyle: { 
-                color: baseColor, 
-                shadowBlur: glowBlur, 
-                shadowColor: glowColor,
-                borderWidth: 0 
-            },
-            label: { 
-                show: size >= 35, 
-                position: 'inside', 
-                color: '#fff', 
-                fontSize: 10, 
-                fontWeight: 'bold',
-                textBorderColor: 'rgba(0, 0, 0, 0.8)', 
-                textBorderWidth: 2
-            }
-        });
-    });
-
-    const baseOption = {
-        animationDurationUpdate: 800, 
-        animationEasingUpdate: 'quinticInOut',
-        tooltip: { show: false }
-    };
-
-    charts.corr.setOption({
-        ...baseOption,
-        series: [{
-            id: 'galaxy-series',
-            type: 'graph',
-            layout: 'force',
-            roam: false, 
-            draggable: false, 
-            data: fullGalaxyNodes,
-            links: fullGalaxyLinks, 
-            force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 },
-            emphasis: { focus: 'none' } 
-        }]
-    });
-
-    charts.corr.on('click', function(params) {
-        try {
-            if(params.dataType === 'edge') return; 
-
-            if(params.dataType === 'node') {
-                let clickedId = params.data.id;
-                let clickedName = params.data.name;
-                
-                if (!clickedId || !nodeStatsMap[clickedId]) return;
-                
-                let relatedIds = new Set([clickedId]);
-                rawLinkData.forEach(l => {
-                    if(l.source === clickedId) relatedIds.add(l.target);
-                    if(l.target === clickedId) relatedIds.add(l.source);
-                });
-
-                let subsetNodes = fullGalaxyNodes.filter(n => relatedIds.has(n.id)).map(n => {
-                    let isMain = (n.id === clickedId);
-                    return { 
-                        ...n, 
-                        symbolSize: isMain ? n.baseNodeSize * 1.5 : n.baseNodeSize * 1.1,
-                        itemStyle: { 
-                            ...n.itemStyle, 
-                            shadowColor: isMain ? '#ffffff' : n.itemStyle.shadowColor, 
-                            shadowBlur: isMain ? 50 : n.itemStyle.shadowBlur,
-                            borderWidth: 0
-                        },
-                        label: { 
-                            ...n.label, 
-                            show: true, 
-                            fontSize: isMain ? 14 : 11,
-                            textBorderWidth: isMain ? 3 : 2 
-                        } 
-                    };
-                });
-
-                let subsetLinks = rawLinkData.filter(l => l.source === clickedId || l.target === clickedId).map(l => {
-                    let w = l.isNegative ? 3 : Math.min(8, Math.abs(l.r) * 6);
-                    return {
-                        id: l.source + '-' + l.target,
-                        source: l.source, target: l.target,
-                        lineStyle: {
-                            color: l.isNegative ? '#00e676' : '#ff4757', width: w + 2,
-                            type: l.isNegative ? 'dashed' : 'solid', curveness: 0.1,
-                            opacity: 1, shadowBlur: 15, shadowColor: l.isNegative ? '#00e676' : '#ff4757'
-                        },
-                        silent: true, tooltip: { show: false }
-                    };
-                });
-
-                charts.corr.setOption({ 
-                    series: [{ 
-                        id: 'galaxy-series',
-                        data: subsetNodes, 
-                        links: subsetLinks,
-                        force: { repulsion: 400, edgeLength: [80, 150], gravity: 0.1 } 
-                    }] 
-                }, { replaceMerge: ['series'] });
-
-                let stats = nodeStatsMap[clickedId];
-                let wStr = (stats.weight * 100).toFixed(1) + '%';
-                let cStr = stats.avgCorr > 0 ? '+' + stats.avgCorr.toFixed(2) : stats.avgCorr.toFixed(2);
-                let cColor = stats.avgCorr > 0.4 ? '#ff4757' : (stats.avgCorr < -0.15 ? '#00e676' : '#8b949e');
-                
-                if (hud) {
-                    hud.innerHTML = `聚焦：<b>${clickedName}</b> ｜ 資金佔比：<b>${wStr}</b> ｜ 組合連動度：<b style="color:${cColor};">${cStr}</b>`;
-                    hud.classList.add('show');
-                }
-            }
-        } catch (err) {
-            console.error("Galaxy Click Error:", err);
-        }
-    });
-
-    charts.corr.getZr().on('click', function(e) {
-        try {
-            if (!e.target) { 
-                if(charts.corr && !charts.corr.isDisposed()) {
-                    charts.corr.setOption({ 
-                        series: [{ 
-                            id: 'galaxy-series',
-                            data: fullGalaxyNodes, 
-                            links: fullGalaxyLinks,
-                            force: { repulsion: 150, edgeLength: [50, 120], gravity: 0.1 }
-                        }] 
-                    }, { replaceMerge: ['series'] }); 
-                    
-                    if(hud) hud.classList.remove('show');
-                }
-            }
-        } catch (err) {
-            console.error("Galaxy Background Click Error:", err);
-        }
-    });
 }
 
 // ==========================================
@@ -332,14 +139,12 @@ window.currentPerfTotalVal = 0;
 window.switchPerfMode = function(mode, btnElement) {
     window.currentPerfMode = mode;
     
-    // UI 切換
     if (btnElement) {
         const siblings = btnElement.parentElement.querySelectorAll('.mc-btn');
         siblings.forEach(b => b.classList.remove('active'));
         btnElement.classList.add('active');
     }
 
-    // 重新渲染長條圖
     if (window.currentPerfList.length > 0) {
         window.renderPerformanceChart(window.currentPerfList, window.currentPerfTotalVal);
     }
@@ -348,7 +153,6 @@ window.switchPerfMode = function(mode, btnElement) {
 window.renderPerformanceChart = function(list, totalVal) {
     if (!list || list.length === 0) return;
     
-    // 快取資料供切換按鈕使用
     window.currentPerfList = list;
     window.currentPerfTotalVal = totalVal;
 
@@ -357,7 +161,6 @@ window.renderPerformanceChart = function(list, totalVal) {
     let datasets = [];
 
     if (window.currentPerfMode === 'value') {
-        // 模式 A: 總現值佔比 (依現值由大到小排序)
         sortedList = [...list].sort((a,b) => (b.marketValueTWD || 0) - (a.marketValueTWD || 0));
         labels = sortedList.map(i => `${i.name} (${totalVal > 0 ? ((i.marketValueTWD / totalVal) * 100).toFixed(1) : 0}%)`);
         datasets = [
@@ -365,7 +168,6 @@ window.renderPerformanceChart = function(list, totalVal) {
             { label: '現值', data: sortedList.map(i => i.marketValueTWD), backgroundColor: sortedList.map(i => i.marketValueTWD >= i.costTWD ? '#d93025' : '#188038'), barPercentage: 0.7, categoryPercentage: 0.6 }
         ];
     } else {
-        // 模式 B: 當日損益 (依當日損益由大到小排序)
         sortedList = [...list].sort((a,b) => (b.dayChangeTWD || 0) - (a.dayChangeTWD || 0));
         labels = sortedList.map(i => `${i.name} (${totalVal > 0 ? ((i.marketValueTWD / totalVal) * 100).toFixed(1) : 0}%)`);
         datasets = [
@@ -388,7 +190,6 @@ window.renderPerformanceChart = function(list, totalVal) {
             responsive: true, 
             maintainAspectRatio: false, 
             scales: { 
-                // Chart.js 預設不寫死 min/max 時，會自動進行 Auto-Bounding 自適應延伸
                 x: { display: false }, 
                 y: { grid: { display: false }, ticks: { font: { size: 10 } } } 
             }, 
@@ -414,7 +215,6 @@ function renderDashboard(list) {
     if (list.length === 0) {
         document.getElementById('val-total').innerText = fmtMoney(0); document.getElementById('val-cost').innerText = fmtMoney(0); document.getElementById('val-profit').innerText = fmtMoney(0); document.getElementById('val-profit').className = 'stat-main num text-muted'; document.getElementById('val-profit-pct').innerText = '0.00%'; document.getElementById('val-profit-pct').className = 'stat-sub num text-muted'; document.getElementById('val-day-change').innerText = fmtMoney(0); document.getElementById('val-day-change').className = 'stat-main num text-muted'; document.getElementById('val-day-change-pct').innerText = '0.00%'; document.getElementById('val-day-change-pct').className = 'stat-sub num text-muted'; document.getElementById('val-ytd').innerText = fmtMoney(0); document.getElementById('val-ytd').className = 'stat-main num text-muted'; document.getElementById('val-ytd-pct').innerText = '0.00%'; document.getElementById('val-ytd-pct').className = 'stat-sub num text-muted'; document.getElementById('val-cagr').innerText = '0.0%'; document.getElementById('val-cagr').className = 'stat-main num text-muted'; document.getElementById('val-stdev').innerText = '--%'; document.getElementById('val-dividend').innerText = fmtMoney(0); document.getElementById('val-yield').innerText = '0.00%';
         if (charts.alloc) charts.alloc.destroy(); if (charts.perf) charts.perf.destroy(); if (charts.mc) charts.mc.destroy(); if (charts.cf) charts.cf.destroy();
-        if (charts.corr) { charts.corr.dispose(); charts.corr = null; }
         document.getElementById('alloc-legend').innerHTML = '<div style="color: #999; text-align: center; margin-top: 50px;">此市場暫無資料</div>'; updateRiskList([]); return;
     }
     
@@ -463,7 +263,7 @@ function renderDashboard(list) {
     let matrixStdev = typeof calculateMatrixRisk === 'function' ? calculateMatrixRisk(list, totalVal) : 0;
     document.getElementById('val-stdev').innerText = (matrixStdev * 100).toFixed(1) + '%';
     
-    renderCorrelationGraph(list, totalVal);
+    calculateCorrelationStats(list, totalVal);
     updateCharts(list, totalVal, weightedCAGR, matrixStdev); 
     updateRiskList(list);
 }
@@ -489,7 +289,6 @@ function updateRiskList(list) {
 }
 
 function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
-    // 圓餅圖
     const sortedByVal = [...list].sort((a,b) => b.marketValueTWD - a.marketValueTWD); 
     const top5 = sortedByVal.slice(0, 5); 
     const othersVal = sortedByVal.slice(5).reduce((a,b) => a + b.marketValueTWD, 0);
@@ -521,10 +320,8 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
         } 
     });
 
-    // 績效條圖 (已抽離為獨立函式，支援切換模式與動態自適應)
     window.renderPerformanceChart(list, totalVal);
 
-    // 蒙地卡羅
     if (charts.mc) charts.mc.destroy();
     let startVal = isPrivacyMode ? 0 : totalVal / 10000; 
     const years = [-1, 0, 1, 3, 5, 10]; 
@@ -584,9 +381,6 @@ function updateCharts(list, totalVal, portfolioCAGR, portfolioStdev) {
         } 
     });
 
-    // ==========================================
-    // 現金流圖表 (極簡聚合 + 下鑽明細)
-    // ==========================================
     const now = new Date(); 
     const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1); 
     const labelsCF = [], monthKeys = [];
@@ -825,7 +619,7 @@ function renderMCCompareChart() {
 }
 
 // ------------------------------------------
-// 4. 【全新】歷史資產波動回測圖 (ECharts)
+// 4. 歷史資產波動回測圖 (ECharts)
 // ------------------------------------------
 window.renderHistoryPnLChart = function() {
     let container = document.getElementById('historyPnLChart');
@@ -836,7 +630,6 @@ window.renderHistoryPnLChart = function() {
         return;
     }
 
-    // 1. 過濾出有歷史資料快取的持股
     let validHoldings = globalCombinedList.filter(item => window.historicalDataCache && window.historicalDataCache[item.symbol]);
     
     if (validHoldings.length === 0) {
@@ -845,7 +638,6 @@ window.renderHistoryPnLChart = function() {
         return;
     }
 
-    // 清空載入提示
     container.innerHTML = '';
     
     if (charts.historyPnL) {
@@ -853,17 +645,14 @@ window.renderHistoryPnLChart = function() {
     }
     charts.historyPnL = echarts.init(container);
 
-    // 2. 萃取所有交易日期並排序 (解決各國休市不同的聯集對齊問題)
     let dateSet = new Set();
     validHoldings.forEach(item => {
         window.historicalDataCache[item.symbol].forEach(d => {
-            // 取 YYYY-MM-DD
             dateSet.add(d.date.split('T')[0]);
         });
     });
     let sortedDates = Array.from(dateSet).sort();
 
-    // 3. 建立各股票的快速查表 (Date -> ClosePrice)
     let stockPrices = {};
     validHoldings.forEach(item => {
         stockPrices[item.symbol] = {};
@@ -872,7 +661,6 @@ window.renderHistoryPnLChart = function() {
         });
     });
 
-    // 4. 計算每日總市值與盈虧
     let dailyTotalValues = [];
     let totalCost = validHoldings.reduce((sum, item) => sum + (item.costTWD || 0), 0);
     let lastKnownPrice = {};
@@ -882,9 +670,9 @@ window.renderHistoryPnLChart = function() {
         validHoldings.forEach(item => {
             let price = stockPrices[item.symbol][date];
             if (price !== undefined) {
-                lastKnownPrice[item.symbol] = price; // 更新最後已知價格
+                lastKnownPrice[item.symbol] = price; 
             } else {
-                price = lastKnownPrice[item.symbol] || 0; // 若遇休市，沿用前一天價格
+                price = lastKnownPrice[item.symbol] || 0; 
             }
             let exRate = item.market === 'US' ? currentRate : 1;
             dailySum += price * item.shares * exRate;
@@ -892,13 +680,13 @@ window.renderHistoryPnLChart = function() {
         dailyTotalValues.push(dailySum);
     });
 
-    let lineData = []; // 累積總盈虧
-    let barData = [];  // 單日漲跌
+    let lineData = []; 
+    let barData = [];  
     let barColors = [];
 
     for (let i = 0; i < sortedDates.length; i++) {
         let currentVal = dailyTotalValues[i];
-        let cumPnL = currentVal - totalCost; // 當天總市值減去原始總成本
+        let cumPnL = currentVal - totalCost; 
         lineData.push(cumPnL);
 
         if (i === 0) {
@@ -908,12 +696,10 @@ window.renderHistoryPnLChart = function() {
             let prevVal = dailyTotalValues[i - 1];
             let diff = currentVal - prevVal;
             barData.push(diff);
-            // 台灣習慣：大於等於 0 為紅，小於 0 為綠
             barColors.push(diff >= 0 ? '#d93025' : '#188038'); 
         }
     }
 
-    // 5. 設定 ECharts 參數
     let option = {
         animationDuration: 800,
         tooltip: {
@@ -942,7 +728,6 @@ window.renderHistoryPnLChart = function() {
             axisTick: { alignWithLabel: true },
             axisLabel: { 
                 formatter: function (value) {
-                    // 只顯示 MM-DD
                     return value.substring(5);
                 },
                 color: '#999'
@@ -965,7 +750,7 @@ window.renderHistoryPnLChart = function() {
                 name: '單日漲跌',
                 nameTextStyle: { color: '#999', fontSize: 10, padding: [0, 20, 0, 0] },
                 position: 'right',
-                splitLine: { show: false }, // 避免格線混亂
+                splitLine: { show: false }, 
                 axisLabel: { 
                     formatter: (value) => isPrivacyMode ? '***' : Math.round(value/1000) + 'k',
                     color: '#999'
@@ -1021,13 +806,10 @@ window.renderHistoryPnLChart = function() {
     charts.historyPnL.setOption(option);
 };
 
-// 控制回測圖表的快速縮放 (1週/1個月/3個月/1年)
 window.setHistoryZoom = function(days, btnElement) {
     if (!charts.historyPnL) return;
 
-    // UI 切換
     if (btnElement) {
-        // 找到同層的所有按鈕並移除 active
         const siblings = btnElement.parentElement.querySelectorAll('.mc-btn');
         siblings.forEach(b => b.classList.remove('active'));
         btnElement.classList.add('active');
@@ -1036,17 +818,14 @@ window.setHistoryZoom = function(days, btnElement) {
     let option = charts.historyPnL.getOption();
     let totalLen = option.xAxis[0].data.length;
     
-    // 計算百分比
     let startPct = 0;
     if (totalLen > days) {
         startPct = 100 - (days / totalLen * 100);
     }
 
-    // 觸發 ECharts 行為
     charts.historyPnL.dispatchAction({
         type: 'dataZoom',
         start: startPct,
         end: 100
     });
 };
-
