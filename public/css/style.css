@@ -134,18 +134,18 @@ input[type="file"] { display: none; }
 /* ⭐️ 升級版膠囊型分段控制器 (Segmented Control) ⭐️ */
 .mc-toggles { 
     display: inline-flex; 
-    flex-wrap: wrap;          /* 新增：允許按鈕自動折行 */
-    gap: 8px;                 /* 更新：加大間距，讓上下排有呼吸空間 */
-    justify-content: center;  /* 新增：折行後置中對齊 */
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
     background: rgba(135, 142, 150, 0.15); 
-    padding: 6px;             /* 微調：增加一點內邊距讓多排更好看 */
-    border-radius: 16px;      /* 更新：改用 16px 圓角，適應多行高度 */
+    padding: 6px;
+    border-radius: 16px;
     margin-bottom: 15px; 
     align-items: center;
 }
 
 .mc-btn { 
-    flex: 1 1 auto;           /* 新增：允許按鈕根據空間自動伸縮 */
+    flex: 1 1 auto;
     padding: 6px 14px; 
     text-align: center; 
     font-size: 12px; 
@@ -173,7 +173,6 @@ input[type="file"] { display: none; }
     transform: scale(1.02);
 }
 
-/* 針對深度比較報告 (深色背景) 的動態適配 */
 .report-overlay .mc-btn:hover { color: #fff; }
 .report-overlay .mc-btn.active { 
     background: #2C3E50; 
@@ -181,7 +180,6 @@ input[type="file"] { display: none; }
     box-shadow: 0 2px 6px rgba(0,0,0,0.3); 
 }
 
-/* 蒙地卡羅專用按鈕樣式 */
 .mc-btn.full-view { color: #CF9236; font-weight: 700; }
 .mc-btn.full-view.active { background: #CF9236; color: white; }
 
@@ -190,13 +188,12 @@ input[type="file"] { display: none; }
 .legend-item { display: flex; align-items: center; gap: 4px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; }
 
-/* 活體宇宙深色卡片與 HUD 樣式 */
+/* 活體宇宙深色卡片與 HUD 樣式 (保留) */
 .galaxy-card { background-color: #0d1117; border: 1px solid #30363d; position: relative; overflow: hidden; }
 .galaxy-card .card-title { color: #e6edf3; }
 .galaxy-card .card-subtitle { color: #8b949e; }
 .galaxy-header { border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; margin-bottom: 10px; }
 
-/* 極簡 HUD 設計 */
 .galaxy-hud {
     position: absolute; bottom: 0; left: 0; width: 100%;
     background: rgba(26, 37, 47, 0.95); backdrop-filter: blur(5px);
@@ -209,7 +206,7 @@ input[type="file"] { display: none; }
 .galaxy-hud.show { transform: translateY(0); }
 
 /* ==========================================
-   PBI 恐慌抄底雷達專屬樣式 (獨立寬版與手風琴)
+   PBI 恐慌抄底雷達專屬樣式
    ========================================== */
 .btn-pbi {
     width: 100%; 
@@ -258,7 +255,6 @@ input[type="file"] { display: none; }
     100% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0); }
 }
 
-/* PBI 決策彈窗：手風琴清單基礎樣式 */
 .pbi-item {
     border: 1px solid var(--border-light);
     border-radius: 8px;
@@ -275,30 +271,16 @@ input[type="file"] { display: none; }
     transition: background 0.2s;
 }
 
-/* 🎯 達標標的：淡紅色高亮 */
-.pbi-item.pbi-highlight {
-    border-color: #F8D7DA;
-}
-.pbi-item.pbi-highlight .pbi-header {
-    background-color: #FFF3F3;
-}
+.pbi-item.pbi-highlight { border-color: #F8D7DA; }
+.pbi-item.pbi-highlight .pbi-header { background-color: #FFF3F3; }
 
-/* 🎯 未達標標的：灰色弱化 */
-.pbi-item.pbi-dimmed {
-    border-color: var(--border-light);
-}
-.pbi-item.pbi-dimmed .pbi-header {
-    background-color: #F0F2F5;
-}
-.pbi-item.pbi-dimmed .pbi-symbol {
-    color: #7F8C8D;
-}
+.pbi-item.pbi-dimmed { border-color: var(--border-light); }
+.pbi-item.pbi-dimmed .pbi-header { background-color: #F0F2F5; }
+.pbi-item.pbi-dimmed .pbi-symbol { color: #7F8C8D; }
 
 .pbi-header:active { filter: brightness(0.95); }
 .pbi-symbol { font-weight: bold; font-size: 15px; color: var(--text-main); }
-.pbi-badge {
-    font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 6px; color: white;
-}
+.pbi-badge { font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 6px; color: white; }
 .pbi-badge.red { background: #D9534F; }
 .pbi-badge.yellow { background: #F5A623; }
 .pbi-badge.green { background: #20C997; }
@@ -317,8 +299,43 @@ input[type="file"] { display: none; }
     max-height: 400px; 
     border-top: 1px dashed var(--border-light);
 }
-.pbi-factor {
-    display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #f9f9f9; padding-bottom: 4px;
-}
+.pbi-factor { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #f9f9f9; padding-bottom: 4px; }
 .pbi-factor:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 .pbi-factor-val { font-weight: bold; color: var(--text-main); }
+
+/* ==========================================
+   方案 C：AI 每日財富簡報專屬樣式 (Glassmorphism & Controls)
+   ========================================== */
+.ai-glass-card {
+    background: rgba(255, 255, 255, 0.65) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-left: 4px solid var(--primary-dark) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    margin-bottom: 16px;
+    padding: 14px 16px;
+}
+
+.ai-ctrl-btn {
+    background: rgba(0, 0, 0, 0.04);
+    border: none;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ai-ctrl-btn:hover, .ai-ctrl-btn:active {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--primary-dark);
+    transform: scale(1.05);
+}
