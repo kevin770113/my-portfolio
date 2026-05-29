@@ -29,11 +29,13 @@ window.historicalDataCache = {};
 let pbiResults = [];
 let isPbiRunning = false;
 
-// 新增：微任務 A (匯入管線) 的全域暫存
+// 微任務 A (匯入管線) 的全域暫存與對帳變數
 let pendingImportFile = null;
 let pendingImportMarket = '';
 let pendingCSVChunk = '';
 let pendingHeaders = [];
+let pendingExpectedCount = 0;
+let pendingSkippedCount = 0;
 
 // ==========================================
 // 基礎工具與導航 (Utilities & Navigation)
@@ -124,17 +126,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
     document.getElementById('btn-sb-retry').onclick = openSandboxAddStock;
-    document.getElementById('btn-sb-save').onclick = () => {
+    document.getElementById('btn-sb-save').onclick = async () => {
         let shares = parseFloat(document.getElementById('sb-shares').value) || 0; 
         let finalCost = parseFloat(document.getElementById('sb-cost').value) || 0; 
         let symbol = document.getElementById('sb-input-val').value.trim().toUpperCase(); 
         let name = document.getElementById('sb-yahoo-name').innerText;
         if(shares <= 0 || finalCost < 0) { showInfoModal('輸入錯誤', '請輸入大於 0 的股數。', true); return; }
-        let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
         let market = symbol.includes('.TW') || symbol.includes('.TWO') ? 'tw' : 'us'; 
-        sc.portfolio[market].push({ market: market.toUpperCase(), name: name, symbol: symbol, shares: shares, cost: finalCost });
-        document.getElementById('sandbox-add-overlay').classList.remove('active'); 
-        saveInventoryChanges(); 
+        
+        if (activeScenarioId === 'real') {
+            realPortfolio[market].push({ market: market.toUpperCase(), name: name, symbol: symbol, shares: shares, cost: finalCost });
+            localStorage.setItem(`portfolio_${market}`, JSON.stringify(realPortfolio[market]));
+            document.getElementById('sandbox-add-overlay').classList.remove('active'); 
+            openInventoryManager();
+            setLoading(true);
+            await updateFinanceData();
+            setLoading(false);
+            showToast("✅ 已新增至真實持股");
+        } else {
+            let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
+            sc.portfolio[market].push({ market: market.toUpperCase(), name: name, symbol: symbol, shares: shares, cost: finalCost });
+            document.getElementById('sandbox-add-overlay').classList.remove('active'); 
+            saveInventoryChanges(); 
+        }
     };
 
     updateScenarioUI();
@@ -701,6 +715,9 @@ function executeCSVImport(nameCol, sharesCol) {
                     return true; 
                 });
                 
+                pendingExpectedCount = validData.length;
+                pendingSkippedCount = 0;
+                
                 let normalized = pendingImportMarket === 'tw' ? validData.map(row => ({ 
                     market: 'TW', 
                     name: row[nameCol], 
@@ -718,10 +735,25 @@ function executeCSVImport(nameCol, sharesCol) {
                 realPortfolio[pendingImportMarket] = normalized; 
                 localStorage.setItem(`portfolio_${pendingImportMarket}`, JSON.stringify(normalized)); 
                 document.getElementById(`label-${pendingImportMarket}`).innerText = `✅ 匯入 (${normalized.length})`; 
-                showToast(`成功讀取並記憶 ${pendingImportMarket === 'tw' ? '台股' : '美股'} CSV`);
                 
                 if (pendingImportMarket === 'tw') await processDictionary(normalized); 
                 await updateFinanceData();
+                
+                // --- 匯入對帳邏輯 ---
+                const actualList = globalCombinedList.filter(item => item.market.toUpperCase() === pendingImportMarket.toUpperCase());
+                const actualCount = actualList.length;
+                const finalExpected = pendingExpectedCount - pendingSkippedCount;
+                
+                if (finalExpected === actualCount) {
+                    let marketStr = pendingImportMarket === 'tw' ? '台股' : '美股';
+                    let skipStr = pendingSkippedCount > 0 ? ` (${pendingSkippedCount} 筆已略過)` : '';
+                    showToast(`✅ 成功匯入 ${actualCount} 筆${marketStr}${skipStr}，報價同步完成`);
+                } else {
+                    document.getElementById('reconciliation-desc').innerText = `本次匯入應有 ${finalExpected} 檔，但實際僅成功渲染 ${actualCount} 檔。可能有 ${finalExpected - actualCount} 檔標的 API 報價連線失敗或市值為 0。\n\n請前往『庫存校正中心』確認未顯示的標的。`;
+                    const el = document.getElementById('reconciliation-modal-overlay');
+                    el.style.display = 'flex';
+                    setTimeout(() => { el.classList.add('active'); }, 10);
+                }
                 
                 isPbiRunning = false;
                 startPbiScan();
@@ -736,11 +768,31 @@ function executeCSVImport(nameCol, sharesCol) {
     });
 }
 
+window.closeReconciliationModal = function() {
+    const el = document.getElementById('reconciliation-modal-overlay');
+    el.classList.remove('active');
+    setTimeout(() => { el.style.display = 'none'; }, 300);
+};
+
+window.goToInventoryFromReconciliation = function() {
+    closeReconciliationModal();
+    openInventoryManager();
+};
+
 async function processDictionary(twList) {
     const names = twList.map(item => item.name); const res = await fetch('/api/dictionary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ names }) }); const dictMap = await res.json();
     for (let item of twList) { 
-        if (dictMap[item.name]) { item.symbol = dictMap[item.name]; } 
-        else { const input = await askForSymbol(item.name); item.symbol = input; if (input !== 'SKIP') await fetch('/api/dictionary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ update: { name: item.name, symbol: input } }) }); } 
+        if (dictMap[item.name]) { 
+            item.symbol = dictMap[item.name]; 
+        } else { 
+            const input = await askForSymbol(item.name); 
+            item.symbol = input; 
+            if (input !== 'SKIP') {
+                await fetch('/api/dictionary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ update: { name: item.name, symbol: input } }) }); 
+            } else {
+                pendingSkippedCount++;
+            }
+        } 
     }
     localStorage.setItem('portfolio_tw', JSON.stringify(twList));
 }
@@ -780,16 +832,19 @@ window.openInventoryManager = function() {
     
     container.innerHTML = '';
     let portfolio = activeScenarioId === 'real' ? realPortfolio : sandboxScenarios.find(s => s.id === activeScenarioId).portfolio;
-    document.getElementById('btn-inv-add-stock').style.display = activeScenarioId === 'real' ? 'none' : 'inline-block'; 
+    
+    // 全面解鎖新增按鈕
+    document.getElementById('btn-inv-add-stock').style.display = 'inline-block'; 
     document.getElementById('btn-ai-entry').style.display = activeScenarioId === 'real' ? 'none' : 'flex';
-    document.getElementById('inv-modal-title').innerText = activeScenarioId === 'real' ? '⚙️ 庫存校正中心' : '✏️ 試算持股調整'; 
-    document.getElementById('inv-modal-desc').innerText = activeScenarioId === 'real' ? '手動調整真實持股的股數或成本。' : '自由新增或刪除股票，或啟動 AI 智能配置。';
+    document.getElementById('inv-modal-title').innerText = activeScenarioId === 'real' ? '⚙️ 庫存校正中心 (真實持股)' : '✏️ 試算持股調整'; 
+    document.getElementById('inv-modal-desc').innerText = activeScenarioId === 'real' ? '手動調整真實持股的股數或成本，或補齊短少標的。' : '自由新增或刪除股票，或啟動 AI 智能配置。';
 
     const renderList = (market, list) => {
         if(!list || list.length === 0) return; 
         let html = `<div style="font-weight:bold; margin: 15px 0 8px; color: var(--primary-dark); font-size: 15px; border-bottom: 2px solid #eaeaea; padding-bottom: 4px;">${market === 'tw' ? '🇹🇼 台股' : '🇺🇸 美股'}</div>`;
         list.forEach((item, index) => {
-            html += `<div class="inv-item"><div class="inv-item-header"><span>${item.name} <span style="color:#999; font-weight:normal; font-size:12px;">(${item.symbol})</span></span></div>${activeScenarioId !== 'real' ? `<button class="btn-del-stock" onclick="removeSandboxStock('${market}', ${index})">✕</button>` : ''}<div class="inv-input-group"><div class="inv-input-box"><span class="inv-input-label">總持有成本 (原幣)</span><input type="number" class="inv-input-field num" id="inv-cost-${market}-${index}" value="${item.cost}" step="any"></div><div class="inv-input-box"><span class="inv-input-label">目前股數</span><input type="number" class="inv-input-field num" id="inv-shares-${market}-${index}" value="${item.shares}" step="any"></div></div></div>`;
+            // 全面解鎖刪除按鈕
+            html += `<div class="inv-item"><div class="inv-item-header"><span>${item.name} <span style="color:#999; font-weight:normal; font-size:12px;">(${item.symbol})</span></span></div><button class="btn-del-stock" onclick="removeStock('${market}', ${index})">✕</button><div class="inv-input-group"><div class="inv-input-box"><span class="inv-input-label">總持有成本 (原幣)</span><input type="number" class="inv-input-field num" id="inv-cost-${market}-${index}" value="${item.cost}" step="any"></div><div class="inv-input-box"><span class="inv-input-label">目前股數</span><input type="number" class="inv-input-field num" id="inv-shares-${market}-${index}" value="${item.shares}" step="any"></div></div></div>`;
         }); 
         container.innerHTML += html;
     };
@@ -825,9 +880,19 @@ window.saveInventoryChanges = async function() {
     closeInventoryManager(); setLoading(true); try { await updateFinanceData(); showToast("✅ 組合已更新並重新計算"); } catch (err) {} finally { setLoading(false); }
 }
 
-window.removeSandboxStock = function(market, index) { 
-    let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
-    if(sc) { sc.portfolio[market].splice(index, 1); openInventoryManager(); } 
+window.removeStock = async function(market, index) { 
+    if(activeScenarioId === 'real') {
+        realPortfolio[market].splice(index, 1);
+        localStorage.setItem(`portfolio_${market}`, JSON.stringify(realPortfolio[market]));
+        openInventoryManager();
+        setLoading(true);
+        await updateFinanceData();
+        setLoading(false);
+        showToast("✅ 已刪除真實持股標的");
+    } else {
+        let sc = sandboxScenarios.find(s => s.id === activeScenarioId); 
+        if(sc) { sc.portfolio[market].splice(index, 1); saveScenarios(); openInventoryManager(); } 
+    }
 }
 
 window.openSandboxAddStock = function() { 
