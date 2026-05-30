@@ -304,25 +304,26 @@ input[type="file"] { display: none; }
 .pbi-factor-val { font-weight: bold; color: var(--text-main); }
 
 /* ==========================================
-   方案 C：AI 每日財富簡報專屬樣式 (重構版)
+   方案 C：AI 每日財富簡報專屬樣式 (Glassmorphism 修復版)
    ========================================== */
 .ai-glass-card {
-    /* 放棄無效的透明底，改採具尊榮感且柔和的微漸層底色 */
-    background: linear-gradient(135deg, #ffffff 0%, #f4f7f9 100%) !important;
-    border: 1px solid #e2e8f0;
+    background: rgba(255, 255, 255, 0.4) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
     border-left: 4px solid var(--primary-dark) !important;
-    box-shadow: 0 4px 12px rgba(44, 62, 80, 0.06), inset 0 1px 0 rgba(255,255,255,0.8);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.07); /* 柔和深色陰影隔開灰底 */
     margin-bottom: 16px;
     padding: 14px 16px;
     border-radius: 12px;
 }
 
 .ai-ctrl-btn {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.8);
     box-shadow: 0 2px 4px rgba(0,0,0,0.04);
     border-radius: 50%;
-    width: 32px; /* 放大觸控區域 */
+    width: 32px;
     height: 32px;
     display: inline-flex;
     justify-content: center;
@@ -336,9 +337,10 @@ input[type="file"] { display: none; }
 }
 
 .ai-ctrl-btn:hover, .ai-ctrl-btn:active {
-    background: #f7fafc;
+    background: #ffffff;
     color: var(--primary-dark);
     transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
 }
 
 /* 🛡️ 強制單行與截斷，確保收合狀態不溢出撐高卡片 */
