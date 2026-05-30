@@ -581,7 +581,7 @@ function exportGlobalSyncData(realList) {
 }
 
 // ==========================================
-// 方案 C：混合渲染與冷卻快取邏輯 (對齊未來12個月配息與防溢出重構)
+// 方案 C：混合渲染與冷卻快取邏輯 (修復崩潰問題)
 // ==========================================
 function getLocalMarketStatus() {
     const now = new Date();
@@ -616,18 +616,18 @@ async function fetchAIBriefing(force = false) {
     const localStatus = getLocalMarketStatus();
     if (localStatusEl) localStatusEl.innerText = localStatus;
     
-    // 🛡️ 修正：縮小狀態預覽容器只填入本地狀態，徹底根除長篇內容溢出
     if (previewEl) previewEl.innerText = localStatus + " 量化模型簡報已更新完畢。";
     
     const cacheKey = 'ai_briefing_cache_v1';
     const cacheData = localStorage.getItem(cacheKey);
-    const now = Date.now();
+    const nowMs = Date.now();
+    const nowDateObj = new Date(); // 修復：獨立 Date 物件用於時間提取
     const cooldown = 15 * 60 * 1000; 
 
     if (!force && cacheData) {
         try {
             const parsed = JSON.parse(cacheData);
-            if (now - parsed.timestamp < cooldown) {
+            if (nowMs - parsed.timestamp < cooldown) {
                 if (remoteTextEl) remoteTextEl.innerText = parsed.text;
                 return;
             }
@@ -640,7 +640,6 @@ async function fetchAIBriefing(force = false) {
         remoteTextEl.innerHTML = '<span class="ai-loading-text">正在進行量化矩陣演算與生成...</span>';
     }
     
-    // 🛡️ 修正：精確捨去金額數據之小數點
     const totalValue = globalCombinedList.reduce((a, b) => a + (b.marketValueTWD || 0), 0);
     const totalCost = globalCombinedList.reduce((a, b) => a + (b.costTWD || 0), 0);
     const dayChange = globalCombinedList.reduce((a, b) => a + (b.dayChangeTWD || 0), 0);
@@ -655,8 +654,7 @@ async function fetchAIBriefing(force = false) {
 
     let matrixStdev = typeof calculateMatrixRisk === 'function' ? calculateMatrixRisk(globalCombinedList, totalValue) : 0;
     
-    // 🛡️ 修正：嚴格同步「未來 12 個月」的正確配息殖利率矩陣，排除全部歷史配息加總錯誤
-    const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const startMonth = new Date(nowDateObj.getFullYear(), nowDateObj.getMonth() - 11, 1);
     const monthKeys = [];
     for (let i = 0; i < 24; i++) {
         const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
@@ -703,7 +701,7 @@ async function fetchAIBriefing(force = false) {
             
             localStorage.setItem(cacheKey, JSON.stringify({
                 text: aiText,
-                timestamp: now
+                timestamp: nowMs
             }));
         } else {
             throw new Error("解析失敗");
