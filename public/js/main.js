@@ -581,7 +581,7 @@ function exportGlobalSyncData(realList) {
 }
 
 // ==========================================
-// 方案 C：混合渲染與冷卻快取邏輯 (修復崩潰問題)
+// 方案 C：混合渲染與冷卻快取邏輯 (隱形標籤高亮版)
 // ==========================================
 function getLocalMarketStatus() {
     const now = new Date();
@@ -621,14 +621,15 @@ async function fetchAIBriefing(force = false) {
     const cacheKey = 'ai_briefing_cache_v1';
     const cacheData = localStorage.getItem(cacheKey);
     const nowMs = Date.now();
-    const nowDateObj = new Date(); // 修復：獨立 Date 物件用於時間提取
+    const nowDateObj = new Date(); 
     const cooldown = 15 * 60 * 1000; 
 
     if (!force && cacheData) {
         try {
             const parsed = JSON.parse(cacheData);
             if (nowMs - parsed.timestamp < cooldown) {
-                if (remoteTextEl) remoteTextEl.innerText = parsed.text;
+                // 注意：必須使用 innerHTML 以正確渲染 <span class="tag-up"> 等 HTML
+                if (remoteTextEl) remoteTextEl.innerHTML = parsed.text; 
                 return;
             }
         } catch(e) {
@@ -675,15 +676,24 @@ async function fetchAIBriefing(force = false) {
     });
     const dividendYield = totalValue > 0 ? (totalExpectedDividend / totalValue) * 100 : 0;
 
+    // 🛡️ 方案 B 核心：封裝隱形標籤
+    const formatTagged = (val, isPct = false) => {
+        let num = Number(val);
+        let str = isPct ? num.toFixed(2) : Math.round(num).toLocaleString();
+        if (num > 0) return `<up>+${str}</up>`;
+        if (num < 0) return `<down>${str}</down>`;
+        return str;
+    };
+
     try {
         const payload = {
-            totalValueTWD: Math.round(totalValue),
-            dayChangeTWD: Math.round(dayChange),
-            dayChangePct: Number(dayChangePct.toFixed(2)),
-            ytdPct: Number((weightedYTD * 100).toFixed(2)),
-            cagr: Number((weightedCAGR * 100).toFixed(2)),
-            stdev: Number((matrixStdev * 100).toFixed(2)),
-            dividendYield: Number(dividendYield.toFixed(2))
+            totalValueTWD: Math.round(totalValue).toLocaleString(), // 總市值保持中性不標色
+            dayChangeTWD: formatTagged(dayChange, false),
+            dayChangePct: formatTagged(dayChangePct, true),
+            ytdPct: formatTagged(weightedYTD * 100, true),
+            cagr: formatTagged(weightedCAGR * 100, true),
+            stdev: Number((matrixStdev * 100).toFixed(2)).toString(), // 風險與殖利率保持中性
+            dividendYield: Number(dividendYield.toFixed(2)).toString()
         };
 
         const res = await fetch('/api/ai-summary', {
@@ -696,11 +706,16 @@ async function fetchAIBriefing(force = false) {
         const json = await res.json();
         
         if (json.status === 'success' && json.data && json.data.summary) {
-            const aiText = json.data.summary;
-            if (remoteTextEl) remoteTextEl.innerText = aiText;
+            let aiText = json.data.summary;
+            
+            // 替換標籤為前端可見的 HTML 色塊
+            aiText = aiText.replace(/<up>/g, '<span class="tag-up">').replace(/<\/up>/g, '</span>');
+            aiText = aiText.replace(/<down>/g, '<span class="tag-down">').replace(/<\/down>/g, '</span>');
+
+            if (remoteTextEl) remoteTextEl.innerHTML = aiText; // 注意：必須使用 innerHTML
             
             localStorage.setItem(cacheKey, JSON.stringify({
-                text: aiText,
+                text: aiText, // 存入的文字已轉換為 HTML 格式
                 timestamp: nowMs
             }));
         } else {
@@ -1041,7 +1056,7 @@ window.openInventoryManager = function() {
     document.getElementById('btn-inv-add-stock').style.display = 'inline-block'; 
     document.getElementById('btn-ai-entry').style.display = activeScenarioId === 'real' ? 'none' : 'flex';
     document.getElementById('inv-modal-title').innerText = activeScenarioId === 'real' ? '⚙️ 庫存校正中心 (真實持股)' : '✏️ 試算持股調整'; 
-    document.getElementById('inv-modal-desc').innerText = activeScenarioId === 'real' ? '手動調整真實持股的股數或成本，或補齊短少標的。' : '自由新增或刪除股票，或啟動 AI 智能配置。';
+    document.getElementById('inv-modal-desc').innerText = activeScenarioId === 'real' ? '手手動調整真實持股的股數或成本，或補齊短少標的。' : '自由新增或刪除股票，或啟動 AI 智能配置。';
 
     const renderList = (market, list) => {
         if(!list || list.length === 0) return; 
