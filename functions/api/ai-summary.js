@@ -9,32 +9,34 @@ export async function onRequestPost(context) {
             throw new Error("Cloudflare AI 尚未綁定 (Missing env.AI)");
         }
 
+        // 接收前端已格式化（且可能包含 <up>/<down> 標籤）的字串
         const {
-            totalValueTWD = 0,
-            dayChangeTWD = 0,
-            dayChangePct = 0,
-            ytdPct = 0,
-            cagr = 0,
-            stdev = 0,
-            dividendYield = 0
+            totalValueTWD = "0",
+            dayChangeTWD = "0",
+            dayChangePct = "0",
+            ytdPct = "0",
+            cagr = "0",
+            stdev = "0",
+            dividendYield = "0"
         } = body;
 
-        // 系統提示詞：強制扮演冷靜的量化分析師，且絕對禁止使用 Emoji，不包含問候語
+        // 系統提示詞：強制保留標籤、嚴禁 Emoji、保持量化分析師語氣
         const systemPrompt = `You are a senior quantitative analyst providing a daily portfolio briefing in Traditional Chinese (Taiwan).
 Your tone must be highly professional, objective, calm, and analytical.
 CRITICAL RULES:
 1. ABSOLUTELY NO EMOJIS. Do not generate any symbols like 📈, 💰, etc.
 2. Keep the summary between 80 and 100 words.
 3. Do not include time-based greetings (like 早安 or 午安), just start the analysis directly.
-4. Focus on risk management, return metrics, and overall portfolio stability.`;
+4. Focus on risk management, return metrics, and overall portfolio stability.
+5. PRESERVE TAGS: The numerical inputs contain <up>...</up> and <down>...</down> HTML tags. You MUST keep these exact tags surrounding the numbers in your output. Do not remove, alter, or filter these tags.`;
 
         const userPrompt = `請根據以下最新投資組合數據提供量化簡報：
-- 總現值：${totalValueTWD.toLocaleString()} TWD
-- 今日損益：${dayChangeTWD.toLocaleString()} TWD (${dayChangePct.toFixed(2)}%)
-- YTD (今年累計績效)：${ytdPct.toFixed(2)}%
-- CAGR (年化報酬)：${cagr.toFixed(2)}%
-- 組合總風險 (標準差)：${stdev.toFixed(2)}%
-- 預估殖利率：${dividendYield.toFixed(2)}%`;
+- 總現值：${totalValueTWD} TWD
+- 今日損益：${dayChangeTWD} TWD (${dayChangePct}%)
+- YTD (今年累計績效)：${ytdPct}%
+- CAGR (年化報酬)：${cagr}%
+- 組合總風險 (標準差)：${stdev}%
+- 預估殖利率：${dividendYield}%`;
 
         // 呼叫 Cloudflare Workers AI
         const response = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
@@ -43,7 +45,7 @@ CRITICAL RULES:
                 { role: 'user', content: userPrompt }
             ],
             max_tokens: 250,
-            temperature: 0.3 // 較低的溫度以確保專業冷靜的語氣
+            temperature: 0.3
         });
 
         let summaryText = response.response.trim();
