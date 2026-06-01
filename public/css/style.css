@@ -304,21 +304,21 @@ input[type="file"] { display: none; }
 .pbi-factor-val { font-weight: bold; color: var(--text-main); }
 
 /* ==========================================
-   方案 C：AI 每日財富簡報專屬樣式 (淺金漸層與高亮標籤版)
+   方案 C：AI 每日財富簡報專屬樣式 (乾淨無色塊版)
    ========================================== */
 .ai-glass-card {
-    background: linear-gradient(135deg, #FFFDF7 0%, #FFF8E5 100%) !important;
-    border: 1px solid #EBE4D5;
-    border-left: 4px solid #C89B3C !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255,255,255,0.6);
+    background: #ffffff !important;
+    border: 1px solid var(--border-light);
+    border-left: 4px solid var(--primary-dark) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
     margin-bottom: 16px;
     padding: 14px 16px;
     border-radius: 12px;
 }
 
 .ai-ctrl-btn {
-    background: rgba(255, 255, 255, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.8);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
     box-shadow: 0 2px 4px rgba(0,0,0,0.04);
     border-radius: 50%;
     width: 32px;
@@ -335,10 +335,9 @@ input[type="file"] { display: none; }
 }
 
 .ai-ctrl-btn:hover, .ai-ctrl-btn:active {
-    background: #ffffff;
+    background: #f7fafc;
     color: var(--primary-dark);
     transform: scale(1.05);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
 }
 
 #ai-briefing-collapsed {
@@ -349,27 +348,19 @@ input[type="file"] { display: none; }
     width: 100%;
 }
 
-/* 🛡️ 動態漲跌高亮標籤 (台股紅綠配色) */
+/* 🛡️ 動態漲跌高亮標籤 (去底色、留骨架版) */
 .tag-up {
-    background-color: #d93025;
-    color: #ffffff;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: bold;
+    color: #d93025;
+    font-weight: 800;
     font-family: "SF Pro Display", -apple-system, sans-serif;
     display: inline-block;
     margin: 0 2px;
-    box-shadow: 0 1px 2px rgba(217, 48, 37, 0.2);
 }
 
 .tag-down {
-    background-color: #188038;
-    color: #ffffff;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: bold;
+    color: #188038;
+    font-weight: 800;
     font-family: "SF Pro Display", -apple-system, sans-serif;
     display: inline-block;
     margin: 0 2px;
-    box-shadow: 0 1px 2px rgba(24, 128, 56, 0.2);
 }
