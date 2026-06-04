@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { pbiEngine } from './pbiEngine.js';
 
 // ==========================================
 // 🚀 PBI 恐慌抄底雷達 (背景非同步佇列)
@@ -44,15 +45,12 @@ export async function startPbiScan() {
                 if (json.data && Array.isArray(json.data)) {
                     json.data.symbol = symbol; 
                     
-                    // 同步寫入 state 與 window，確保圖表引擎 (chartEngine) 能無縫讀取
                     state.historicalDataCache[symbol] = json.data;
-                    window.historicalDataCache[symbol] = json.data; 
                     
-                    if (window.pbiEngine) {
-                        const result = window.pbiEngine.evaluate(json.data);
-                        if (result) {
-                            state.pbiResults.push(result);
-                        }
+                    // 正確呼叫已模組化的 pbiEngine
+                    const result = pbiEngine.evaluate(json.data);
+                    if (result) {
+                        state.pbiResults.push(result);
                     }
                 }
             }
@@ -89,6 +87,7 @@ export function finishPbiScan() {
     
     renderPbiModalContent();
 
+    // 觸發歷史軌跡圖表重繪
     if (typeof window.renderHistoryPnLChart === 'function') {
         window.renderHistoryPnLChart();
     }
@@ -119,6 +118,7 @@ function renderPbiModalContent() {
         let scoreDisplay = res.error ? '--' : res.score;
         let scoreColor = res.score >= 60 ? 'var(--red-profit)' : '#95A5A6';
 
+        // 綁定 window.togglePbiAccordion 確保 HTML 字串的 onclick 能作用
         html += `
         <div class="pbi-item ${highlightClass}">
             <div class="pbi-header" onclick="window.togglePbiAccordion(${idx})">
