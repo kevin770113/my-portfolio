@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { showToast, setLoading, showInfoModal, parseNum } from './utils.js';
-import { updateFinanceData } from './api.js';
+import { updateFinanceData, searchSymbol } from './api.js';
 import { openInventoryManager } from './inventory.js';
 import { startPbiScan } from './pbiScanner.js';
 
@@ -272,70 +272,128 @@ async function processDictionary(twList) {
     localStorage.setItem('portfolio_tw', JSON.stringify(twList));
 }
 
+// ⭐️ 【核心重構：CSV 智能搜尋與防呆配對狀態機】
 function askForSymbol(stockName) {
     return new Promise((resolve) => {
         setLoading(false); 
         const overlay = document.getElementById('csv-prompt-overlay'); 
         document.getElementById('csv-stock-name').innerText = stockName; 
         document.getElementById('csv-input-val').value = ''; 
+        
+        // 初始狀態：顯示輸入框
         document.getElementById('csv-step-input').style.display = 'block'; 
         document.getElementById('csv-step-loading').style.display = 'none'; 
+        document.getElementById('csv-step-select').style.display = 'none';
         document.getElementById('csv-step-confirm').style.display = 'none';
         overlay.classList.add('active'); 
         
-        let currentTestSymbol = ''; 
         const cleanup = () => { 
             overlay.classList.remove('active'); 
             setLoading(true); 
         };
         
+        // 動作：略過本筆
         document.getElementById('btn-csv-skip').onclick = () => { 
             cleanup(); 
             resolve('SKIP'); 
         };
         
+        // 動作：執行模糊搜尋
         document.getElementById('btn-csv-check').onclick = async () => {
-            const val = document.getElementById('csv-input-val').value.trim().toUpperCase(); 
+            const val = document.getElementById('csv-input-val').value.trim(); 
             if (!val) return;
-            currentTestSymbol = val; 
+            
             document.getElementById('csv-step-input').style.display = 'none'; 
             document.getElementById('csv-step-loading').style.display = 'block';
             
             try {
-                const res = await fetch('/api/finance', { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ symbols: [val] }) 
-                }); 
-                if (!res.ok) throw new Error('HTTP ' + res.status); 
-                const json = await res.json();
-                
-                if (json.status === 'success' && json.data[val] && !json.data[val].error) { 
-                    document.getElementById('csv-yahoo-name').innerText = json.data[val].yahooName || val; 
-                    document.getElementById('csv-yahoo-price').innerText = json.data[val].price; 
-                    document.getElementById('csv-step-loading').style.display = 'none'; 
-                    document.getElementById('csv-step-confirm').style.display = 'block'; 
-                } 
-                else { 
-                    showInfoModal('搜尋失敗', 'Yahoo Finance 查無此代號。', true); 
-                    document.getElementById('csv-step-loading').style.display = 'none'; 
-                    document.getElementById('csv-step-input').style.display = 'block'; 
+                const res = await searchSymbol(val);
+                if (res.status === 'success' && res.data && res.data.length > 0) {
+                    // 渲染選擇清單
+                    const listEl = document.getElementById('csv-search-results');
+                    listEl.innerHTML = '';
+                    res.data.forEach(item => {
+                        const marketFlag = item.market === 'TW' ? '🇹🇼' : (item.market === 'US' ? '🇺🇸' : '🌍');
+                        const row = document.createElement('div');
+                        row.style.cssText = 'padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s;';
+                        row.onmouseover = () => row.style.background = '#e8f4fd';
+                        row.onmouseout = () => row.style.background = 'transparent';
+                        row.innerHTML = `
+                            <div style="text-align: left;">
+                                <div style="font-weight: bold; font-size: 14px; color: var(--primary-dark);">${item.name}</div>
+                                <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">${item.symbol} | ${item.exchange}</div>
+                            </div>
+                            <div style="font-size: 18px;">${marketFlag}</div>
+                        `;
+                        // 點選列表選項
+                        row.onclick = () => selectCSVStock(item.symbol, item.name);
+                        listEl.appendChild(row);
+                    });
+                    document.getElementById('csv-step-loading').style.display = 'none';
+                    document.getElementById('csv-step-select').style.display = 'block';
+                } else {
+                    showInfoModal('搜尋失敗', '查無相關標的，請嘗試其他關鍵字。', true);
+                    document.getElementById('csv-step-loading').style.display = 'none';
+                    document.getElementById('csv-step-input').style.display = 'block';
                 }
-            } catch (e) { 
-                showInfoModal('連線異常', '伺服器無回應。', true); 
-                document.getElementById('csv-step-loading').style.display = 'none'; 
-                document.getElementById('csv-step-input').style.display = 'block'; 
+            } catch (e) {
+                showInfoModal('連線異常', '搜尋伺服器無回應。', true);
+                document.getElementById('csv-step-loading').style.display = 'none';
+                document.getElementById('csv-step-input').style.display = 'block';
+            }
+        };
+
+        // 動作：清單中選擇標的並精確驗證報價
+        const selectCSVStock = async (symbol, name) => {
+            document.getElementById('csv-step-select').style.display = 'none';
+            document.getElementById('csv-step-loading').style.display = 'block';
+
+            try {
+                const res = await fetch('/api/finance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbols: [symbol] })
+                });
+                if (!res.ok) throw new Error('API Error');
+                const json = await res.json();
+
+                if (json.status === 'success' && json.data[symbol] && !json.data[symbol].error) {
+                    document.getElementById('csv-yahoo-name').innerText = name || json.data[symbol].yahooName || symbol;
+                    document.getElementById('csv-yahoo-price').innerText = json.data[symbol].price;
+                    document.getElementById('csv-yahoo-symbol').innerText = symbol; // 暫存精確代號
+                    
+                    document.getElementById('csv-step-loading').style.display = 'none';
+                    document.getElementById('csv-step-confirm').style.display = 'block';
+                } else {
+                    showInfoModal('報價取得失敗', '無法取得該標的最新報價。', true);
+                    document.getElementById('csv-step-loading').style.display = 'none';
+                    document.getElementById('csv-step-select').style.display = 'block';
+                }
+            } catch (e) {
+                showInfoModal('連線異常', '取得報價時發生錯誤。', true);
+                document.getElementById('csv-step-loading').style.display = 'none';
+                document.getElementById('csv-step-select').style.display = 'block';
             }
         };
         
+        // 動作：返回重新搜尋
+        document.getElementById('btn-csv-back-to-input').onclick = () => { 
+            document.getElementById('csv-step-select').style.display = 'none'; 
+            document.getElementById('csv-step-input').style.display = 'block'; 
+            document.getElementById('csv-input-val').focus();
+        }; 
+
+        // 動作：取消登記並退回輸入
         document.getElementById('btn-csv-retry').onclick = () => { 
             document.getElementById('csv-step-confirm').style.display = 'none'; 
             document.getElementById('csv-step-input').style.display = 'block'; 
         }; 
         
+        // 動作：確認儲存並完成配對
         document.getElementById('btn-csv-save').onclick = () => { 
+            const finalSymbol = document.getElementById('csv-yahoo-symbol').innerText.trim().toUpperCase();
             cleanup(); 
-            resolve(currentTestSymbol); 
+            resolve(finalSymbol); 
         };
     });
 }
