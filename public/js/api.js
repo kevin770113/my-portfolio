@@ -161,3 +161,21 @@ export function exportGlobalSyncData(realList) {
         timestamp: new Date().getTime() 
     }));
 }
+
+// ==========================================
+// 全新：智能搜尋 API (Search API)
+// ==========================================
+export async function searchSymbol(keyword) {
+    if (!keyword || !keyword.trim()) return { status: 'empty', data: [] };
+    
+    try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(keyword.trim())}`);
+        if (!res.ok) throw new Error('Search API 連線失敗');
+        const json = await res.json();
+        return json;
+    } catch (e) {
+        console.error('Search error:', e);
+        showToast("⚠️ 搜尋連線異常，請稍後再試");
+        return { status: 'error', data: [] };
+    }
+}
