@@ -151,19 +151,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // 方案 C：還原收合歷史狀態
-    const savedAIState = localStorage.getItem('ai_briefing_collapsed_state');
-    if (savedAIState === 'collapsed') {
-        const content = document.getElementById('ai-briefing-content');
-        const collapsed = document.getElementById('ai-briefing-collapsed');
-        const icon = document.getElementById('ai-toggle-icon');
-        if (content && collapsed && icon) {
-            content.style.display = 'none';
-            collapsed.style.display = 'block';
-            icon.innerText = '＋';
-        }
-    }
-
     updateScenarioUI();
     
     if (realPortfolio.tw.length > 0 || realPortfolio.us.length > 0) { 
@@ -548,10 +535,6 @@ async function updateFinanceData() {
     }
     
     if(typeof renderCurrentView === 'function') renderCurrentView();
-
-    if (typeof fetchAIBriefing === 'function') {
-        fetchAIBriefing();
-    }
 }
 
 function calcPortfolioMetrics(list) {
@@ -579,186 +562,6 @@ function exportGlobalSyncData(realList) {
     });
     localStorage.setItem('sync_invest_data', JSON.stringify({ totalValue: metrics.totalVal, cagr: metrics.cagr, dividendYield: metrics.totalVal > 0 ? (totalExpectedDividend / metrics.totalVal) : 0, timestamp: new Date().getTime() }));
 }
-
-// ==========================================
-// 方案 C：混合渲染與冷卻快取邏輯 (隱形標籤高亮版)
-// ==========================================
-function getLocalMarketStatus() {
-    const now = new Date();
-    const hour = now.getHours();
-    const min = now.getMinutes();
-    const day = now.getDay(); 
-    
-    let greeting = "";
-    if (hour >= 5 && hour < 11) greeting = "早安。";
-    else if (hour >= 11 && hour < 14) greeting = "午安。";
-    else if (hour >= 14 && hour < 18) greeting = "傍晚好。";
-    else greeting = "晚上好。";
-
-    let twStatus = (day >= 1 && day <= 5) ? ((hour * 100 + min >= 900 && hour * 100 + min <= 1330) ? "盤中交易中" : "已收盤") : "週末休市";
-    let usStatus = (day >= 1 && day <= 6) ? (((hour * 100 + min >= 2130) || (hour * 100 + min <= 500)) ? "盤中交易中" : "盤前休市狀態") : "週末休市";
-
-    return `${greeting}目前台北股市${twStatus}；美國股市為${usStatus}。`;
-}
-
-async function fetchAIBriefing(force = false) {
-    const card = document.getElementById('ai-briefing-card');
-    const localStatusEl = document.getElementById('ai-local-status');
-    const remoteTextEl = document.getElementById('ai-remote-text');
-    const previewEl = document.getElementById('ai-collapsed-preview');
-    
-    if (!card || globalCombinedList.length === 0) { 
-        if (card) card.style.display = 'none'; 
-        return; 
-    }
-    card.style.display = 'block';
-    
-    const localStatus = getLocalMarketStatus();
-    if (localStatusEl) localStatusEl.innerText = localStatus;
-    
-    if (previewEl) previewEl.innerText = localStatus + " 量化模型簡報已更新完畢。";
-    
-    const cacheKey = 'ai_briefing_cache_v1';
-    const cacheData = localStorage.getItem(cacheKey);
-    const nowMs = Date.now();
-    const nowDateObj = new Date(); 
-    const cooldown = 15 * 60 * 1000; 
-
-    if (!force && cacheData) {
-        try {
-            const parsed = JSON.parse(cacheData);
-            if (nowMs - parsed.timestamp < cooldown) {
-                // 注意：必須使用 innerHTML 以正確渲染 <span class="tag-up"> 等 HTML
-                if (remoteTextEl) remoteTextEl.innerHTML = parsed.text; 
-                return;
-            }
-        } catch(e) {
-            localStorage.removeItem(cacheKey);
-        }
-    }
-
-    if (remoteTextEl) {
-        remoteTextEl.innerHTML = '<span class="ai-loading-text">正在進行量化矩陣演算與生成...</span>';
-    }
-    
-    const totalValue = globalCombinedList.reduce((a, b) => a + (b.marketValueTWD || 0), 0);
-    const totalCost = globalCombinedList.reduce((a, b) => a + (b.costTWD || 0), 0);
-    const dayChange = globalCombinedList.reduce((a, b) => a + (b.dayChangeTWD || 0), 0);
-    const dayChangePct = totalValue > 0 ? (dayChange / totalValue) * 100 : 0;
-    
-    let weightedYTD = 0, weightedCAGR = 0;
-    globalCombinedList.forEach(i => {
-        let w = totalValue > 0 ? (i.marketValueTWD / totalValue) : 0;
-        if (i.ytd) weightedYTD += i.ytd * w;
-        if (i.cagr) weightedCAGR += i.cagr * w;
-    });
-
-    let matrixStdev = typeof calculateMatrixRisk === 'function' ? calculateMatrixRisk(globalCombinedList, totalValue) : 0;
-    
-    const startMonth = new Date(nowDateObj.getFullYear(), nowDateObj.getMonth() - 11, 1);
-    const monthKeys = [];
-    for (let i = 0; i < 24; i++) {
-        const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
-        monthKeys.push(`${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}`);
-    }
-    
-    let totalExpectedDividend = 0;
-    globalCombinedList.forEach(stock => {
-        if (stock.historicalDividends && stock.historicalDividends.length > 0) {
-            stock.historicalDividends.forEach(div => {
-                const dDate = new Date(div.date * 1000);
-                const futureKey = `${dDate.getFullYear() + 1}-${(dDate.getMonth() + 1).toString().padStart(2, '0')}`;
-                if (monthKeys.indexOf(futureKey) >= 12) {
-                    totalExpectedDividend += div.amount * stock.shares * (stock.market === 'US' ? currentRate : 1);
-                }
-            });
-        }
-    });
-    const dividendYield = totalValue > 0 ? (totalExpectedDividend / totalValue) * 100 : 0;
-
-    // 🛡️ 方案 B 核心：封裝隱形標籤
-    const formatTagged = (val, isPct = false) => {
-        let num = Number(val);
-        let str = isPct ? num.toFixed(2) : Math.round(num).toLocaleString();
-        if (num > 0) return `<up>+${str}</up>`;
-        if (num < 0) return `<down>${str}</down>`;
-        return str;
-    };
-
-    try {
-        const payload = {
-            totalValueTWD: Math.round(totalValue).toLocaleString(), // 總市值保持中性不標色
-            dayChangeTWD: formatTagged(dayChange, false),
-            dayChangePct: formatTagged(dayChangePct, true),
-            ytdPct: formatTagged(weightedYTD * 100, true),
-            cagr: formatTagged(weightedCAGR * 100, true),
-            stdev: Number((matrixStdev * 100).toFixed(2)).toString(), // 風險與殖利率保持中性
-            dividendYield: Number(dividendYield.toFixed(2)).toString()
-        };
-
-        const res = await fetch('/api/ai-summary', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) throw new Error("後端 API 異常");
-        const json = await res.json();
-        
-        if (json.status === 'success' && json.data && json.data.summary) {
-            let aiText = json.data.summary;
-            
-            // 替換標籤為前端可見的 HTML 色塊
-            aiText = aiText.replace(/<up>/g, '<span class="tag-up">').replace(/<\/up>/g, '</span>');
-            aiText = aiText.replace(/<down>/g, '<span class="tag-down">').replace(/<\/down>/g, '</span>');
-
-            if (remoteTextEl) remoteTextEl.innerHTML = aiText; // 注意：必須使用 innerHTML
-            
-            localStorage.setItem(cacheKey, JSON.stringify({
-                text: aiText, // 存入的文字已轉換為 HTML 格式
-                timestamp: nowMs
-            }));
-        } else {
-            throw new Error("解析失敗");
-        }
-    } catch(err) {
-        console.error(err);
-        if (remoteTextEl) remoteTextEl.innerText = "量化分析模組暫時無法連線，請稍後重試。";
-    }
-}
-
-window.toggleAIBriefing = function() {
-    const content = document.getElementById('ai-briefing-content');
-    const collapsed = document.getElementById('ai-briefing-collapsed');
-    const icon = document.getElementById('ai-toggle-icon');
-    
-    if (!content || !collapsed || !icon) return;
-
-    if (content.style.display === 'none') {
-        content.style.display = 'block';
-        collapsed.style.display = 'none';
-        icon.innerText = '✕';
-        localStorage.setItem('ai_briefing_collapsed_state', 'expanded');
-    } else {
-        content.style.display = 'none';
-        collapsed.style.display = 'block';
-        icon.innerText = '＋';
-        localStorage.setItem('ai_briefing_collapsed_state', 'collapsed');
-    }
-};
-
-window.forceRefreshAIBriefing = function() {
-    fetchAIBriefing(true);
-    const content = document.getElementById('ai-briefing-content');
-    const collapsed = document.getElementById('ai-briefing-collapsed');
-    const icon = document.getElementById('ai-toggle-icon');
-    if (content && collapsed && icon) {
-        content.style.display = 'block';
-        collapsed.style.display = 'none';
-        icon.innerText = '✕';
-        localStorage.setItem('ai_briefing_collapsed_state', 'expanded');
-    }
-};
 
 // ==========================================
 // CSV 匯入與字典解析 (AI 智慧解析引擎與防呆)
@@ -1056,7 +859,7 @@ window.openInventoryManager = function() {
     document.getElementById('btn-inv-add-stock').style.display = 'inline-block'; 
     document.getElementById('btn-ai-entry').style.display = activeScenarioId === 'real' ? 'none' : 'flex';
     document.getElementById('inv-modal-title').innerText = activeScenarioId === 'real' ? '⚙️ 庫存校正中心 (真實持股)' : '✏️ 試算持股調整'; 
-    document.getElementById('inv-modal-desc').innerText = activeScenarioId === 'real' ? '手手動調整真實持股的股數或成本，或補齊短少標的。' : '自由新增或刪除股票，或啟動 AI 智能配置。';
+    document.getElementById('inv-modal-desc').innerText = activeScenarioId === 'real' ? '手動調整真實持股的股數或成本，或補齊短少標的。' : '自由新增或刪除股票，或啟動 AI 智能配置。';
 
     const renderList = (market, list) => {
         if(!list || list.length === 0) return; 
