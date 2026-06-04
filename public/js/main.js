@@ -22,7 +22,8 @@ import {
 } from './pbiScanner.js';
 import {
     renderDashboard, renderHistoryPnLChart, switchPerfMode, setHistoryZoom,
-    renderScatterChart, renderMCCompareChart, switchMCDim
+    renderScatterChart, renderMCCompareChart, switchMCDim,
+    showDivDetail, closeDivDetail, openReport, closeReport
 } from './chartEngine.js';
 
 // ==========================================
@@ -72,7 +73,7 @@ window.openPbiModal = openPbiModal;
 window.closePbiModal = closePbiModal;
 window.togglePbiAccordion = togglePbiAccordion;
 
-// 圖表與渲染引擎
+// 圖表與渲染引擎 (完整還原版)
 window.renderDashboard = renderDashboard;
 window.renderHistoryPnLChart = renderHistoryPnLChart;
 window.switchPerfMode = switchPerfMode;
@@ -80,6 +81,10 @@ window.setHistoryZoom = setHistoryZoom;
 window.renderScatterChart = renderScatterChart;
 window.renderMCCompareChart = renderMCCompareChart;
 window.switchMCDim = switchMCDim;
+window.showDivDetail = showDivDetail;
+window.closeDivDetail = closeDivDetail;
+window.openReport = openReport;
+window.closeReport = closeReport;
 
 // 定義主畫面專屬邏輯並掛載
 window.renderCurrentView = function() {
@@ -134,7 +139,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 綁定圖表 RWD 監聽
     window.addEventListener('resize', () => { 
-        if (state.charts.corr) state.charts.corr.resize(); 
+        if (state.charts.alloc) state.charts.alloc.resize(); 
+        if (state.charts.perf) state.charts.perf.resize();
+        if (state.charts.cf) state.charts.cf.resize();
+        if (state.charts.mc) state.charts.mc.resize();
         if (state.charts.historyPnL) state.charts.historyPnL.resize(); 
     });
 
