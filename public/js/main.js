@@ -20,6 +20,10 @@ import {
 import {
     startPbiScan, openPbiModal, closePbiModal, togglePbiAccordion
 } from './pbiScanner.js';
+import {
+    renderDashboard, renderHistoryPnLChart, switchPerfMode, setHistoryZoom,
+    renderScatterChart, renderMCCompareChart, switchMCDim
+} from './chartEngine.js';
 
 // ==========================================
 // 1. 掛載全域函數 (Window Bindings)
@@ -68,18 +72,24 @@ window.openPbiModal = openPbiModal;
 window.closePbiModal = closePbiModal;
 window.togglePbiAccordion = togglePbiAccordion;
 
+// 圖表與渲染引擎
+window.renderDashboard = renderDashboard;
+window.renderHistoryPnLChart = renderHistoryPnLChart;
+window.switchPerfMode = switchPerfMode;
+window.setHistoryZoom = setHistoryZoom;
+window.renderScatterChart = renderScatterChart;
+window.renderMCCompareChart = renderMCCompareChart;
+window.switchMCDim = switchMCDim;
+
 // 定義主畫面專屬邏輯並掛載
 window.renderCurrentView = function() {
     if (state.globalCombinedList.length === 0) { 
-        if(typeof window.renderDashboard === 'function') window.renderDashboard([]); 
+        window.renderDashboard([]); 
         return; 
     }
     let filteredList = state.currentMarketView !== 'ALL' ? state.globalCombinedList.filter(item => item.market === state.currentMarketView) : state.globalCombinedList;
-    if(typeof window.renderDashboard === 'function') window.renderDashboard(filteredList);
-    
-    if(typeof window.renderHistoryPnLChart === 'function') {
-        window.renderHistoryPnLChart();
-    }
+    window.renderDashboard(filteredList);
+    window.renderHistoryPnLChart();
 };
 
 window.togglePrivacy = function() {
@@ -134,8 +144,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         for (let entry of entries) {
             if (entry.contentRect.width > 0 && reportOverlay.style.display === 'block') {
                 if (!state.isReportRendered) { 
-                    if(typeof window.renderScatterChart === 'function') window.renderScatterChart(); 
-                    if(typeof window.renderMCCompareChart === 'function') window.renderMCCompareChart(); 
+                    window.renderScatterChart(); 
+                    window.renderMCCompareChart(); 
                     state.isReportRendered = true; 
                 } else { 
                     if(state.charts.scatter) state.charts.scatter.resize(); 
