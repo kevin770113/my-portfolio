@@ -116,18 +116,29 @@
     <div id="csv-prompt-overlay" class="modal-overlay">
         <div class="custom-prompt-box" style="padding: 20px; text-align: left; height: auto;">
             <div class="prompt-title" style="text-align: center;">⚠️ 發現新股票：<span id="csv-stock-name" style="color: var(--red-profit);"></span></div>
+            
             <div id="csv-step-input">
-                <div class="prompt-desc" style="background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; font-size:12px;">請輸入 <b>Yahoo Finance</b> 完整代號：<br>台股: 2330.TW | 美股: AAPL</div>
-                <input type="text" id="csv-input-val" class="prompt-input" placeholder="例如: 0050.TW" style="text-transform:uppercase;">
-                <div class="prompt-actions"><button class="btn-skip" id="btn-csv-skip">略過本筆</button><button class="btn-confirm" id="btn-csv-check">🔍 驗證</button></div>
+                <div class="prompt-desc" style="background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; font-size:12px;">請輸入 <b>股票代號</b> 或 <b>公司名稱</b> 進行配對：<br>例如: 0050 或 蘋果</div>
+                <input type="text" id="csv-input-val" class="prompt-input" placeholder="例如: 0050" style="text-transform:uppercase;">
+                <div class="prompt-actions"><button class="btn-skip" id="btn-csv-skip">略過本筆</button><button class="btn-confirm" id="btn-csv-check">🔍 搜尋</button></div>
             </div>
-            <div id="csv-step-loading" style="display:none; text-align:center; padding: 20px;"><div class="spinner" style="margin: 0 auto 10px;"></div><div style="font-size: 13px; color: var(--text-muted);">連線驗證中...</div></div>
+            
+            <div id="csv-step-loading" style="display:none; text-align:center; padding: 20px;"><div class="spinner" style="margin: 0 auto 10px;"></div><div style="font-size: 13px; color: var(--text-muted);">連線搜尋中...</div></div>
+            
+            <div id="csv-step-select" style="display:none;">
+                <div class="prompt-desc" style="margin-bottom: 10px; font-size: 12px; color: var(--primary-dark); font-weight: bold;">請選擇正確的標的：</div>
+                <div id="csv-search-results" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px; border: 1px solid #eee; border-radius: 6px; background: #fafafa;">
+                    </div>
+                <div class="prompt-actions"><button class="btn-skip" id="btn-csv-back-to-input">重新搜尋</button></div>
+            </div>
+
             <div id="csv-step-confirm" style="display:none;">
                 <div style="background: #e8f4fd; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #cde4f7; text-align: center;">
                     <div style="font-size: 11px; color: #555;">✅ 系統登記：</div><div id="csv-yahoo-name" style="font-weight: bold; font-size: 15px; margin: 4px 0 8px 0; color: #0056b3;"></div>
                     <div style="font-size: 11px; color: #555;">💰 最新收盤價：</div><div id="csv-yahoo-price" style="font-weight:bold; font-size: 16px;"></div>
+                    <div id="csv-yahoo-symbol" style="display:none;"></div>
                 </div>
-                <div class="prompt-actions"><button class="btn-skip" id="btn-csv-retry">重輸</button><button class="btn-success" id="btn-csv-save">✅ 記住</button></div>
+                <div class="prompt-actions"><button class="btn-skip" id="btn-csv-retry">取消</button><button class="btn-success" id="btn-csv-save">✅ 記住</button></div>
             </div>
         </div>
     </div>
@@ -135,16 +146,27 @@
     <div id="sandbox-add-overlay" class="modal-overlay">
         <div class="custom-prompt-box" style="padding: 20px; text-align: left; height: auto;">
             <div class="prompt-title" style="text-align: center;">🔍 搜尋並新增股票</div>
+            
             <div id="sb-step-input">
-                <div class="prompt-desc" style="background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; font-size:12px;">請輸入 <b>Yahoo Finance</b> 完整代號：</div>
-                <input type="text" id="sb-input-val" class="prompt-input" placeholder="例如: 2330.TW" style="text-transform:uppercase;">
+                <div class="prompt-desc" style="background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; font-size:12px;">請輸入 <b>股票代號</b> 或 <b>公司名稱</b>：</div>
+                <input type="text" id="sb-input-val" class="prompt-input" placeholder="例如: 2330 或 台積電" style="text-transform:uppercase;">
                 <div class="prompt-actions"><button class="btn-skip" onclick="closeSandboxAddStock()">取消</button><button class="btn-confirm" id="btn-sb-check">🔍 搜尋</button></div>
             </div>
-            <div id="sb-step-loading" style="display:none; text-align:center; padding: 20px;"><div class="spinner" style="margin: 0 auto 10px;"></div><div style="font-size: 13px; color: var(--text-muted);">連線驗證中...</div></div>
+            
+            <div id="sb-step-loading" style="display:none; text-align:center; padding: 20px;"><div class="spinner" style="margin: 0 auto 10px;"></div><div style="font-size: 13px; color: var(--text-muted);">連線搜尋中...</div></div>
+            
+            <div id="sb-step-select" style="display:none;">
+                <div class="prompt-desc" style="margin-bottom: 10px; font-size: 12px; color: var(--primary-dark); font-weight: bold;">請選擇精確標的：</div>
+                <div id="sb-search-results" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px; border: 1px solid #eee; border-radius: 6px; background: #fafafa;">
+                    </div>
+                <div class="prompt-actions"><button class="btn-skip" id="btn-sb-back-to-input">重新搜尋</button></div>
+            </div>
+
             <div id="sb-step-confirm" style="display:none;">
                 <div style="background: #e8f4fd; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #cde4f7; text-align: center;">
                     <div style="font-size: 11px; color: #555;">🎯 標的：</div><div id="sb-yahoo-name" style="font-weight: bold; font-size: 15px; margin: 4px 0 8px 0; color: #0056b3;"></div>
                     <div style="font-size: 11px; color: #555;">💰 現價：</div><div id="sb-yahoo-price" style="font-weight:bold; font-size: 16px;"></div>
+                    <div id="sb-yahoo-symbol" style="display:none;"></div>
                 </div>
                 <div style="margin-bottom:15px;">
                     <label style="font-size:11px; color:#555;">總投入成本 (原幣)：</label>
@@ -152,7 +174,7 @@
                     <label style="font-size:11px; color:#555;">預計買入股數 (支援小數點)：</label>
                     <input type="number" id="sb-shares" class="prompt-input" style="height:36px;" placeholder="例如: 1000">
                 </div>
-                <div class="prompt-actions"><button class="btn-skip" id="btn-sb-retry">重搜</button><button class="btn-success" id="btn-sb-save">✅ 加入</button></div>
+                <div class="prompt-actions"><button class="btn-skip" id="btn-sb-retry">取消</button><button class="btn-success" id="btn-sb-save">✅ 加入</button></div>
             </div>
         </div>
     </div>
