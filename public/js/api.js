@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { showToast } from './utils.js';
+import { calculateMatrixRisk } from './mathCore.js';
 
 // ==========================================
 // 數據同步與更新 (Data Sync)
@@ -112,7 +113,7 @@ export async function updateFinanceData() {
         }
     }
     
-    // 渲染觸發器：呼叫全域的 renderCurrentView (之後在 main.js 中掛載)
+    // 觸發全域畫面重繪 (掛載於 window 的橋接器)
     if(typeof window.renderCurrentView === 'function') {
         window.renderCurrentView();
     }
@@ -122,7 +123,7 @@ export function calcPortfolioMetrics(list) {
     let totalVal = list.reduce((s, i) => s + (i.marketValueTWD || 0), 0); 
     if (totalVal === 0) return { totalVal: 0, cagr: 0, stdev: 0 };
     let cagr = list.reduce((s, i) => s + ((i.cagr || 0) * (i.marketValueTWD || 0)), 0) / totalVal; 
-    let stdev = typeof window.calculateMatrixRisk === 'function' ? window.calculateMatrixRisk(list, totalVal) : 0; 
+    let stdev = calculateMatrixRisk(list, totalVal); 
     return { totalVal, cagr, stdev };
 }
 
