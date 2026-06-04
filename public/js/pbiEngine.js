@@ -1,194 +1,165 @@
 // ==========================================
-// 恐慌抄底模型 - 數學決策引擎 (PBI Math Core)
-// 實作 KDJ, AMT, MACD, 240MA 等四大技術因子
+// PBI 恐慌抄底雷達 - 決策核心引擎 (ES Module)
 // ==========================================
 
-window.pbiEngine = {
-    /**
-     * 接收 250 天的歷史 K 線陣列，輸出該標的的最終分數與行動判定
-     * @param {Array} marketData - [{ date, close, high, low, volume }, ...]
-     * @returns {Object} 判定結果與詳細因子得分
-     */
-    evaluate: function(marketData) {
-        const sym = marketData.symbol || 'Unknown';
-        
-        // 【關鍵修復】：如果資料長度不足 (例如新上市 ETF)，依然回傳完整的結構，防止 UI 崩潰
-        if (!marketData || marketData.length < 30) {
-            return {
-                symbol: sym,
-                score: 0,
-                action: '資料不足',
-                badge: '⚪',
-                colorClass: 'text-muted',
-                error: true, // 標記為錯誤/資料不足
-                details: {
-                    kdj: 0,
-                    amt: 0,
-                    macd: 0,
-                    biasMultiplier: 1,
-                    biasPct: '0.00',
-                    closePrice: marketData.length > 0 ? (marketData[marketData.length - 1].close || 0).toFixed(2) : '0.00'
-                }
-            };
+export const pbiEngine = {
+    evaluate: function(data) {
+        // 防呆與資料長度檢查 (至少需要 30 天資料才能計算指標)
+        if (!data || !Array.isArray(data) || data.length < 30) {
+            return { error: true, symbol: data.symbol || 'UNKNOWN', score: 0 };
         }
 
-        const len = marketData.length;
-        const today = marketData[len - 1];
+        // 確保資料依時間排序 (舊到新)
+        const sortedData = [...data].sort((a, b) => a.date - b.date);
+        const closePrices = sortedData.map(d => d.close);
+        const highs = sortedData.map(d => d.high);
+        const lows = sortedData.map(d => d.low);
+        const volumes = sortedData.map(d => d.volume || 0);
+        const currentClose = closePrices[closePrices.length - 1];
 
-        // ==========================================
-        // 因子一：日線 KDJ 深度階梯 (9, 3, 3)
-        // ==========================================
-        let k = 50, d = 50;
-        let kArr = [], dArr = [];
+        // ------------------------------------------
+        // 1. KDJ 深度計算 (9, 3, 3)
+        // ------------------------------------------
+        let kdjScore = 0;
+        const kdj = this.calculateKDJ(highs, lows, closePrices);
+        const lastJ = kdj.j[kdj.j.length - 1];
         
-        for (let i = 0; i < len; i++) {
-            let startIdx = Math.max(0, i - 8); // 近 9 日
-            let windowData = marketData.slice(startIdx, i + 1);
-            let highestHigh = Math.max(...windowData.map(item => item.high || item.close));
-            let lowestLow = Math.min(...windowData.map(item => item.low || item.close));
+        if (lastJ < 0) kdjScore = 30;         // 超賣極值
+        else if (lastJ < 10) kdjScore = 20;   // 嚴重超賣
+        else if (lastJ < 20) kdjScore = 10;   // 輕微超賣
 
-            let rsv = 50;
-            if (highestHigh !== lowestLow) {
-                rsv = ((marketData[i].close - lowestLow) / (highestHigh - lowestLow)) * 100;
-            }
-            k = (2 / 3) * k + (1 / 3) * rsv;
-            d = (2 / 3) * d + (1 / 3) * k;
+        // ------------------------------------------
+        // 2. MACD 動能計算 (12, 26, 9)
+        // ------------------------------------------
+        let macdScore = 0;
+        const macd = this.calculateMACD(closePrices);
+        const lastHist = macd.histogram[macd.histogram.length - 1];
+        const prevHist = macd.histogram[macd.histogram.length - 2];
+        
+        // 判斷柱狀圖收斂 (綠柱縮短或紅柱伸長)
+        if (lastHist > prevHist && lastHist < 0) macdScore = 20; // 綠柱縮短
+        else if (lastHist > 0 && prevHist < 0) macdScore = 30;   // 黃金交叉
+
+        // ------------------------------------------
+        // 3. AMT 量能計算 (5日均量 vs 20日均量)
+        // ------------------------------------------
+        let amtScore = 0;
+        if (volumes.length >= 20) {
+            const vol5 = volumes.slice(-5).reduce((a, b) => a + b, 0) / 5;
+            const vol20 = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+            if (vol5 > vol20 * 1.5) amtScore = 20;      // 爆量
+            else if (vol5 > vol20 * 1.2) amtScore = 10; // 溫和放量
+        }
+
+        // ------------------------------------------
+        // 4. 240MA 防護 (年線乖離率)
+        // ------------------------------------------
+        let biasScore = 0;
+        let biasPct = 0;
+        let biasMultiplier = 1.0;
+        if (closePrices.length >= 240) {
+            const ma240 = closePrices.slice(-240).reduce((a, b) => a + b, 0) / 240;
+            biasPct = ((currentClose - ma240) / ma240) * 100;
             
-            kArr.push(k);
-            dArr.push(d);
-        }
-
-        const yesterdayK = kArr[len - 2];
-        const yesterdayD = dArr[len - 2];
-        const todayK = kArr[len - 1];
-        const todayD = dArr[len - 1];
-
-        let scoreKDJ = 0;
-        // 觸發大前提：低檔黃金交叉
-        if (yesterdayK < 25 && yesterdayK < yesterdayD && todayK > todayD) {
-            if (yesterdayK < 10) scoreKDJ = 40;
-            else if (yesterdayK < 15) scoreKDJ = 30;
-            else if (yesterdayK < 20) scoreKDJ = 20;
-        }
-
-        // ==========================================
-        // 因子二：日線 AMT 量能階梯 (20MA Volume)
-        // ==========================================
-        let volSum = 0;
-        let volDays = Math.min(20, len);
-        for (let i = len - volDays; i < len; i++) {
-            volSum += (marketData[i].volume || 0);
-        }
-        let vol20MA = volSum / volDays;
-        let volRatio = vol20MA > 0 ? (today.volume / vol20MA) : 0;
-
-        let scoreAMT = 0;
-        if (volRatio >= 2.5) scoreAMT = 40;
-        else if (volRatio >= 2.0) scoreAMT = 30;
-        else if (volRatio >= 1.5) scoreAMT = 15;
-
-        // ==========================================
-        // 因子三：日線 MACD 動能收斂 (12, 26, 9)
-        // ==========================================
-        const calcEMA = (data, period) => {
-            let multiplier = 2 / (period + 1);
-            let ema = data[0].close;
-            let emaArr = [ema];
-            for (let i = 1; i < data.length; i++) {
-                ema = (data[i].close - ema) * multiplier + ema;
-                emaArr.push(ema);
+            // 負乖離過大，觸發抄底倍數
+            if (biasPct < -20) {
+                biasScore = 20;
+                biasMultiplier = 2.0;
+            } else if (biasPct < -10) {
+                biasScore = 10;
+                biasMultiplier = 1.5;
             }
-            return emaArr;
-        };
-
-        const ema12 = calcEMA(marketData, 12);
-        const ema26 = calcEMA(marketData, 26);
-        let difArr = [];
-        for (let i = 0; i < len; i++) {
-            difArr.push(ema12[i] - ema26[i]);
+        } else {
+            // 如果上市未滿 240 天，用 60MA 替代，但不給加成倍數
+            const days = Math.min(60, closePrices.length);
+            const ma = closePrices.slice(-days).reduce((a, b) => a + b, 0) / days;
+            biasPct = ((currentClose - ma) / ma) * 100;
         }
 
-        let dea = difArr[0];
-        let deaArr = [dea];
-        let deaMultiplier = 2 / (9 + 1);
-        for (let i = 1; i < len; i++) {
-            dea = (difArr[i] - dea) * deaMultiplier + dea;
-            deaArr.push(dea);
-        }
+        // ------------------------------------------
+        // 總分計算與標籤判定
+        // ------------------------------------------
+        let rawScore = kdjScore + macdScore + amtScore + biasScore;
+        let finalScore = Math.min(100, Math.round(rawScore * biasMultiplier));
 
-        let oscArr = [];
-        for (let i = 0; i < len; i++) {
-            oscArr.push(difArr[i] - deaArr[i]);
-        }
-
-        let scoreMACD = 0;
-        if (len >= 4) {
-            const oscT3 = oscArr[len - 4]; // 大前天
-            const oscT2 = oscArr[len - 3]; // 前天
-            const oscT1 = oscArr[len - 2]; // 昨日
-            const oscT0 = oscArr[len - 1]; // 本日
-
-            // 綠柱連續兩天縮短
-            if (oscT3 < oscT2 && oscT2 < oscT1 && oscT0 > oscT1 && oscT0 < 0) {
-                scoreMACD = 30;
-            }
-        }
-
-        // ==========================================
-        // 因子四：240MA 乖離率防護網 (BIAS)
-        // ==========================================
-        let maDays = Math.min(240, len);
-        let closeSum = 0;
-        for (let i = len - maDays; i < len; i++) {
-            closeSum += marketData[i].close;
-        }
-        let ma240 = closeSum / maDays;
-        let bias = ma240 > 0 ? (today.close - ma240) / ma240 : 0;
-
-        let multiplierBIAS = 1.0;
-        if (bias > 0.15) multiplierBIAS = 0.7;        // 高檔過熱
-        else if (bias < -0.10) multiplierBIAS = 1.5;  // 史詩級超跌
-        else if (bias < 0.00) multiplierBIAS = 1.2;   // 一般破年線
-
-        // ==========================================
-        // 最終分數與評級結算
-        // ==========================================
-        let baseScore = scoreKDJ + scoreAMT + scoreMACD;
-        let finalScore = Math.round(baseScore * multiplierBIAS);
-
-        let action = '觀望';
         let badge = '⚪';
-        let colorClass = 'text-muted'; 
+        let action = '無訊號';
+        let colorClass = '';
 
-        if (finalScore >= 90) { 
-            action = '大買'; 
-            badge = '🔴'; 
-            colorClass = 'text-red';
-        } else if (finalScore >= 75) { 
-            action = '買入'; 
-            badge = '🟡'; 
-            colorClass = 'text-warning'; 
+        if (finalScore >= 80) { 
+            badge = '🔴'; action = '強力買入'; colorClass = 'text-red'; 
         } else if (finalScore >= 60) { 
-            action = '小買'; 
-            badge = '🟢'; 
-            colorClass = 'text-green';
+            badge = '🟡'; action = '分批佈局'; colorClass = 'text-red'; 
+        } else if (finalScore >= 40) { 
+            badge = '🟢'; action = '持有觀望'; colorClass = 'text-green'; 
         }
 
         return {
-            symbol: sym,
-            score: finalScore,
-            action: action,
-            badge: badge,
-            colorClass: colorClass,
             error: false,
+            symbol: data.symbol,
+            score: finalScore,
+            badge: badge,
+            action: action,
+            colorClass: colorClass,
             details: {
-                kdj: scoreKDJ,
-                amt: scoreAMT,
-                macd: scoreMACD,
-                biasMultiplier: multiplierBIAS,
-                biasPct: (bias * 100).toFixed(2),
-                closePrice: today.close.toFixed(2)
+                closePrice: currentClose.toFixed(2),
+                kdj: kdjScore,
+                macd: macdScore,
+                amt: amtScore,
+                biasPct: biasPct.toFixed(1),
+                biasMultiplier: biasMultiplier
             }
         };
+    },
+
+    calculateKDJ: function(highs, lows, closes, n = 9, m1 = 3, m2 = 3) {
+        let k = [], d = [], j = [];
+        for (let i = 0; i < closes.length; i++) {
+            if (i < n - 1) {
+                k.push(50); d.push(50); j.push(50);
+                continue;
+            }
+            const currentHighs = highs.slice(i - n + 1, i + 1);
+            const currentLows = lows.slice(i - n + 1, i + 1);
+            const hn = Math.max(...currentHighs);
+            const ln = Math.min(...currentLows);
+            
+            let rsv = 50;
+            if (hn !== ln) {
+                rsv = ((closes[i] - ln) / (hn - ln)) * 100;
+            }
+            
+            const prevK = k[i - 1];
+            const prevD = d[i - 1];
+            
+            const currentK = (2/3) * prevK + (1/3) * rsv;
+            const currentD = (2/3) * prevD + (1/3) * currentK;
+            const currentJ = 3 * currentK - 2 * currentD;
+            
+            k.push(currentK);
+            d.push(currentD);
+            j.push(currentJ);
+        }
+        return { k, d, j };
+    },
+
+    calculateMACD: function(closes, short = 12, long = 26, mid = 9) {
+        const calculateEMA = (data, period) => {
+            let k = 2 / (period + 1);
+            let emaData = [data[0]];
+            for (let i = 1; i < data.length; i++) {
+                emaData.push(data[i] * k + emaData[i - 1] * (1 - k));
+            }
+            return emaData;
+        };
+
+        const shortEMA = calculateEMA(closes, short);
+        const longEMA = calculateEMA(closes, long);
+        
+        const dif = shortEMA.map((val, idx) => val - longEMA[idx]);
+        const dea = calculateEMA(dif, mid);
+        const histogram = dif.map((val, idx) => (val - dea[idx]) * 2);
+
+        return { dif, dea, histogram };
     }
 };
