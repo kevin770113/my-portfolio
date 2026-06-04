@@ -4,7 +4,7 @@ import {
     openScenPrompt, closeScenPrompt, showInfoModal, 
     setLoading, generateId 
 } from './utils.js';
-import { updateFinanceData } from './api.js';
+import { updateFinanceData, searchSymbol } from './api.js';
 
 // ==========================================
 // 劇本切換系統 (Scenario Management)
@@ -193,10 +193,15 @@ export async function removeStock(market, index) {
     }
 }
 
+// ==========================================
+// 全新：智能搜尋與新增管線 (Search & Add Pipeline)
+// ==========================================
 export function openSandboxAddStock() { 
     closeInventoryManager(); 
     const overlay = document.getElementById('sandbox-add-overlay'); 
     document.getElementById('sb-step-input').style.display = 'block'; 
+    document.getElementById('sb-step-loading').style.display = 'none'; 
+    document.getElementById('sb-step-select').style.display = 'none'; 
     document.getElementById('sb-step-confirm').style.display = 'none'; 
     document.getElementById('sb-input-val').value = ''; 
     overlay.classList.add('active'); 
@@ -205,6 +210,128 @@ export function openSandboxAddStock() {
 export function closeSandboxAddStock() { 
     document.getElementById('sandbox-add-overlay').classList.remove('active'); 
     openInventoryManager(); 
+}
+
+export function resetSandboxToInput() {
+    document.getElementById('sb-step-loading').style.display = 'none';
+    document.getElementById('sb-step-select').style.display = 'none';
+    document.getElementById('sb-step-confirm').style.display = 'none';
+    document.getElementById('sb-step-input').style.display = 'block';
+    document.getElementById('sb-input-val').value = '';
+    document.getElementById('sb-input-val').focus();
+}
+
+export async function submitSandboxSearch() {
+    const val = document.getElementById('sb-input-val').value.trim();
+    if (!val) return;
+
+    document.getElementById('sb-step-input').style.display = 'none';
+    document.getElementById('sb-step-loading').style.display = 'block';
+
+    try {
+        const res = await searchSymbol(val);
+        if (res.status === 'success' && res.data && res.data.length > 0) {
+            renderSandboxSearchResults(res.data);
+        } else {
+            showInfoModal('搜尋失敗', '查無相關標的，請嘗試其他關鍵字。', true);
+            resetSandboxToInput();
+        }
+    } catch (e) {
+        showInfoModal('連線異常', '搜尋伺服器無回應。', true);
+        resetSandboxToInput();
+    }
+}
+
+function renderSandboxSearchResults(data) {
+    const listEl = document.getElementById('sb-search-results');
+    listEl.innerHTML = '';
+
+    data.forEach(item => {
+        const marketFlag = item.market === 'TW' ? '🇹🇼' : (item.market === 'US' ? '🇺🇸' : '🌍');
+        const row = document.createElement('div');
+        row.style.cssText = 'padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s;';
+        row.onmouseover = () => row.style.background = '#e8f4fd';
+        row.onmouseout = () => row.style.background = 'transparent';
+        row.innerHTML = `
+            <div style="text-align: left;">
+                <div style="font-weight: bold; font-size: 14px; color: var(--primary-dark);">${item.name}</div>
+                <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">${item.symbol} | ${item.exchange}</div>
+            </div>
+            <div style="font-size: 18px;">${marketFlag}</div>
+        `;
+        row.onclick = () => window.selectSandboxStock(item.symbol, item.name);
+        listEl.appendChild(row);
+    });
+
+    document.getElementById('sb-step-loading').style.display = 'none';
+    document.getElementById('sb-step-select').style.display = 'block';
+}
+
+export async function selectSandboxStock(symbol, name) {
+    document.getElementById('sb-step-select').style.display = 'none';
+    document.getElementById('sb-step-loading').style.display = 'block';
+
+    try {
+        const res = await fetch('/api/finance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbols: [symbol] })
+        });
+        if(!res.ok) throw new Error('API Error');
+        const json = await res.json();
+
+        if (json.status === 'success' && json.data[symbol] && !json.data[symbol].error) {
+            const data = json.data[symbol];
+            state.stockMapCache[symbol] = data;
+
+            document.getElementById('sb-yahoo-name').innerText = name || data.yahooName || symbol;
+            document.getElementById('sb-yahoo-price').innerText = data.price;
+            document.getElementById('sb-yahoo-symbol').innerText = symbol; 
+
+            document.getElementById('sb-shares').value = '';
+            document.getElementById('sb-cost').value = '';
+
+            document.getElementById('sb-step-loading').style.display = 'none';
+            document.getElementById('sb-step-confirm').style.display = 'block';
+        } else {
+            showInfoModal('報價取得失敗', '無法取得該標的最新報價，可能代號異常。', true);
+            document.getElementById('sb-step-loading').style.display = 'none';
+            document.getElementById('sb-step-select').style.display = 'block';
+        }
+    } catch (e) {
+        showInfoModal('連線異常', '取得報價時發生錯誤。', true);
+        document.getElementById('sb-step-loading').style.display = 'none';
+        document.getElementById('sb-step-select').style.display = 'block';
+    }
+}
+
+export async function saveSandboxStock() {
+    let shares = parseFloat(document.getElementById('sb-shares').value) || 0;
+    let finalCost = parseFloat(document.getElementById('sb-cost').value) || 0;
+    let symbol = document.getElementById('sb-yahoo-symbol').innerText.trim().toUpperCase();
+    let name = document.getElementById('sb-yahoo-name').innerText;
+
+    if(shares <= 0 || finalCost < 0) {
+        showInfoModal('輸入錯誤', '請輸入大於 0 的股數。', true);
+        return;
+    }
+    let market = symbol.includes('.TW') || symbol.includes('.TWO') ? 'tw' : 'us';
+
+    if (state.activeScenarioId === 'real') {
+        state.realPortfolio[market].push({ market: market.toUpperCase(), name: name, symbol: symbol, shares: shares, cost: finalCost });
+        localStorage.setItem(`portfolio_${market}`, JSON.stringify(state.realPortfolio[market]));
+        document.getElementById('sandbox-add-overlay').classList.remove('active');
+        openInventoryManager();
+        setLoading(true);
+        await updateFinanceData();
+        setLoading(false);
+        showToast("✅ 已新增至真實持股");
+    } else {
+        let sc = state.sandboxScenarios.find(s => s.id === state.activeScenarioId);
+        sc.portfolio[market].push({ market: market.toUpperCase(), name: name, symbol: symbol, shares: shares, cost: finalCost });
+        document.getElementById('sandbox-add-overlay').classList.remove('active');
+        saveInventoryChanges();
+    }
 }
 
 // ==========================================
