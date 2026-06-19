@@ -3,5 +3,12 @@
   "version": "1.0.0",
   "dependencies": {
     "@vercel/kv": "^3.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.95.0"
+  },
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   }
 }
